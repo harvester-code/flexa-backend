@@ -4,7 +4,7 @@ from fastapi import File, HTTPException, UploadFile, status
 from PIL import Image, ImageOps
 from supabase import Client
 
-from src.database import supabase_public_clinet, aws_s3_client
+from src.database import aws_s3_client, supabase_public_clinet
 from src.profiles.schema import InUserInfo
 
 supabase: Client = supabase_public_clinet()

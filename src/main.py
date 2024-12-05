@@ -3,11 +3,11 @@ from fastapi import APIRouter, FastAPI
 from fastapi.responses import PlainTextResponse
 from starlette.middleware.cors import CORSMiddleware
 
-from src.users.router import users_router
 from src.admins.router import admins_router
-from src.profiles.router import profiles_router
 from src.auth.router import auth_router
 from src.managements.router import managements_router
+from src.profiles.router import profiles_router
+from src.users.router import users_router
 
 router = APIRouter()
 app = FastAPI()

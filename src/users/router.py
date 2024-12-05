@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
-from src.users.schema import UserInfo, RequestAccess
+from src.users.schema import RequestAccess, UserInfo
 from src.users.service import UserService
 
 users_router = APIRouter()

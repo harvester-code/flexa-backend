@@ -1,7 +1,7 @@
 from supabase import Client
-from src.database import supabase_auth_client
-from src.auth.schema import UpdatePassword
 
+from src.auth.schema import UpdatePassword
+from src.database import supabase_auth_client
 
 supabase: Client = supabase_auth_client()
 

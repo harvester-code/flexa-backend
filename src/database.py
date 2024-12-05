@@ -1,6 +1,7 @@
 import os
-from supabase import create_client
+
 from boto3 import client
+from supabase import create_client
 
 
 def supabase_public_clinet():

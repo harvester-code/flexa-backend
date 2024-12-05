@@ -1,7 +1,7 @@
 from supabase import Client
+
 from src.database import supabase_public_clinet
 from src.managements.schema import UpdateFileName
-
 
 supabase: Client = supabase_public_clinet()
 
