@@ -24,10 +24,11 @@ app.add_middleware(
 async def root():
     return {"message": "Hello"}
 
+API_PREFIX = "/api/v1"
 
 app.include_router(router)
-app.include_router(users_router, prefix="/api/v1", tags=["Users"])
-app.include_router(admins_router, prefix="/api/v1", tags=["Admins"])
-app.include_router(profiles_router, prefix="/api/v1", tags=["Profiles"])
-app.include_router(auth_router, prefix="/api/v1", tags=["Auth"])
-app.include_router(managements_router, prefix="/api/v1", tags=["Managements"])
+app.include_router(users_router, prefix=API_PREFIX, tags=["Users"])
+app.include_router(admins_router, prefix=API_PREFIX, tags=["Admins"])
+app.include_router(profiles_router, prefix=API_PREFIX, tags=["Profiles"])
+app.include_router(auth_router, prefix=API_PREFIX, tags=["Auth"])
+app.include_router(managements_router, prefix=API_PREFIX, tags=["Managements"])
