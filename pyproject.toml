@@ -15,6 +15,7 @@ pillow = "^11.0.0"
 pydantic = "^2.9.2"
 python-multipart = "^0.0.17"
 supabase = "^2.10.0"
+art = "^6.4"
 
 
 [build-system]

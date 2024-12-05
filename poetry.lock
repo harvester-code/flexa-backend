@@ -154,6 +154,20 @@ test = ["anyio[trio]", "coverage[toml] (>=7)", "exceptiongroup (>=1.2.0)", "hypo
 trio = ["trio (>=0.26.1)"]
 
 [[package]]
+name = "art"
+version = "6.4"
+description = "ASCII Art Library For Python"
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "art-6.4-py3-none-any.whl", hash = "sha256:4e58b6f0a0bb8574efb311eff24bdd28bf889c0c526ccbbb5410c644340a301c"},
+    {file = "art-6.4.tar.gz", hash = "sha256:417fea674bff8cea7ed058291ad1b81a6032dfce5152f28e629fa4a798a2c14c"},
+]
+
+[package.extras]
+dev = ["bandit (>=1.5.1)", "coverage (>=4.1)", "pydocstyle (>=3.0.0)", "vulture (>=1.0)"]
+
+[[package]]
 name = "attrs"
 version = "24.2.0"
 description = "Classes Without Boilerplate"
@@ -1985,4 +1999,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "41f0629ca48215da6e3491f704c76f8832b5da18fac4202b2bd3a6d09ef021e2"
+content-hash = "1907fd7153f51b61e83140abdda9f9ec571307777575c3d79b81d5b071a13c60"

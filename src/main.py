@@ -1,6 +1,6 @@
-# from typing import Union
-# from pydantic import BaseModel
+from art import text2art
 from fastapi import APIRouter, FastAPI
+from fastapi.responses import PlainTextResponse
 from starlette.middleware.cors import CORSMiddleware
 
 from src.users.router import users_router
@@ -20,9 +20,10 @@ app.add_middleware(
 )
 
 
-@router.get("/")
+@router.get("/", response_class=PlainTextResponse)
 async def root():
-    return {"message": "Hello"}
+    return text2art("FLEXA WAITFREE AIRPORT")
+
 
 API_PREFIX = "/api/v1"
 
