@@ -35,9 +35,10 @@ def get_snowflake_session():
     user = os.getenv("SNOWFLAKE_USERNAME")
     password = os.getenv("SNOWFLAKE_PASSWORD")
     account_identifier = os.getenv("SNOWFLAKE_ACCOUNT_IDENTIFIER")
-    database = "HAYDEN_DB"
-    schema = "PLAYGROUND"
+
     warehouse = "COMPUTE_WH"
+    database = "CIRIUMSKY"
+    schema = "PUBLIC"
 
     url = f"snowflake://{user}:{password}@{account_identifier}/{database}/{schema}?warehouse={warehouse}"
 
