@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends
+
 from src.profiles.schema import (
     FullResponseModel,
     InUserInfo,
-    OutUserInfo,
     OutUserHistory,
+    OutUserInfo,
 )
 from src.profiles.service import ProfilesService
 

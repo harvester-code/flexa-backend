@@ -1,10 +1,12 @@
-from fastapi import APIRouter, HTTPException
 from typing import Optional
+
+from fastapi import APIRouter, HTTPException
+
 from src.admins.schema import (
     FullResponseModel,
     OutRequestUserInfo,
-    RequestUser,
     OutUserManagement,
+    RequestUser,
 )
 from src.admins.service import AdminService
 
