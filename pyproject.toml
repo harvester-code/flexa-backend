@@ -18,6 +18,8 @@ python-multipart = "^0.0.17"
 snowflake-sqlalchemy = "^1.7.1"
 sqlmodel = "^0.0.22"
 supabase = "^2.10.0"
+snowflake-connector-python = "^3.12.4"
+pandas = "^2.2.3"
 
 
 [build-system]

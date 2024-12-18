@@ -9,6 +9,14 @@ airports_router = APIRouter()
 
 
 @airports_router.get("/airports/general-declarations")
-async def fetch_general_declarations(session: Session = Depends(get_snowflake_session)):
-    result = await run_in_threadpool(AirportService.fetch_general_declarations, session)
-    return {"data": result}
+async def fetch_general_declarations(
+    date: str,
+    airport: str,
+    flight_io: str = "departure",
+    session: Session = Depends(get_snowflake_session),
+):
+    # TODO: 아래 방법이 맞는지 확인하기
+    data = await run_in_threadpool(
+        AirportService.fetch_general_declarations, date, airport, flight_io, session
+    )
+    return data

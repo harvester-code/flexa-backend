@@ -1,7 +1,8 @@
 import os
 
 from boto3 import client
-from sqlmodel import Session, create_engine
+from snowflake.sqlalchemy import URL
+from sqlalchemy import create_engine
 from supabase import create_client
 
 
@@ -32,18 +33,15 @@ def aws_s3_client():
 
 
 def get_snowflake_session():
-    user = os.getenv("SNOWFLAKE_USERNAME")
-    password = os.getenv("SNOWFLAKE_PASSWORD")
-    account_identifier = os.getenv("SNOWFLAKE_ACCOUNT_IDENTIFIER")
+    engine = create_engine(
+        URL(
+            account=os.getenv("SNOWFLAKE_ACCOUNT_IDENTIFIER"),
+            user=os.getenv("SNOWFLAKE_USERNAME"),
+            password=os.getenv("SNOWFLAKE_PASSWORD"),
+            database="CIRIUMSKY",
+            schema="PUBLIC",
+            warehouse="COMPUTE_WH",
+        )
+    )
 
-    warehouse = "COMPUTE_WH"
-    database = "CIRIUMSKY"
-    schema = "PUBLIC"
-
-    url = f"snowflake://{user}:{password}@{account_identifier}/{database}/{schema}?warehouse={warehouse}"
-
-    # TODO: 전역 변수로 생성하는 방법 알아보기
-    engine = create_engine(url)
-
-    with Session(engine) as session:
-        yield session
+    return engine

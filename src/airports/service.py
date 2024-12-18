@@ -1,37 +1,31 @@
-from typing import Annotated, List
+from json import loads
+from typing import Annotated
 
+import pandas as pd
 from fastapi import Depends
-from sqlmodel import Session, col, select
+from sqlalchemy import Engine
 
-from src.airports.model import GeneralDeclarationDeparture
+from src.airports.queries import SELECT_AIRPORT_ARRIVAL, SELECT_AIRPORT_DEPARTURE
 from src.database import get_snowflake_session
 
-SessionDep = Annotated[Session, Depends(get_snowflake_session)]
+SessionDep = Annotated[Engine, Depends(get_snowflake_session)]
 
 
 class AirportService:
     @staticmethod
-    def fetch_general_declarations(
-        session: SessionDep,
-    ) -> List[GeneralDeclarationDeparture]:
+    def fetch_general_declarations(date, airport, flight_io, session: SessionDep):
+        with session.connect() as connection:
+            if flight_io == "arrival":
+                df = pd.read_sql(
+                    SELECT_AIRPORT_ARRIVAL.format(airport=airport, date=date),
+                    connection,
+                )
 
-        general_declarations = session.exec(
-            select(GeneralDeclarationDeparture)
-            .where(col(GeneralDeclarationDeparture.DEPARTURE_AIRPORT_ID) == "ICN")
-            .where(col(GeneralDeclarationDeparture.FLIGHT_DATE_UTC) == "2024-12-17")
-        ).all()
+            if flight_io == "departure":
+                df = pd.read_sql(
+                    SELECT_AIRPORT_DEPARTURE.format(airport=airport, date=date),
+                    connection,
+                )
 
-        return general_declarations
-
-    def show_up(session: SessionDep):
-        # =================================
-        data = session.exec(
-            select(GeneralDeclarationDeparture)
-            .where(col(GeneralDeclarationDeparture.DEPARTURE_AIRPORT_ID) == "ICN")
-            .where(col(GeneralDeclarationDeparture.FLIGHT_DATE_UTC) == "2024-12-17")
-        ).all()
-        # =================================
-
-        # =================================
-        # NOTE: SHOW UP
-        pass
+        result = loads(df.to_json(orient="records"))
+        return result
