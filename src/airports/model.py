@@ -1,6 +1,7 @@
 from datetime import date
 
 from sqlmodel import Field, SQLModel
+from typing import List, Dict, Optional, Union
 
 
 class GeneralDeclarationDeparture(SQLModel, table=True):
@@ -36,3 +37,21 @@ class GeneralDeclarationDeparture(SQLModel, table=True):
     ACTUAL_GATE_DEPARTURE_LOCAL: str = Field()
     ACTUAL_RUNWAY_DEPARTURE_LOCAL: str = Field()
     GATE_DEPARTURE_DELAY: str = Field()
+
+
+class ConditionList(SQLModel):
+    criteria: str = Field()
+    operator: str = Field()
+    value: List[str]
+
+
+class ShowUpFilterDict(SQLModel):
+    index: int
+    conditions: List[ConditionList]
+    mean: int
+    standard_deviation: int
+
+
+class ShowUpFilterList(SQLModel):
+    data: List[GeneralDeclarationDeparture] = None  # 기본값 None으로 설정
+    filters: List[ShowUpFilterDict]
