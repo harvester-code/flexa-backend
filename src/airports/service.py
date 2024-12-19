@@ -7,7 +7,6 @@ import pandas as pd
 from fastapi import Depends
 from sqlalchemy import Engine
 
-from src.airports.model import ShowUpFilterList
 from src.airports.queries import SELECT_AIRPORT_ARRIVAL, SELECT_AIRPORT_DEPARTURE
 from src.database import get_snowflake_session
 
@@ -34,37 +33,37 @@ class AirportService:
         return result
 
     @staticmethod
-    def show_up(inputs: ShowUpFilterList):
-        df = pd.DataFrame([dict(row) for row in inputs.data])
+    def show_up(inputs):
+        df = pd.DataFrame([dict(row) for row in inputs.inputs["data"]])
 
         col_map = {
-            "Airline": "OPERATING_CARRIER_IATA",
-            "Region": "DF_Region",
-            "Country": "DF_Country",
-            "Airport": "DF_Airport",
-            "Flight_number": "FLIGHT_NUMBER",
+            "Airline": "operating_carrier_iata",
+            "Region": "df_region",
+            "Country": "df_country",
+            "Airport": "df_airport",
+            "Flight_number": "flight_number",
         }
 
         pax_df = pd.DataFrame()
-        for filter in inputs.filters:
+        for filter in inputs.inputs["filters"]:
             filtered_df = df.copy()
 
-            for condition in filter.conditions:
+            for condition in filter["conditions"]:
                 filtered_df = filtered_df[
-                    filtered_df[col_map[condition.criteria]].isin(condition.value)
+                    filtered_df[col_map[condition["criteria"]]].isin(condition["value"])
                 ]
 
             # ========================
             # filtered_df 뻥튀기 코드 (input: 평균 / 분산)
             seats_80_percent = (
-                filtered_df["TOTAL_SEAT_COUNT"].fillna(0).astype(int) * 0.8
+                filtered_df["total_seat_count"].fillna(0).astype(int) * 0.8
             )
             partial_pax_df = filtered_df.loc[
                 filtered_df.index.repeat(seats_80_percent)
             ].reset_index(drop=True)
 
             departure_times = pd.to_datetime(
-                partial_pax_df["SCHEDULED_GATE_DEPARTURE_LOCAL"]
+                partial_pax_df["scheduled_gate_departure_local"]
             )
             random_minutes = np.random.normal(
                 loc=-90, scale=30, size=len(partial_pax_df)
@@ -106,6 +105,6 @@ class AirportService:
             return result_df
 
         # 시간 열('time')을 기준으로 행 개수 계산
-        result_df = count_rows_by_time(pax_df.head(3000), "showup_time")
+        result_df = count_rows_by_time(pax_df.head(500), "showup_time")
 
         return loads(result_df.to_json(orient="records"))

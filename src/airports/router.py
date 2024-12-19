@@ -1,11 +1,12 @@
+from typing import Any
+
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
 from src.airports.service import AirportService
 from src.database import get_snowflake_session
-
-from src.airports.model import ShowUpFilterList
 
 
 airports_router = APIRouter()
@@ -26,7 +27,11 @@ async def fetch_general_declarations(
     return data
 
 
-@airports_router.post("/airports/show-up")
-async def show_up(inputs: ShowUpFilterList):
+# FIXME: 임시
+class Item(BaseModel):
+    inputs: Any
 
+
+@airports_router.post("/airports/show-up")
+async def show_up(inputs: Item):
     return airport_service.show_up(inputs)
