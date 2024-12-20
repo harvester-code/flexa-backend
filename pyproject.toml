@@ -1,8 +1,8 @@
 [tool.poetry]
-name = "flexa-api"
+name = "flexa-waitless-api"
 version = "0.1.0"
 description = ""
-authors = ["Your Name <you@example.com>"]
+authors = []
 readme = "README.md"
 package-mode = false
 
@@ -11,6 +11,7 @@ python = "^3.11"
 art = "^6.4"
 boto3 = "^1.35.68"
 fastapi = { extras = ["standard"], version = "^0.115.5" }
+pandas = "^2.2.3"
 pendulum = "^3.0.0"
 pillow = "^11.0.0"
 pydantic = "^2.9.2"
@@ -18,9 +19,6 @@ python-multipart = "^0.0.17"
 snowflake-sqlalchemy = "^1.7.1"
 sqlmodel = "^0.0.22"
 supabase = "^2.10.0"
-snowflake-connector-python = "^3.12.4"
-pandas = "^2.2.3"
-
 
 [tool.poetry.group.dev.dependencies]
 ipykernel = "^6.29.5"
