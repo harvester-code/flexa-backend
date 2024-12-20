@@ -1,8 +1,11 @@
 import os
 
 from boto3 import client
+from fastapi import status
+from fastapi.exceptions import HTTPException
 from snowflake.sqlalchemy import URL
 from sqlalchemy import create_engine
+from sqlalchemy.exc import SQLAlchemyError
 from supabase import create_client
 
 
@@ -32,16 +35,30 @@ def aws_s3_client():
     return s3_client
 
 
-def get_snowflake_session():
-    engine = create_engine(
-        URL(
-            account=os.getenv("SNOWFLAKE_ACCOUNT_IDENTIFIER"),
-            user=os.getenv("SNOWFLAKE_USERNAME"),
-            password=os.getenv("SNOWFLAKE_PASSWORD"),
-            database="CIRIUMSKY",
-            schema="PUBLIC",
-            warehouse="COMPUTE_WH",
-        )
+# ============================================================
+SNOWFLAKE_ENGINE = create_engine(
+    URL(
+        account=os.getenv("SNOWFLAKE_ACCOUNT_IDENTIFIER"),
+        user=os.getenv("SNOWFLAKE_USERNAME"),
+        password=os.getenv("SNOWFLAKE_PASSWORD"),
+        database="CIRIUMSKY",
+        schema="PUBLIC",
+        warehouse="COMPUTE_WH",
     )
+)
 
-    return engine
+
+def get_snowflake_session():
+    conn = None
+    try:
+        conn = SNOWFLAKE_ENGINE.connect()
+        yield conn
+    except SQLAlchemyError as err:
+        print(err)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="현재 요청하신 서비스 이용이 어려운 상태입니다.",
+        )
+    finally:
+        if conn:
+            conn.close()

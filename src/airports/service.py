@@ -1,36 +1,48 @@
 from datetime import datetime, timedelta
 from json import loads
-from typing import Annotated
 
 import numpy as np
 import pandas as pd
-from fastapi import Depends
-from sqlalchemy import Engine
+from sqlalchemy import Connection, text
+from sqlalchemy.exc import SQLAlchemyError
 
+from src.airports.schema import GeneralDeclarationArrival, GeneralDeclarationDeparture
 from src.airports.queries import SELECT_AIRPORT_ARRIVAL, SELECT_AIRPORT_DEPARTURE
-from src.database import get_snowflake_session
-
-SessionDep = Annotated[Engine, Depends(get_snowflake_session)]
 
 
 class AirportService:
     @staticmethod
-    def fetch_general_declarations(date, airport, flight_io, session: SessionDep):
-        with session.connect() as connection:
-            if flight_io == "arrival":
-                df = pd.read_sql(
-                    SELECT_AIRPORT_ARRIVAL.format(airport=airport, date=date),
-                    connection,
-                )
+    async def fetch_general_declarations(date, airport, flight_io, conn: Connection):
+        try:
+            query_map = {
+                "arrival": SELECT_AIRPORT_ARRIVAL,
+                "departure": SELECT_AIRPORT_DEPARTURE,
+            }
+            schema_map = {
+                "arrival": GeneralDeclarationArrival,
+                "departure": GeneralDeclarationDeparture,
+            }
 
-            if flight_io == "departure":
-                df = pd.read_sql(
-                    SELECT_AIRPORT_DEPARTURE.format(airport=airport, date=date),
-                    connection,
-                )
+            stmt = text(query_map.get(flight_io))
+            params = {
+                "airport": airport,
+                "date": date,
+            }
 
-        result = loads(df.to_json(orient="records"))
-        return result
+            result = conn.execute(stmt, params)
+
+            rows = [schema_map.get(flight_io)(**row._mapping) for row in result]
+            return rows
+
+        # TODO: 에러핸들링 개선
+        except SQLAlchemyError as err:
+            print(err)
+            raise err
+        except Exception as err:
+            print(err)
+            raise err
+        finally:
+            result.close()
 
     @staticmethod
     def show_up(inputs):
