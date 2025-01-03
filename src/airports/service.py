@@ -109,7 +109,10 @@ class AirportService:
 
         return loads(result_df.to_json(orient="records"))
 
-    def show_up2(self, inputs):
+    ##########################################
+    # NOTE: 이 아래로 매서드 구분을 해놨습니다
+
+    def generate_pax_show_up(self, inputs):
         df = pd.DataFrame([dict(row) for row in inputs.inputs["data"]])
 
         col_map = {
@@ -121,7 +124,6 @@ class AirportService:
         }
 
         pax_df = pd.DataFrame()
-        # print(df["operating_carrier_iata"].head(100))
         # df = df[df["operating_carrier_iata"].isin(["KE", "OZ"])]
         for filter in inputs.inputs["filters"]:
             filtered_df = df.copy()
@@ -213,9 +215,6 @@ class AirportService:
         ]
         time_df = pd.DataFrame({"index": times})
         time_df["index"] = time_df["index"].astype(str)
-        # print("==========================")
-        # print(time_df)
-        # print("==========================")
 
         fin_dict = {}
 
@@ -227,9 +226,7 @@ class AirportService:
 
             grouped = df_pax_filtered["showup_time"].value_counts().reset_index()
             grouped["index"] = grouped["showup_time"].astype(str).str[-8:]
-            # print("==========================")
-            # print(grouped)
-            # print("==========================")
+
             total_capa = pd.merge(time_df, grouped, on="index", how="left")
             total_capa["count"] = total_capa["count"].fillna(0)
             total_capa = total_capa.drop("showup_time", axis=1)
@@ -240,18 +237,13 @@ class AirportService:
 
         return fin_dict
 
-    def add_columns(self, inputs):
+    def add_columns(self, facility_detail, df_pax):
         """
         Add columns to the DataFrame based on the choice matrices for each process transition.
         :param return_dict: Dictionary containing the choice matrices and the passenger DataFrame
         :return: Updated return_dict with added columns to the passenger DataFrame
         """
 
-        # NOTE: show-up에서 만드는 코드를 사용해서 데이터 프레임 반환
-        df_pax = self.show_up2(inputs)
-        # print(df_pax)
-
-        facility_detail = inputs.inputs["facility_detail"]
         # Iterate over each process transition in the choice matrix
         for facility in list(facility_detail.keys())[1:]:
 
@@ -281,7 +273,18 @@ class AirportService:
 
             df_pax[f"{horizontal_process}_edited_df"] = None
 
-        # return loads(df_pax.to_json(orient="records"))
+        return df_pax
+
+    def choice_matrix(self, inputs):
+
+        # show-up에서 만드는 코드를 사용해서 데이터 프레임 반환
+        df_pax = self.generate_pax_show_up(inputs)
+
+        # 초이스 매트릭스 부분만 가져오기
+        facility_detail = inputs.inputs["facility_detail"]
+
+        # 초이스 매트릭스 run
+        df_pax = self.add_columns(facility_detail, df_pax)
 
         sanky = self.create_sankey_data(facility_detail, df_pax)
         capacity = self.capacity_chart(df_pax, node_list=facility_detail["1"]["nodes"])
