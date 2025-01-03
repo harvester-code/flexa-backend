@@ -1,65 +1,59 @@
 import random
+from uuid import uuid4
 
 from fastapi import HTTPException
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 from supabase import AuthApiError, Client
 
 from src.common import TimeStamp
 from src.database import supabase_public_clinet
-from src.users.schema import RequestAccess, UserInfo
+from src.users.queries import (
+    INSERT_CERTIFICATION,
+    GET_CERTIFICATION,
+    INSERT_REQUEST_ACCESS,
+)
+from src.users.schema import Certification, UserCreate, RequestAccess
 
 timestamp = TimeStamp()
-
+# TODO: 익셉션 함수 모아놓기
 
 supabase: Client = supabase_public_clinet()
 
 
 class UserService:
 
-    def create_certification(self, item: UserInfo):
+    def create_certification(self, item: Certification, db: Session):
 
-        response = (
-            supabase.schema("users")
-            .table("certification")
-            .insert(
-                {
-                    "email": item.email.strip(),
-                    "certification_number": int(random.randint(1234, 9999)),
-                    "expired_at": timestamp.time_now()
-                    .add(minutes=5)
-                    .to_iso8601_string(),
-                }
-            )
-            .execute()
-        )
-
-        return {"message": {"status": 201, "result": response.data}}
-
-    def fetch_certification(self, id):
-
-        response = (
-            supabase.schema("users")
-            .table("certification")
-            .select("certification_number")
-            .eq("id", id)
-            .gt("expired_at", timestamp.time_now().to_iso8601_string())
-            .execute()
-        )
-
-        result = {
-            "message": {
-                "status": 204,
-                # TODO: 외주사랑 기획이랑 얘기해서 어떻게 모달을 제공할건지.
-                "result": None,  # 화면에 반환할 값을 보낸다.
-            }
+        id = uuid4()
+        params = {
+            "id": id,
+            "email": item.email,
+            "certification_number": int(random.randint(1234, 9999)),
+            "expired_at": timestamp.time_now().add(minutes=5).to_iso8601_string(),
         }
 
-        if len(response.data) > 0:
-            result["message"]["status"] = 200
-            result["message"]["result"] = response.data[0]["certification_number"]
+        try:
+            db.execute(text(INSERT_CERTIFICATION), params)
+            db.commit()
 
-        return result
+            return {"message": {"status": 201, "result": id}}
 
-    def create_user(self, item: UserInfo):
+        except Exception as e:
+            return f"fail {e}"
+
+    def fetch_certification(self, id, db: Session):
+
+        params = {"id": id, "now": timestamp.time_now().to_iso8601_string()}
+
+        try:
+            result = db.execute(text(GET_CERTIFICATION), params).fetchone()
+            return {"message": {"status": 201, "result": result[0]}}
+
+        except Exception as e:
+            return e
+
+    def create_user(self, item: UserCreate):
 
         response = supabase.auth.sign_up(
             {
@@ -76,28 +70,24 @@ class UserService:
 
         return {"message": {"status": 201, "result": response}}
 
-    def requset_access(self, item: RequestAccess):
+    def requset_access(self, item: RequestAccess, db: Session):
 
-        # TODO: request_page를 json형태로해서 true false 형태로
-        # {"security": {"label": "Security", "value": True}...}
+        params = {
+            "user_id": item.user_id,
+            "admin_email": item.admin_email,
+            "request_mg": item.request_mg,
+        }
 
-        response = (
-            supabase.schema("users")
-            .table("request_access")
-            .insert(
-                {
-                    "user_id": item.user_id,
-                    "admin_email": item.admin_email,
-                    "request_mg": item.request_mg,
-                    "request_page": item.request_page,
-                }
-            )
-            .execute()
-        )
+        try:
+            db.execute(text(INSERT_REQUEST_ACCESS), params)
+            db.commit()
 
-        return {"message": {"status": 201, "result": response.data}}
+            return {"message": {"status": 201, "result": "success"}}
 
-    def login_user(self, item: UserInfo):
+        except Exception as e:
+            return e
+
+    def login_user(self, item):
 
         query = (
             supabase.schema("users")
@@ -146,7 +136,7 @@ class UserService:
 
         return {"message": {"status": 200, "result": response}}
 
-    def redirect_reset_password(self, item: UserInfo):
+    def redirect_reset_password(self, item):
 
         response = supabase.auth.reset_password_for_email(
             item.email,

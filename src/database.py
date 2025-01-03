@@ -1,8 +1,10 @@
 import os
 
+import sqlalchemy
 from boto3 import client
+from fastapi import HTTPException, status
 from snowflake.sqlalchemy import URL
-from sqlalchemy import create_engine
+from sqlalchemy.exc import SQLAlchemyError
 from supabase import create_client
 
 
@@ -33,7 +35,7 @@ def aws_s3_client():
 
 
 def get_snowflake_session():
-    engine = create_engine(
+    engine = sqlalchemy.create_engine(
         URL(
             account=os.getenv("SNOWFLAKE_ACCOUNT_IDENTIFIER"),
             user=os.getenv("SNOWFLAKE_USERNAME"),
@@ -45,3 +47,48 @@ def get_snowflake_session():
     )
 
     return engine
+
+
+snowflake_engine = sqlalchemy.create_engine(
+    URL(
+        account=os.getenv("SNOWFLAKE_ACCOUNT_IDENTIFIER"),
+        user=os.getenv("SNOWFLAKE_USERNAME"),
+        password=os.getenv("SNOWFLAKE_PASSWORD"),
+        database="CIRIUMSKY",
+        schema="PUBLIC",
+        warehouse="COMPUTE_WH",
+    )
+)
+
+# supabase_url = sqlalchemy.engine.URL.create(
+#     drivername="postgresql",
+#     user="postgres",
+#     password=os.getenv("SUPABASE_PASSWORD"),
+#     host=os.getenv("SUPABASE_HOST"),
+#     port=5432,
+#     dbname="postgres",
+# )
+
+PASSWORD = os.getenv("SUPABASE_PASSWORD")
+HOST = os.getenv("SUPABASE_HOST")
+supabase_url = f"postgresql+psycopg2://postgres.notkalevegkwirkikgvx:{PASSWORD}@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres?sslmode=require"
+supabase_engine = sqlalchemy.create_engine(supabase_url)
+
+
+async def context_get_supabase_conn():
+    conn = None
+    try:
+
+        conn = supabase_engine.connect()
+
+        yield conn
+
+    except SQLAlchemyError as e:
+        print(e)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="DB 접속 에러"
+        )
+
+    finally:
+        if conn:
+            conn.close()
