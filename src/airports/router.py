@@ -35,3 +35,8 @@ class Item(BaseModel):
 @airports_router.post("/airports/show-up")
 async def show_up(inputs: Item):
     return airport_service.show_up(inputs)
+
+
+@airports_router.post("/airports/choice_matricx")
+async def choice_matricx(inputs: Item):
+    return airport_service.add_columns(inputs)
