@@ -39,4 +39,4 @@ async def show_up(inputs: Item):
 
 @airports_router.post("/airports/choice_matricx")
 async def choice_matricx(inputs: Item):
-    return airport_service.choice_matrix(inputs)
+    return airport_service.create_choice_matrix(inputs)

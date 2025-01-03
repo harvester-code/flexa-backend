@@ -112,7 +112,23 @@ class AirportService:
     ##########################################
     # NOTE: 이 아래로 매서드 구분을 해놨습니다
 
-    def generate_pax_show_up(self, inputs):
+    def create_choice_matrix(self, inputs):
+
+        # show-up에서 만드는 코드를 사용해서 데이터 프레임 반환
+        df_pax = self._show_up(inputs)
+
+        # 초이스 매트릭스 부분만 가져오기
+        facility_detail = inputs.inputs["facility_detail"]
+
+        # 초이스 매트릭스 run
+        df_pax = self._add_columns(facility_detail, df_pax)
+
+        sanky = self._create_sankey_data(facility_detail, df_pax)
+        capacity = self._capacity_chart(df_pax, node_list=facility_detail["1"]["nodes"])
+
+        return {"sanky": sanky, "capacity": capacity}
+
+    def _show_up(self, inputs):
         df = pd.DataFrame([dict(row) for row in inputs.inputs["data"]])
 
         col_map = {
@@ -158,7 +174,7 @@ class AirportService:
 
         return pax_df
 
-    def sample_node(self, row, edited_df):
+    def _sample_node(self, row, edited_df):
         """
         Sample a node based on the probabilities from the choice matrix.
         :param row: The row of the DataFrame to sample from
@@ -168,7 +184,7 @@ class AirportService:
         probabilities = edited_df.loc[row]
         return np.random.choice(probabilities.index, p=probabilities.values)
 
-    def create_sankey_data(self, facility_detail, pax_df):
+    def _create_sankey_data(self, facility_detail, pax_df):
         sankey_data = {"nodes": [], "links": []}
         node_ids = set()  # 중복 제거를 위한 세트
 
@@ -205,7 +221,7 @@ class AirportService:
 
         return sankey_data
 
-    def capacity_chart(self, df_pax, node_list):
+    def _capacity_chart(self, df_pax, node_list):
         from datetime import time
 
         times = [
@@ -237,7 +253,7 @@ class AirportService:
 
         return fin_dict
 
-    def add_columns(self, facility_detail, df_pax):
+    def _add_columns(self, facility_detail, df_pax):
         """
         Add columns to the DataFrame based on the choice matrices for each process transition.
         :param return_dict: Dictionary containing the choice matrices and the passenger DataFrame
@@ -265,28 +281,12 @@ class AirportService:
             if facility == "1":  # is root
                 df_pax[f"{horizontal_process}_component"] = df_pax[
                     vertical_process
-                ].apply(self.sample_node, args=(edited_df.fillna(0),))
+                ].apply(self._sample_node, args=(edited_df.fillna(0),))
             else:
                 df_pax[f"{horizontal_process}_component"] = df_pax[
                     f"{vertical_process}_component"
-                ].apply(self.sample_node, args=(edited_df.fillna(0),))
+                ].apply(self._sample_node, args=(edited_df.fillna(0),))
 
             df_pax[f"{horizontal_process}_edited_df"] = None
 
         return df_pax
-
-    def choice_matrix(self, inputs):
-
-        # show-up에서 만드는 코드를 사용해서 데이터 프레임 반환
-        df_pax = self.generate_pax_show_up(inputs)
-
-        # 초이스 매트릭스 부분만 가져오기
-        facility_detail = inputs.inputs["facility_detail"]
-
-        # 초이스 매트릭스 run
-        df_pax = self.add_columns(facility_detail, df_pax)
-
-        sanky = self.create_sankey_data(facility_detail, df_pax)
-        capacity = self.capacity_chart(df_pax, node_list=facility_detail["1"]["nodes"])
-
-        return {"sanky": sanky, "capacity": capacity}
