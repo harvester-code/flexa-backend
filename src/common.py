@@ -6,4 +6,4 @@ class TimeStamp:
     tz = pendulum.timezone("Asia/Seoul")
 
     def time_now(self):
-        return pendulum.now(tz=self.tz)
+        return pendulum.now(tz=self.tz).replace(tzinfo=None)

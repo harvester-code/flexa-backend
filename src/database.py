@@ -1,11 +1,20 @@
 import os
-
+import httpx
 import sqlalchemy
 from boto3 import client
 from fastapi import HTTPException, status
 from snowflake.sqlalchemy import URL
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
-from supabase import create_client
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from supabase import create_client, Client
+from typing import AsyncGenerator
+from supabase._async.client import (
+    AsyncClient as aClient,
+    create_client as acreate_client,
+)
 
 
 def supabase_public_clinet():
@@ -14,6 +23,20 @@ def supabase_public_clinet():
     supabase = create_client(url, key)
 
     return supabase
+
+
+async def aget_supabase_client() -> aClient:
+    url: str = os.getenv("SUPABASE_URL")
+    key: str = os.getenv("SUPABASE_PUBLIC_KEY")
+
+    return await acreate_client(url, key)
+
+
+async def aget_supabase_auth_client() -> aClient:
+    url: str = os.getenv("SUPABASE_URL")
+    key: str = os.getenv("SUPABASE_SECRET_KEY")
+
+    return await acreate_client(url, key)
 
 
 def supabase_auth_client():
@@ -71,8 +94,12 @@ snowflake_engine = sqlalchemy.create_engine(
 
 PASSWORD = os.getenv("SUPABASE_PASSWORD")
 HOST = os.getenv("SUPABASE_HOST")
-supabase_url = f"postgresql+psycopg2://postgres.notkalevegkwirkikgvx:{PASSWORD}@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres?sslmode=require"
+supabase_url = f"postgresql+psycopg2://postgres.zrljtluoitxroprmywhz:{PASSWORD}@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres?sslmode=require"
+
 supabase_engine = sqlalchemy.create_engine(supabase_url)
+SessionLocal = sessionmaker(autoflush=False, bind=supabase_engine)
+
+Base = declarative_base()
 
 
 async def context_get_supabase_conn():
@@ -92,3 +119,26 @@ async def context_get_supabase_conn():
     finally:
         if conn:
             conn.close()
+
+
+supabase_async_url = f"postgresql+asyncpg://postgres.zrljtluoitxroprmywhz:{PASSWORD}@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres"
+engine = create_async_engine(supabase_async_url, future=True, echo=True)
+AsyncSessionLocal = sessionmaker(
+    bind=engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+)
+
+
+async def aget_supabase_session() -> AsyncGenerator[AsyncSession, None]:
+    async with AsyncSessionLocal() as session:
+
+        try:
+            yield session
+
+        except Exception:
+            await session.rollback()
+            raise
+
+        finally:
+            await session.close()
