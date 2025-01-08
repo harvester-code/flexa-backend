@@ -19,6 +19,11 @@ python-multipart = "^0.0.17"
 snowflake-sqlalchemy = "^1.7.1"
 sqlmodel = "^0.0.22"
 supabase = "^2.10.0"
+snowflake-connector-python = "^3.12.4"
+psycopg2 = "^2.9.10"
+greenlet = "^3.1.1"
+asyncpg = "^0.30.0"
+
 
 [tool.poetry.group.dev.dependencies]
 ipykernel = "^6.29.5"
