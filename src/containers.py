@@ -1,6 +1,7 @@
 from dependency_injector import containers, providers
-from src.auth.infra.repository import AuthRepository
+
 from src.auth.application.service import AuthService
+from src.auth.infra.repository import AuthRepository
 
 
 class Container(containers.DeclarativeContainer):

@@ -33,13 +33,10 @@ class AirportService:
 
             rows = [schema_map.get(flight_io)(**row._mapping) for row in result]
             return rows
-
         # TODO: 에러핸들링 개선
         except SQLAlchemyError as err:
-            print(err)
             raise err
         except Exception as err:
-            print(err)
             raise err
         finally:
             result.close()
