@@ -361,14 +361,17 @@
       "scheduled_gate_departure_local": 1727805600000
     }
   ],
-  "filters": [
+  "destribution_conditions": [
     {
       "index": 0,
       "conditions": [
         {
           "criteria": "Airline",
           "operator": "is in",
-          "value": ["KE", "LJ"]
+          "value": [
+            "OZ",
+            "KE"
+          ]
         }
       ],
       "mean": 120,
