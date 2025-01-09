@@ -54,35 +54,37 @@ class AirportService:
         # short_df = pax_df[["FLIGHT_ID", "showup_time"]]
         # return loads(short_df.to_json(orient="records"))
 
-        ## 그래프용 코드 ##
+        return loads(pax_df.head().to_json(orient="records"))
 
-        def count_rows_by_time(df, time_column):
-            # 00:00부터 23:59까지의 모든 시간을 생성
-            times = []
-            counts = []
+        # ## 그래프용 코드 ##
 
-            start_time = datetime.strptime("00:00", "%H:%M")
-            end_time = datetime.strptime("23:59", "%H:%M")
+        # def count_rows_by_time(df, time_column):
+        #     # 00:00부터 23:59까지의 모든 시간을 생성
+        #     times = []
+        #     counts = []
 
-            current_time = start_time
-            while current_time <= end_time:
-                time_str = current_time.strftime("%H:%M")
-                count = len(df[df[time_column].dt.strftime("%H:%M") == time_str])
+        #     start_time = datetime.strptime("00:00", "%H:%M")
+        #     end_time = datetime.strptime("23:59", "%H:%M")
 
-                times.append(time_str)
-                counts.append(count)
+        #     current_time = start_time
+        #     while current_time <= end_time:
+        #         time_str = current_time.strftime("%H:%M")
+        #         count = len(df[df[time_column].dt.strftime("%H:%M") == time_str])
 
-                current_time += timedelta(minutes=1)
+        #         times.append(time_str)
+        #         counts.append(count)
 
-            # 결과 데이터프레임 생성
-            # result_df = pd.DataFrame({"인원수": counts}, index=times)
-            result_df = pd.DataFrame({"시간": times, "인원수": counts})
-            return result_df
+        #         current_time += timedelta(minutes=1)
 
-        # 시간 열('time')을 기준으로 행 개수 계산
-        result_df = count_rows_by_time(pax_df.head(500), "showup_time")
+        #     # 결과 데이터프레임 생성
+        #     # result_df = pd.DataFrame({"인원수": counts}, index=times)
+        #     result_df = pd.DataFrame({"시간": times, "인원수": counts})
+        #     return result_df
 
-        return loads(result_df.to_json(orient="records"))
+        # # 시간 열('time')을 기준으로 행 개수 계산
+        # result_df = count_rows_by_time(pax_df.head(500), "showup_time")
+
+        # return loads(result_df.to_json(orient="records"))
 
     def create_choice_matrix(self, item: ChoiceMatricxBody):
 
@@ -104,8 +106,6 @@ class AirportService:
 
     def show_up_pattern(self, data: list, destribution_conditions: list):
         df = pd.DataFrame(data)
-
-        # TODO: constants에 따로 빼기
         col_map = {
             "International/Domestic": "flight_type",
             "Airline": "operating_carrier_iata",
@@ -114,41 +114,30 @@ class AirportService:
         }
 
         pax_df = pd.DataFrame()
-        for destribution_condition in destribution_conditions:
-            filtered_df = df.copy()
-
-            for condition in destribution_condition.conditions:
-                filtered_df = filtered_df[
-                    filtered_df[col_map[condition.criteria]].isin(condition.value)
+        for filter in destribution_conditions:
+            partial_df = df.copy()
+            for condition in filter.conditions:
+                partial_df = partial_df[
+                    partial_df[col_map[condition.criteria]].isin(condition.value)
                 ]
-
-            # ========================
-            # filtered_df 뻥튀기 코드 (input: 평균 / 분산)
-            seats_80_percent = (
-                filtered_df["total_seat_count"].fillna(0).astype(int) * 0.85
-            )
-            partial_pax_df = filtered_df.loc[
-                filtered_df.index.repeat(seats_80_percent)
-            ].reset_index(drop=True)
-
-            departure_times = pd.to_datetime(
+            partial_pax_df = partial_df.loc[
+                partial_df.index.repeat(partial_df["total_seat_count"])
+            ]
+            arrival_times = []
+            for _, row in partial_df.iterrows():
+                samples = np.random.normal(
+                    loc=filter.mean,
+                    scale=np.sqrt(filter.standard_deviation),
+                    size=int(row["total_seat_count"]),
+                )
+                arrival_times.extend(samples)
+            partial_pax_df["show_up_time"] = pd.to_datetime(
                 partial_pax_df["scheduled_gate_departure_local"]
-            )
-
-            loc = destribution_condition.mean
-            scale = destribution_condition.standard_deviation
-
-            random_minutes = np.random.normal(
-                loc=loc, scale=scale, size=len(partial_pax_df)
-            )
-            partial_pax_df["showup_time"] = departure_times + pd.to_timedelta(
-                random_minutes, unit="m"
-            )
-            # ========================
-
+            ) - pd.to_timedelta(arrival_times, unit="minutes")
             pax_df = pd.concat([pax_df, partial_pax_df], ignore_index=True)
-            df.drop(index=filtered_df.index, inplace=True)
-
+            df.drop(index=partial_df.index, inplace=True)
+        pax_df["show_up_time"] = pax_df["show_up_time"].dt.strftime("%Y-%m-%dT%H:%M:%S")
+        # pax_df.to_csv(".idea/pax_df.csv", index=False) # 분산처리 데이터검증목적
         return pax_df
 
     def _sample_node(self, row, edited_df):
