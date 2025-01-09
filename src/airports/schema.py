@@ -1,4 +1,5 @@
-from datetime import datetime, date
+from datetime import date, datetime
+from typing import Any, Dict, List
 
 from pydantic import BaseModel
 
@@ -52,3 +53,45 @@ class GeneralDeclarationDeparture(GeneralDeclarationBase):
     departure_terminal: str | None = None
     gate_departure_delay: int | None = None
     scheduled_gate_departure_local: datetime | None = None
+
+
+# ==================================
+class Condition(BaseModel):
+    criteria: str
+    operator: str
+    value: List[str]
+
+
+class destribution_conditions(BaseModel):
+    index: int
+    conditions: List[Condition]
+    mean: int
+    standard_deviation: int
+
+
+class PriorityMatricx(BaseModel):
+    condition: List[Condition]
+    matricx: Dict[str, Dict[str, float]]
+
+
+class processes(BaseModel):
+    name: str
+    nodes: List[str]
+    source: str | None
+    destination: str | None
+    default_matricx: Dict[str, Dict[str, float]] | None
+    priority_matricx: list[PriorityMatricx] | None
+
+
+# ==================================
+class ShowupBody(BaseModel):
+    # FIXME: data -> 실제 데이터 스키마로 변경필요
+    data: List[Any]
+    destribution_conditions: List[destribution_conditions]
+
+
+class ChoiceMatricxBody(BaseModel):
+    # FIXME: data -> 실제 데이터 스키마로 변경필요
+    data: List[Any]
+    destribution_conditions: List[destribution_conditions]
+    processes: Dict[str, processes]

@@ -1,9 +1,9 @@
 from typing import Any
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
 from sqlalchemy import Connection
 
+from src.airports.schema import ShowupBody, ChoiceMatricxBody
 from src.airports.service import AirportService
 from src.database import get_snowflake_session
 
@@ -23,16 +23,13 @@ async def fetch_general_declarations(
     )
 
 
-# FIXME: 임시
-class Item(BaseModel):
-    inputs: Any
-
-
+# FIXME: 매서드명 변경필요 확정적으로 무엇으로 부르면 좋을지?
 @airports_router.post("/show-up")
-async def show_up(inputs: Item):
-    return airport_service.show_up(inputs)
+async def show_up(item: ShowupBody):
+    return airport_service.create_show_up(item)
 
 
+# FIXME: 매서드명 변경필요 확정적으로 무엇으로 부르면 좋을지?
 @airports_router.post("/airports/choice_matricx")
-async def choice_matricx(inputs: Item):
-    return airport_service.create_choice_matrix(inputs)
+async def choice_matricx(item: ChoiceMatricxBody):
+    return airport_service.create_choice_matrix(item)
