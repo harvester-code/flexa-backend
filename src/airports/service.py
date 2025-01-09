@@ -51,40 +51,23 @@ class AirportService:
             data=item.data,
             destribution_conditions=item.destribution_conditions,
         )
-        # short_df = pax_df[["FLIGHT_ID", "showup_time"]]
-        # return loads(short_df.to_json(orient="records"))
 
-        return loads(pax_df.head().to_json(orient="records"))
+        # Condition 에 따른 Distribution 좌표 생성
+        distribution_xy_coords = self._create_normal_distribution(
+            item.destribution_conditions
+        )
 
-        # ## 그래프용 코드 ##
+        # Show up 그래프용 데이터
+        show_up_summary = self._create_show_up_summary(pax_df, interval_minutes=60)
 
-        # def count_rows_by_time(df, time_column):
-        #     # 00:00부터 23:59까지의 모든 시간을 생성
-        #     times = []
-        #     counts = []
+        # 시간 포맷 변경
+        pax_df["show_up_time"] = pax_df["show_up_time"].dt.strftime("%Y-%m-%dT%H:%M:%S")
 
-        #     start_time = datetime.strptime("00:00", "%H:%M")
-        #     end_time = datetime.strptime("23:59", "%H:%M")
-
-        #     current_time = start_time
-        #     while current_time <= end_time:
-        #         time_str = current_time.strftime("%H:%M")
-        #         count = len(df[df[time_column].dt.strftime("%H:%M") == time_str])
-
-        #         times.append(time_str)
-        #         counts.append(count)
-
-        #         current_time += timedelta(minutes=1)
-
-        #     # 결과 데이터프레임 생성
-        #     # result_df = pd.DataFrame({"인원수": counts}, index=times)
-        #     result_df = pd.DataFrame({"시간": times, "인원수": counts})
-        #     return result_df
-
-        # # 시간 열('time')을 기준으로 행 개수 계산
-        # result_df = count_rows_by_time(pax_df.head(500), "showup_time")
-
-        # return loads(result_df.to_json(orient="records"))
+        return (
+            loads(pax_df.head().to_json(orient="records")),
+            distribution_xy_coords,
+            show_up_summary,
+        )
 
     def create_choice_matrix(self, item: ChoiceMatricxBody):
 
@@ -136,9 +119,30 @@ class AirportService:
             ) - pd.to_timedelta(arrival_times, unit="minutes")
             pax_df = pd.concat([pax_df, partial_pax_df], ignore_index=True)
             df.drop(index=partial_df.index, inplace=True)
-        pax_df["show_up_time"] = pax_df["show_up_time"].dt.strftime("%Y-%m-%dT%H:%M:%S")
         # pax_df.to_csv(".idea/pax_df.csv", index=False) # 분산처리 데이터검증목적
         return pax_df
+
+    def _create_normal_distribution(self, destribution_conditions: list):
+        distribution_xy_coords = {}
+        for condition in destribution_conditions:
+            index = condition.index
+            mean = condition.mean
+            std_dev = condition.standard_deviation
+            x = np.linspace(mean - 4 * std_dev, mean + 4 * std_dev, 1000)
+            y = (1 / (std_dev * np.sqrt(2 * np.pi))) * np.exp(
+                -0.5 * ((x - mean) / std_dev) ** 2
+            )
+            distribution_xy_coords[index] = {"x": x.tolist(), "y": y.tolist()}
+        return distribution_xy_coords
+
+    def _create_show_up_summary(self, pax_df, interval_minutes=60):
+        pax_df["time_group"] = pax_df["show_up_time"].dt.floor(f"{interval_minutes}min")
+        counts_df = pax_df.groupby("time_group").size().reset_index()
+        summary = {
+            "times": counts_df["time_group"].dt.strftime("%Y-%m-%d %H:%M:%S").tolist(),
+            "counts": counts_df[0].tolist(),
+        }
+        return summary
 
     def _sample_node(self, row, edited_df):
         """
