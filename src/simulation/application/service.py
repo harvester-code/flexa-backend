@@ -1,6 +1,9 @@
 from src.simulation.application.core.graph import DsGraph
 from src.simulation.application.core.simulator import DsSimulator
 from src.simulation.schema import SimulationBody
+from src.airports.service import AirportService
+
+airport_service = AirportService()
 
 
 class SimulationService:
@@ -32,6 +35,12 @@ class SimulationService:
                     component_node_map[comp.name].append(node.id)
                 else:
                     component_node_map[comp.name] = [node.id]
+        # ============================================================
+        # NOTE: 쇼업패턴으로 생성된 여객데이터
+        df_pax = airport_service.show_up_pattern(
+            data=item.data,
+            destribution_conditions=item.destribution_conditions,
+        )
         # ============================================================
 
         # graph = DsGraph(
