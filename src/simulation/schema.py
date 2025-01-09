@@ -9,26 +9,25 @@ class Condition(BaseModel):
     value: List[str]
 
 
-class Filter(BaseModel):
+class destribution_conditions(BaseModel):
     index: int
     conditions: List[Condition]
     mean: int
     standard_deviation: int
 
 
-class MatrixFilter(BaseModel):
-    index: int
-    # 여기에 원래는 edited_df가 들어와야한다.
-    conditions: List[str]
+class PriorityMatricx(BaseModel):
+    condition: List[Condition]
     matricx: Dict[str, Dict[str, float]]
 
 
-class Facility(BaseModel):
+class processes(BaseModel):
     name: str
     nodes: List[str]
-    filters: List[MatrixFilter]
     source: str | None
     destination: str | None
+    default_matricx: Dict[str, Dict[str, float]] | None
+    priority_matricx: list[PriorityMatricx] | None
 
 
 class Node(BaseModel):
@@ -46,6 +45,6 @@ class Component(BaseModel):
 
 class SimulationBody(BaseModel):
     data: List[Any]
-    filters: List[Filter]
-    facility_detail: Dict[str, Facility]
+    destribution_conditions: List[destribution_conditions]
+    processes: Dict[str, processes]
     components: List[Component]
