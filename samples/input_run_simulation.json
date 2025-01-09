@@ -361,14 +361,14 @@
       "scheduled_gate_departure_local": 1727805600000
     }
   ],
-  "filters": [
+  "destribution_conditions": [
     {
       "index": 0,
       "conditions": [
         {
           "criteria": "Airline",
           "operator": "is in",
-          "value": ["KE", "LJ"]
+          "value": ["OZ", "KE"]
         }
       ],
       "mean": 120,
@@ -379,6 +379,305 @@
       "conditions": [],
       "mean": 150,
       "standard_deviation": 50
+    }
+  ],
+  "processes": {
+    "0": {
+      "name": "operating_carrier_name",
+      "nodes": [],
+      "matricx": {},
+      "source": null,
+      "destination": "1"
+    },
+    "1": {
+      "name": "checkin",
+      "nodes": ["A", "B", "C", "D"],
+      "source": "0",
+      "destination": "2",
+      "default_matricx": {
+        "Asiana Airlines": {
+          "A": 0.5,
+          "B": 0.5,
+          "C": 0.0,
+          "D": 0.0
+        },
+        "Korean Air": {
+          "A": 0.0,
+          "B": 0.0,
+          "C": 0.5,
+          "D": 0.5
+        }
+      },
+      "priority_matricx": [
+        {
+          "condition": [
+            {
+              "criteria": "Airline",
+              "operator": "is in",
+              "value": ["OZ", "KE"]
+            }
+          ],
+          "matricx": {
+            "Asiana Airlines": {
+              "A": 0.5,
+              "B": 0.5
+            },
+            "Korean Air": {
+              "A": 0.0,
+              "B": 0.0
+            }
+          }
+        },
+        {
+          "condition": [
+            {
+              "criteria": "Airline",
+              "operator": "is in",
+              "value": ["OZ", "KE"]
+            }
+          ],
+          "matricx": {
+            "Asiana Airlines": {
+              "A": 0.5,
+              "B": 0.5,
+              "C": 0.0,
+              "D": 0.0
+            },
+            "Korean Air": {
+              "A": 0.0,
+              "B": 0.0,
+              "C": 0.5,
+              "D": 0.5
+            }
+          }
+        }
+      ]
+    },
+    "2": {
+      "name": "departure_gate",
+      "nodes": ["DG1", "DG2"],
+      "filters": [
+        {
+          "index": 0,
+          "conditions": [],
+          "matricx": {
+            "A": {
+              "DG1": 0.5,
+              "DG2": 0.5
+            },
+            "B": {
+              "DG1": 0.5,
+              "DG2": 0.5
+            },
+            "C": {
+              "DG1": 0.5,
+              "DG2": 0.5
+            },
+            "D": {
+              "DG1": 0.5,
+              "DG2": 0.5
+            }
+          }
+        }
+      ],
+      "source": "1",
+      "destination": "3"
+    },
+    "3": {
+      "name": "security_check",
+      "nodes": ["SC1", "SC2"],
+      "filters": [
+        {
+          "index": 0,
+          "conditions": [],
+          "matricx": {
+            "DG1": {
+              "SC1": 0.5,
+              "SC2": 0.5
+            },
+            "DG2": {
+              "SC1": 0.5,
+              "SC2": 0.5
+            }
+          }
+        }
+      ],
+      "source": "2",
+      "destination": "4"
+    },
+    "4": {
+      "name": "passport_check",
+      "nodes": ["PC1", "PC2"],
+      "filters": [
+        {
+          "index": 0,
+          "conditions": [],
+          "matricx": {
+            "SC1": {
+              "PC1": 0.5,
+              "PC2": 0.5
+            },
+            "SC2": {
+              "PC1": 0.5,
+              "PC2": 0.5
+            }
+          }
+        }
+      ],
+      "source": "3",
+      "destination": null
+    }
+  },
+  "components": [
+    {
+      "name": "check in",
+      "nodes": [
+        {
+          "id": 0,
+          "name": "A",
+          "max_queue_length": 250,
+          "facility_count": 6,
+          "facility_schedules": [
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60]
+          ]
+        },
+        {
+          "id": 1,
+          "name": "B",
+          "max_queue_length": 250,
+          "facility_count": 6,
+          "facility_schedules": [
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60]
+          ]
+        },
+        {
+          "id": 2,
+          "name": "C",
+          "max_queue_length": 250,
+          "facility_count": 6,
+          "facility_schedules": [
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60]
+          ]
+        },
+        {
+          "id": 3,
+          "name": "D",
+          "max_queue_length": 250,
+          "facility_count": 6,
+          "facility_schedules": [
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "departure gate",
+      "nodes": [
+        {
+          "id": 4,
+          "name": "DG1",
+          "max_queue_length": 250,
+          "facility_count": 6,
+          "facility_schedules": [
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60]
+          ]
+        },
+        {
+          "id": 5,
+          "name": "DG2",
+          "max_queue_length": 250,
+          "facility_count": 6,
+          "facility_schedules": [
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "security",
+      "nodes": [
+        {
+          "id": 6,
+          "name": "SC1",
+          "max_queue_length": 250,
+          "facility_count": 6,
+          "facility_schedules": [
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60]
+          ]
+        },
+        {
+          "id": 7,
+          "name": "SC2",
+          "max_queue_length": 250,
+          "facility_count": 6,
+          "facility_schedules": [
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "passport",
+      "nodes": [
+        {
+          "id": 8,
+          "name": "PC1",
+          "max_queue_length": 250,
+          "facility_count": 6,
+          "facility_schedules": [
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60]
+          ]
+        },
+        {
+          "id": 9,
+          "name": "PC2",
+          "max_queue_length": 250,
+          "facility_count": 6,
+          "facility_schedules": [
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60],
+            [60, 60, 60, 60, 60, 60]
+          ]
+        }
+      ]
     }
   ]
 }
