@@ -1,3 +1,6 @@
+# FIXME: 출발시에도 도착지에 대한 공항 코드 등 필요,
+# 반대로 도착을 기준으로 할 때도 출발지 공항 코드 등 필요
+
 SELECT_AIRPORT_ARRIVAL = """
 SELECT F.ACTUAL_BLOCK_TIME,
        F.ACTUAL_FLIGHT_DURATION,
