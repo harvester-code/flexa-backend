@@ -74,7 +74,7 @@ class PriorityMatricx(BaseModel):
     matricx: Dict[str, Dict[str, float]]
 
 
-class processes(BaseModel):
+class Processes(BaseModel):
     name: str
     nodes: List[str]
     source: str | None
@@ -94,4 +94,4 @@ class ChoiceMatricxBody(BaseModel):
     # FIXME: data -> 실제 데이터 스키마로 변경필요
     data: List[Any]
     destribution_conditions: List[destribution_conditions]
-    processes: Dict[str, processes]
+    processes: Dict[str, Processes]

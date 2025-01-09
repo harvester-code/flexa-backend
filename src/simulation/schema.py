@@ -21,7 +21,7 @@ class PriorityMatricx(BaseModel):
     matricx: Dict[str, Dict[str, float]]
 
 
-class processes(BaseModel):
+class Processes(BaseModel):
     name: str
     nodes: List[str]
     source: str | None
@@ -46,5 +46,5 @@ class Component(BaseModel):
 class SimulationBody(BaseModel):
     data: List[Any]
     destribution_conditions: List[destribution_conditions]
-    processes: Dict[str, processes]
+    processes: Dict[str, Processes]
     components: List[Component]
