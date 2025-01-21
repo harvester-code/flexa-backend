@@ -6,6 +6,7 @@ import pandas as pd
 from loguru import logger
 
 from src.simulation.application.core.graph import DsGraph
+from src.constants import COL_FILTER_MAP
 
 
 class DsSimulator:
@@ -23,33 +24,71 @@ class DsSimulator:
 
         self.components = components
         self.ds_graph = ds_graph
-        self.passengers = pd.DataFrame(passengers)
+        self.passengers = passengers
         self.showup_times = showup_times
         self.source_per_passengers = source_per_passengers
         self.source_transition_graph = source_transition_graph
         # ==========
         self.num_passengers = len(showup_times)
         self.passenger_id = 0
+        self.processes = ds_graph.processes
+        self.comp_to_idx = ds_graph.comp_to_idx
 
     # FIXME: 해당 메서드는 DsSimulator에 위치하는게 아니라 DsGraph에 있어야하는게 아닐까?
     def add_flow(self, current_second: int, greedy: bool = True):
         first_component = self.components[0]
+        comp_to_idx = self.comp_to_idx[first_component]
+
+        # 해당 프로세스의 priority_matrix를 찾는 작업
+        for process in self.processes.values():
+            if process.name == first_component:
+                priority_matrix = process.priority_matricx
+                break
 
         while (
             self.passenger_id < self.num_passengers
             and self.showup_times[self.passenger_id] <= current_second
         ):
-            target_column = f"{first_component}_edited_df"
+
             target_source_key = self.source_per_passengers[self.passenger_id]
+            passenger = self.passengers.loc[self.passenger_id]
 
-            edited_df = self.passengers.loc[self.passenger_id][target_column]
+            edited_df = None
+            if priority_matrix:
+                for priority in priority_matrix:
 
-            if edited_df is None:
+                    conditions = priority.condition
+
+                    # 컨디션을 돌면서 현재 승객이 필터에 걸리는지 확인
+                    for condition in conditions:
+                        criteria = condition.criteria
+                        criteria = COL_FILTER_MAP[criteria]
+                        value = condition.value
+                        check = passenger[criteria] in value
+                        if not check:
+                            break  # check = False로 내보낸다.
+
+                    # check가 false이면 이건 돌지 않기 때문에 다음 컨디션을 확인해야함.
+                    if check:
+                        edited_df = priority.matricx
+                        # 필터에 걸린다면 해당 매트릭을 가져온다. = edited_df
+                        break
+
+            if not edited_df:
                 destinations = self.source_transition_graph[target_source_key][0]
                 probabilities = self.source_transition_graph[target_source_key][1]
             else:
-                destinations = edited_df.columns
-                probabilities = edited_df.loc[target_source_key]
+                destinations = []
+                probabilities = []
+
+                # 위에 edited_df가 없는 경우의 destinations probabilities 값과 같은 형식으로 배출되도록 변경
+                for key, value in edited_df[target_source_key].items():
+                    if value > 0:
+                        destinations.append(key)
+                        probabilities.append(value)
+
+                destinations = np.array([comp_to_idx[key] for key in destinations])
+                probabilities = np.array(probabilities)
 
             if greedy:
                 destination_nodes = [self.ds_graph.nodes[d] for d in destinations]

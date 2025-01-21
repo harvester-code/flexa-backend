@@ -1,8 +1,10 @@
 from src.simulation.application.core.graph import DsGraph
 from src.simulation.application.core.simulator import DsSimulator
+from src.simulation.application.core.ouput_wrapper import DsOutputWrapper
 from src.simulation.schema import SimulationBody
 from src.airports.service import AirportService
 import numpy as np
+import pandas as pd
 
 airport_service = AirportService()
 
@@ -30,12 +32,14 @@ class SimulationService:
                 component_node_pairs.append([comp.name, node.name])
                 max_queue_length.append(node.max_queue_length)
                 facilities_per_node.append(node.facility_count)
-                facility_schedules.append(np.array(node.facility_schedules))
+                # FIXME: 일시적으로 1440줄 만들도록 설정.
+                facility_schedules.append(np.array([node.facility_schedules[0]] * 1440))
 
                 if comp.name in component_node_map.keys():
                     component_node_map[comp.name].append(node.id)
                 else:
                     component_node_map[comp.name] = [node.id]
+
         # ============================================================
         # NOTE: 쇼업패턴으로 생성된 여객데이터
         df_pax = airport_service.show_up_pattern(
@@ -52,10 +56,15 @@ class SimulationService:
         mask = (np_pax_col == "show_up_time") | (np_pax_col == "operating_carrier_name")
         np_filtered_pax = np_pax[sorted_idx][:, mask]
 
+        # 정렬된 DataFrame 재생성 -> passengers 매개변수에 사용
+        sorted_np_pax = np_pax[sorted_idx]
+        sorted_df_pax = pd.DataFrame(sorted_np_pax, columns=df_pax.columns)
+
         # dist_key
         dist_key = np_filtered_pax[:, 0].flatten()
         ck_on = np_filtered_pax[:, -1].flatten()
 
+        # td_arr
         starting_time_stamp = ck_on[0]
         v0 = (
             starting_time_stamp.hour * 3600
@@ -63,7 +72,6 @@ class SimulationService:
             + starting_time_stamp.second
         )
 
-        # td_arr
         td_arr = np.round(
             [(td.total_seconds()) + v0 for td in (ck_on - np.array(ck_on[0]))]
         )
@@ -134,7 +142,11 @@ class SimulationService:
             max_queue_length=max_queue_length,
             facilities_per_node=facilities_per_node,
             facility_schedules=facility_schedules,
+            processes=item.processes,  # 프로세스들의 인풋값
+            comp_to_idx=comp_to_idx,  # 프로세스의 메타데이터
         )
+
+        # comp_to_idx = {'checkin': {'A': 0, 'B': 1, 'C': 2, 'D': 3}, 'departure_gate': {'DG1': 4, 'DG2': 5}, 'security_check': {'SC1': 6, 'SC2': 7}, 'passport_check': {'PC1': 8, 'PC2': 9}}
 
         sim = DsSimulator(
             ds_graph=graph,
@@ -142,7 +154,7 @@ class SimulationService:
             showup_times=td_arr,
             source_per_passengers=dist_key,
             source_transition_graph=dist_map,
-            passengers=df_pax,  # <-- SHOW-UP 로직을 돌린다.
+            passengers=sorted_df_pax,  # <-- SHOW-UP 로직을 돌린다.
         )
 
         SECONDS_IN_THREE_DAYS = 3600 * 24 * 3
@@ -152,5 +164,16 @@ class SimulationService:
             start_time=0,
             end_time=max(SECONDS_IN_THREE_DAYS, last_passenger_arrival_time),
         )
+
+        ow = DsOutputWrapper(
+            passengers=sorted_df_pax,
+            components=components,
+            nodes=graph.nodes,
+            starting_time=[starting_time_stamp, v0],
+        )
+        ow.write_pred()
+
+        # print(ow.passengers)
+        # ow.passengers.to_csv("sim_pax.csv", encoding="utf-8-sig", index=False)
 
         return "simulation success!!"

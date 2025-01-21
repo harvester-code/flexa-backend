@@ -1,7 +1,8 @@
 import heapq
-
+import pandas as pd
 import numpy as np
 from numpy import ndarray
+from src.constants import COL_FILTER_MAP
 
 
 class DsNode:
@@ -15,6 +16,8 @@ class DsNode:
         facility_schedule: ndarray,
         max_capacity,
         num_facilities,
+        processes,
+        comp_to_idx,
         num_passengers: int = 500_000,
         bypass: bool = False,
         is_deterministic: bool = False,
@@ -29,6 +32,8 @@ class DsNode:
         self.destinations = destinations
         self.destination_choices = destination_choices
         self.bypass = bypass
+        self.processes = processes
+        self.comp_to_idx = comp_to_idx
         # ==========
         self.occupied_facilities = []
         self.passenger_ids = []
@@ -38,12 +43,15 @@ class DsNode:
         self.unoccupied_facilities = np.ones(num_facilities, dtype=int)
         self.on_time = np.zeros(num_passengers, dtype=int)
         self.done_time = np.zeros(num_passengers, dtype=int)
-
         if facility_schedule.size:
             self.processing_config = np.array(facility_schedule)
         else:
             self.processing_config = 183 * np.ones((60 * 24, num_facilities), dtype=int)
-
+        # print("destination_choices")
+        # print(self.destination_choices)
+        # print()
+        # print(self.destinations)
+        # print(1 * (self.processing_config > 0))
         if selection_config:
             self.selection_config = np.array(selection_config)
         else:
@@ -94,23 +102,57 @@ class DsNode:
 
             # dod: destination of destination
             dod_component = destination.components[1]
+            # 기존 도착 컴포넌트
+            destination_component = destination.components[0]
+
             priority_dod_node_indices = None
-
             if dod_component:
-                target_column = f"{dod_component}_edited_df"
-                target_passenger_id = destination.passenger_ids[_passenger_node_id]
+                passenger = passengers.loc[_passenger_node_id]
+                # 기존 코드와 동일
+                for process in self.processes.values():
+                    if process.name == dod_component:
+                        priority_matrix = process.priority_matricx
+                        break
 
-                edited_df = passengers.loc[target_passenger_id][target_column]
+                edited_df = None
+                if priority_matrix:
+                    for priority in priority_matrix:
 
-                if edited_df is not None:
+                        conditions = priority.condition
+
+                        for condition in conditions:
+                            criteria = condition.criteria
+                            criteria = COL_FILTER_MAP[criteria]
+                            value = condition.value
+
+                            check = passenger[criteria] in value
+                            if not check:
+                                break  # check = False로 내보낸다.
+
+                        # check가 false이면 이건 돌지 않기 때문에 다음 컨디션을 확인해야함.
+                        if check:
+                            edited_df = priority.matricx
+                            break
+
+                # 기존 코드와 동일
+                if edited_df:
                     priority_dod_node_indices = (
-                        edited_df.columns
-                        if destination.node_id in edited_df.index
+                        [
+                            self.comp_to_idx[dod_component][idx]
+                            for idx in list(list(edited_df.values())[0].keys())
+                        ]
+                        if destination.node_id
+                        in [
+                            self.comp_to_idx[destination_component][key]
+                            for key in list(edited_df.keys())
+                        ]
                         else None
                     )
 
             priority_dod_nodes = (
-                nodes[priority_dod_node_indices] if priority_dod_node_indices else None
+                [nodes[idx] for idx in priority_dod_node_indices]
+                if priority_dod_node_indices
+                else None
             )
             dod_nodes = priority_dod_nodes or destination.destinations
 
@@ -150,24 +192,62 @@ class DsNode:
                 )
 
     def select_destination(self, nodes, df_pax, pax_idx):
+
+        # edited_df가 컬럼에 없기때문에 시작 컴포넌트가 필요
+        start_component = self.components[0]
         destination_component = self.components[1]
 
         priority_destination_node_indices = None
-
         if destination_component:
-            target_colume = f"{destination_component}_edited_df"
-            edited_df = df_pax.loc[pax_idx][target_colume]
+            passenger = df_pax.loc[pax_idx]
+            # 기존과 같은 방식으로 matrix을 가져온다.
+            for process in self.processes.values():
+                if process.name == destination_component:
+                    priority_matrix = process.priority_matricx
+                    break
 
-            if edited_df is not None:
+            edited_df = None
+            if priority_matrix:
+                for priority in priority_matrix:
+
+                    conditions = priority.condition
+
+                    for condition in conditions:
+                        criteria = condition.criteria
+                        criteria = COL_FILTER_MAP[criteria]
+                        value = condition.value
+
+                        check = passenger[criteria] in value
+                        if not check:
+                            break  # check = False로 내보낸다.
+
+                    # check가 false이면 이건 돌지 않기 때문에 다음 컨디션을 확인해야함.
+                    if check:
+                        edited_df = priority.matricx
+                        break
+
+            # 해당 edited_df의 키값 = 시작컴포넌트를 맞춰주고, 맞다면 해당 매트릭의 키값 = 도착컴포넌트를 맞춰준다.
+            if edited_df:
                 priority_destination_node_indices = (
-                    edited_df.columns if self.node_id in edited_df.index else None
+                    [
+                        self.comp_to_idx[destination_component][idx]
+                        for idx in list(list(edited_df.values())[0].keys())
+                    ]
+                    if self.node_id
+                    in [
+                        self.comp_to_idx[start_component][key]
+                        for key in list(edited_df.keys())
+                    ]
+                    else None
                 )
 
+        # 해당 컴포넌트로 dst_nodes를 만들어준다.
         priority_destination_nodes = (
-            nodes[priority_destination_node_indices]
+            [nodes[idx] for idx in priority_destination_node_indices]
             if priority_destination_node_indices
             else None
         )
+
         destination_nodes = priority_destination_nodes or self.destinations
 
         available_destination_nodes = [
@@ -181,13 +261,21 @@ class DsNode:
 
         # ==================================================
         if edited_df:
-            if self.node_id in edited_df.index:
-                prob = edited_df.loc[self.node_id]
-            else:
-                prob = np.array(
-                    [self.destination_choices[i] for i in available_destination_nodes],
-                    dtype=float,
-                )
+            # 키(시작컴포넌트)의 메타 인덱스가 node_id와 같다면 해당 키의 벨류(도착 컴포넌트의 확률)을 전달
+            for key in list(edited_df.keys()):
+                if self.node_id == self.comp_to_idx[start_component][key]:
+                    prob = np.array(
+                        list(edited_df[key].values()),
+                        dtype=float,
+                    )
+                else:
+                    prob = np.array(
+                        [
+                            self.destination_choices[i]
+                            for i in available_destination_nodes
+                        ],
+                        dtype=float,
+                    )
         else:
             prob = np.array(
                 [self.destination_choices[i] for i in available_destination_nodes],
@@ -208,20 +296,53 @@ class DsNode:
             passenger_id = self.passenger_ids[passenger_node_id]
 
             priority_destination_node_indices = None
+            start_component = self.components[0]
             destination_component = self.components[1]
 
-            # TODO: 이 부분 edited_df 넣어서 확인해볼 것
+            # 기존 코드와 동일
             if destination_component:
-                target_column = f"{destination_component}_edited_df"
-                edited_df = passengers.loc[passenger_id].get(target_column)
+                passenger = passengers.loc[passenger_id]
+                for process in self.processes.values():
+                    if process.name == destination_component:
+                        priority_matrix = process.priority_matricx
+                        break
 
-                if edited_df is not None:
+                edited_df = None
+                if priority_matrix:
+                    for priority in priority_matrix:
+
+                        conditions = priority.condition
+
+                        for condition in conditions:
+                            criteria = condition.criteria
+                            criteria = COL_FILTER_MAP[criteria]
+                            value = condition.value
+
+                            check = passenger[criteria] in value
+                            if not check:
+                                break  # check = False로 내보낸다.
+
+                        # check가 false이면 이건 돌지 않기 때문에 다음 컨디션을 확인해야함.
+                        if check:
+                            edited_df = priority.matricx
+                            break
+
+                if edited_df:
                     priority_destination_node_indices = (
-                        edited_df.columns if self.node_id in edited_df.index else None
+                        [
+                            self.comp_to_idx[destination_component][idx]
+                            for idx in list(list(edited_df.values())[0].keys())
+                        ]
+                        if self.node_id
+                        in [
+                            self.comp_to_idx[start_component][key]
+                            for key in list(edited_df.keys())
+                        ]
+                        else None
                     )
 
             priority_destination_nodes = (
-                nodes[priority_destination_node_indices]
+                [nodes[idx] for idx in priority_destination_node_indices]
                 if priority_destination_node_indices
                 else None
             )

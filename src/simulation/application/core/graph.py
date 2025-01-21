@@ -14,6 +14,8 @@ class DsGraph:
         max_queue_length,
         facilities_per_node,
         facility_schedules,
+        processes,
+        comp_to_idx,
     ):
         self.components = components
         self.component_node_map = component_node_map
@@ -23,6 +25,8 @@ class DsGraph:
         self.facilities_per_node = facilities_per_node
         self.facility_schedules = facility_schedules
         self.max_queue_length = max_queue_length
+        self.processes = processes
+        self.comp_to_idx = comp_to_idx
 
         self.nodes = self.__build_nodes()
 
@@ -70,6 +74,8 @@ class DsGraph:
                 max_capacity=self.max_queue_length[i],
                 num_facilities=self.facilities_per_node[i],
                 is_deterministic=True,
+                processes=self.processes,
+                comp_to_idx=self.comp_to_idx,
             )
             nodes.append(node)
 
