@@ -268,8 +268,9 @@
       "nodes": [],
       "source": null,
       "destination": "1",
-      "default_matricx": null,
-      "priority_matricx": null
+      "wait_time": null,
+      "default_matrix": null,
+      "priority_matrix": null
     },
     "1": {
       "name": "checkin",
@@ -281,7 +282,8 @@
       ],
       "source": "0",
       "destination": "2",
-      "default_matricx": {
+      "wait_time": 10,
+      "default_matrix": {
         "Asiana Airlines": {
           "A": 0.5,
           "B": 0.5,
@@ -295,7 +297,7 @@
           "D": 0.5
         }
       },
-      "priority_matricx": [
+      "priority_matrix": [
         {
           "condition": [
             {
@@ -307,7 +309,7 @@
               ]
             }
           ],
-          "matricx": {
+          "matrix": {
             "Asiana Airlines": {
               "A": 0.5,
               "B": 0.5,
@@ -332,7 +334,8 @@
       ],
       "source": "1",
       "destination": "3",
-      "default_matricx": {
+      "wait_time": 10,
+      "default_matrix": {
         "A": {
           "DG1": 0.5,
           "DG2": 0.5
@@ -350,7 +353,7 @@
           "DG2": 0.5
         }
       },
-      "priority_matricx": [
+      "priority_matrix": [
         {
           "condition": [
             {
@@ -362,7 +365,7 @@
               ]
             }
           ],
-          "matricx": {
+          "matrix": {
             "A": {
               "DG1": 0.5,
               "DG2": 0.5
@@ -383,7 +386,8 @@
       ],
       "source": "2",
       "destination": "4",
-      "default_matricx": {
+      "wait_time": 10,
+      "default_matrix": {
         "DG1": {
           "SC1": 0.5,
           "SC2": 0.5
@@ -393,7 +397,7 @@
           "SC2": 0.5
         }
       },
-      "priority_matricx": [
+      "priority_matrix": [
         {
           "condition": [
             {
@@ -405,7 +409,7 @@
               ]
             }
           ],
-          "matricx": {
+          "matrix": {
             "DG1": {
               "SC1": 0.5,
               "SC2": 0.5
@@ -426,7 +430,8 @@
       ],
       "source": "3",
       "destination": null,
-      "default_matricx": {
+      "wait_time": 10,
+      "default_matrix": {
         "SC1": {
           "PC1": 0.5,
           "PC2": 0.5
@@ -436,7 +441,7 @@
           "PC2": 0.5
         }
       },
-      "priority_matricx": [
+      "priority_matrix": [
         {
           "condition": [
             {
@@ -448,7 +453,7 @@
               ]
             }
           ],
-          "matricx": {
+          "matrix": {
             "SC1": {
               "PC1": 0.5,
               "PC2": 0.5

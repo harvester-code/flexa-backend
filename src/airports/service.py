@@ -9,7 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from src.airports.schema import (
     GeneralDeclarationArrival,
     GeneralDeclarationDeparture,
-    ChoiceMatricxBody,
+    ChoiceMatrixBody,
     ShowupBody,
 )
 from src.airports.queries import SELECT_AIRPORT_ARRIVAL, SELECT_AIRPORT_DEPARTURE
@@ -69,7 +69,7 @@ class AirportService:
             show_up_summary,
         )
 
-    def create_choice_matrix(self, item: ChoiceMatricxBody):
+    def create_choice_matrix(self, item: ChoiceMatrixBody):
 
         # show-up에서 만드는 코드를 사용해서 데이터 프레임 반환
         pax_df = self.show_up_pattern(
@@ -244,7 +244,7 @@ class AirportService:
 
             # 매트릭스 테이블 df 만들기
             edited_df = pd.DataFrame.from_dict(
-                facility_detail[facility]["filters"][-1]["matricx"], orient="index"
+                facility_detail[facility]["filters"][-1]["matrix"], orient="index"
             )
 
             # 매트릭스로 새로운 컬럼 생성

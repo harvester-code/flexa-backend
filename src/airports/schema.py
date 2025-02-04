@@ -69,9 +69,9 @@ class destribution_conditions(BaseModel):
     standard_deviation: int
 
 
-class PriorityMatricx(BaseModel):
+class PriorityMatrix(BaseModel):
     condition: List[Condition]
-    matricx: Dict[str, Dict[str, float]]
+    matrix: Dict[str, Dict[str, float]]
 
 
 class Processes(BaseModel):
@@ -79,8 +79,8 @@ class Processes(BaseModel):
     nodes: List[str]
     source: str | None
     destination: str | None
-    default_matricx: Dict[str, Dict[str, float]] | None
-    priority_matricx: list[PriorityMatricx] | None
+    default_matrix: Dict[str, Dict[str, float]] | None
+    priority_matrix: list[PriorityMatrix] | None
 
 
 # ==================================
@@ -90,7 +90,7 @@ class ShowupBody(BaseModel):
     destribution_conditions: List[destribution_conditions]
 
 
-class ChoiceMatricxBody(BaseModel):
+class ChoiceMatrixBody(BaseModel):
     # FIXME: data -> 실제 데이터 스키마로 변경필요
     data: List[Any]
     destribution_conditions: List[destribution_conditions]

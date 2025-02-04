@@ -368,7 +368,10 @@
         {
           "criteria": "Airline",
           "operator": "is in",
-          "value": ["OZ", "KE"]
+          "value": [
+            "OZ",
+            "KE"
+          ]
         }
       ],
       "mean": 120,
@@ -384,19 +387,27 @@
   "facility_detail": {
     "0": {
       "name": "operating_carrier_name",
-      "nodes": ["OZ", "KE"],
+      "nodes": [
+        "OZ",
+        "KE"
+      ],
       "filters": [],
       "source": null,
       "destination": "1"
     },
     "1": {
       "name": "checkin",
-      "nodes": ["A", "B", "C", "D"],
+      "nodes": [
+        "A",
+        "B",
+        "C",
+        "D"
+      ],
       "filters": [
         {
           "index": 2,
           "conditions": [],
-          "matricx": {
+          "matrix": {
             "Asiana Airlines": {
               "A": 0.5,
               "B": 0.5,
@@ -417,12 +428,15 @@
     },
     "2": {
       "name": "departure_gate",
-      "nodes": ["DG1", "DG2"],
+      "nodes": [
+        "DG1",
+        "DG2"
+      ],
       "filters": [
         {
           "index": 0,
           "conditions": [],
-          "matricx": {
+          "matrix": {
             "A": {
               "DG1": 0.5,
               "DG2": 0.5
@@ -447,12 +461,15 @@
     },
     "3": {
       "name": "security_check",
-      "nodes": ["SC1", "SC2"],
+      "nodes": [
+        "SC1",
+        "SC2"
+      ],
       "filters": [
         {
           "index": 0,
           "conditions": [],
-          "matricx": {
+          "matrix": {
             "DG1": {
               "SC1": 0.5,
               "SC2": 0.5
@@ -469,12 +486,15 @@
     },
     "4": {
       "name": "passport_check",
-      "nodes": ["PC1", "PC2"],
+      "nodes": [
+        "PC1",
+        "PC2"
+      ],
       "filters": [
         {
           "index": 0,
           "conditions": [],
-          "matricx": {
+          "matrix": {
             "SC1": {
               "PC1": 0.5,
               "PC2": 0.5

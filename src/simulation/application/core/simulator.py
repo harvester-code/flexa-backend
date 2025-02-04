@@ -42,7 +42,7 @@ class DsSimulator:
         # 해당 프로세스의 priority_matrix를 찾는 작업
         for process in self.processes.values():
             if process.name == first_component:
-                priority_matrix = process.priority_matricx
+                priority_matrix = process.priority_matrix
                 break
 
         while (
@@ -70,7 +70,7 @@ class DsSimulator:
 
                     # check가 false이면 이건 돌지 않기 때문에 다음 컨디션을 확인해야함.
                     if check:
-                        edited_df = priority.matricx
+                        edited_df = priority.matrix
                         # 필터에 걸린다면 해당 매트릭을 가져온다. = edited_df
                         break
 

@@ -3,7 +3,7 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from sqlalchemy import Connection
 
-from src.airports.schema import ShowupBody, ChoiceMatricxBody
+from src.airports.schema import ShowupBody, ChoiceMatrixBody
 from src.airports.service import AirportService
 from src.database import get_snowflake_session
 
@@ -30,6 +30,6 @@ async def show_up(item: ShowupBody):
 
 
 # FIXME: 매서드명 변경필요 확정적으로 무엇으로 부르면 좋을지?
-@airports_router.post("/airports/choice_matricx")
-async def choice_matricx(item: ChoiceMatricxBody):
+@airports_router.post("/airports/choice_matrix")
+async def choice_matrix(item: ChoiceMatrixBody):
     return airport_service.create_choice_matrix(item)

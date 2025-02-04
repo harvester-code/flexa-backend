@@ -16,9 +16,9 @@ class destribution_conditions(BaseModel):
     standard_deviation: int
 
 
-class PriorityMatricx(BaseModel):
+class PriorityMatrix(BaseModel):
     condition: List[Condition]
-    matricx: Dict[str, Dict[str, float]]
+    matrix: Dict[str, Dict[str, float]]
 
 
 class Processes(BaseModel):
@@ -26,8 +26,8 @@ class Processes(BaseModel):
     nodes: List[str]
     source: str | None
     destination: str | None
-    default_matricx: Dict[str, Dict[str, float]] | None
-    priority_matricx: list[PriorityMatricx] | None
+    default_matrix: Dict[str, Dict[str, float]] | None
+    priority_matrix: list[PriorityMatrix] | None
 
 
 class Node(BaseModel):
