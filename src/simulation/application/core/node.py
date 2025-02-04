@@ -22,7 +22,10 @@ class DsNode:
         bypass: bool = False,
         is_deterministic: bool = False,
         selection_config=None,
+        random_seed=42,
     ):
+        # if random_seed:
+        #     np.random.seed(random_seed)
         self.node_id = node_id
         self.node_label = node_label
         self.components = components
@@ -47,11 +50,6 @@ class DsNode:
             self.processing_config = np.array(facility_schedule)
         else:
             self.processing_config = 183 * np.ones((60 * 24, num_facilities), dtype=int)
-        # print("destination_choices")
-        # print(self.destination_choices)
-        # print()
-        # print(self.destinations)
-        # print(1 * (self.processing_config > 0))
         if selection_config:
             self.selection_config = np.array(selection_config)
         else:
@@ -81,7 +79,6 @@ class DsNode:
             passenger_id = self.passenger_ids[passenger_node_id]
 
             destination = self.select_destination(nodes, passengers, passenger_id)
-
             destination.passenger_ids.append(passenger_id)
 
             # NOTE: destination의 승객 노드 ID
@@ -90,7 +87,11 @@ class DsNode:
             # TODO: 아래 코드 위치를 수정해보기
             destination.passenger_node_id += 1
 
-            destination.on_time[_passenger_node_id] = self.done_time[passenger_node_id]
+            # movement_time = destination.test_pt(3600)
+            movement_time = 0
+            destination.on_time[_passenger_node_id] = (
+                self.done_time[passenger_node_id] + movement_time
+            )  # TODO: 검증과정이 필요함. 시그마를 0으로 두고 10분씩 뒤로 밀리는지 체크가 1번.
 
             minute_of_day = min(
                 1439, (destination.on_time[_passenger_node_id] % 86400) // 60
@@ -111,7 +112,7 @@ class DsNode:
                 # 기존 코드와 동일
                 for process in self.processes.values():
                     if process.name == dod_component:
-                        priority_matrix = process.priority_matricx
+                        priority_matrix = process.priority_matrix
                         break
 
                 edited_df = None
@@ -131,7 +132,7 @@ class DsNode:
 
                         # check가 false이면 이건 돌지 않기 때문에 다음 컨디션을 확인해야함.
                         if check:
-                            edited_df = priority.matricx
+                            edited_df = priority.matrix
                             break
 
                 # 기존 코드와 동일
@@ -203,7 +204,7 @@ class DsNode:
             # 기존과 같은 방식으로 matrix을 가져온다.
             for process in self.processes.values():
                 if process.name == destination_component:
-                    priority_matrix = process.priority_matricx
+                    priority_matrix = process.priority_matrix
                     break
 
             edited_df = None
@@ -223,7 +224,7 @@ class DsNode:
 
                     # check가 false이면 이건 돌지 않기 때문에 다음 컨디션을 확인해야함.
                     if check:
-                        edited_df = priority.matricx
+                        edited_df = priority.matrix
                         break
 
             # 해당 edited_df의 키값 = 시작컴포넌트를 맞춰주고, 맞다면 해당 매트릭의 키값 = 도착컴포넌트를 맞춰준다.
@@ -304,7 +305,7 @@ class DsNode:
                 passenger = passengers.loc[passenger_id]
                 for process in self.processes.values():
                     if process.name == destination_component:
-                        priority_matrix = process.priority_matricx
+                        priority_matrix = process.priority_matrix
                         break
 
                 edited_df = None
@@ -324,7 +325,7 @@ class DsNode:
 
                         # check가 false이면 이건 돌지 않기 때문에 다음 컨디션을 확인해야함.
                         if check:
-                            edited_df = priority.matricx
+                            edited_df = priority.matrix
                             break
 
                 if edited_df:
@@ -408,3 +409,9 @@ class DsNode:
             round(np.random.normal(processing_time, sigma * sigma_multiple))
         )
         return max(adjusted_processing_time, processing_time // 2)
+
+    def test_pt(self, pt_orig, sigma_multiple=0):
+        sigma = np.sqrt(pt_orig)
+        pt = int(round(np.random.normal(pt_orig, sigma * sigma_multiple)))
+        pt = max(pt, pt_orig // 2)
+        return pt
