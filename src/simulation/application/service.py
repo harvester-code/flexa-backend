@@ -10,8 +10,8 @@ airport_service = AirportService()
 
 
 class SimulationService:
-    @staticmethod
-    def run_simulation(item: SimulationBody):
+    # @staticmethod
+    def run_simulation(self, item: SimulationBody):
         # ============================================================
         # NOTE: 데이터 전처리
         components = []
@@ -96,7 +96,7 @@ class SimulationService:
         process_1 = item.processes["1"]
         dist_map = {}
 
-        for airline, nodes in process_1.default_matricx.items():
+        for airline, nodes in process_1.default_matrix.items():
             indices = np.array(
                 [i for i, node in enumerate(process_1.nodes) if nodes[node] > 0]
             )
@@ -109,7 +109,7 @@ class SimulationService:
         node_transition_graph = []
         for i, key in enumerate(item.processes):
             if int(key) >= 2:
-                default_matrix = item.processes[key].default_matricx
+                default_matrix = item.processes[key].default_matrix
                 nodes = item.processes[key].nodes
                 dst_idx = comp_to_idx[item.processes[key].name]
 
@@ -174,6 +174,48 @@ class SimulationService:
         ow.write_pred()
 
         # print(ow.passengers)
-        # ow.passengers.to_csv("sim_pax.csv", encoding="utf-8-sig", index=False)
+        # ow.passengers.to_csv("sim_pax_0_capa250.csv", encoding="utf-8-sig", index=False)
 
-        return "simulation success!!"
+        sankey = self.sankey(df=ow.passengers, component_list=components)
+
+        return sankey
+        # return "simulation success!!"
+
+    def sankey(self, df, component_list, suffix="_pred") -> dict:
+        # 프로세스별 고유값과 인덱스 매핑
+        nodes = []
+        node_dict = {}
+        idx = 0
+
+        # 노드 인덱스 생성
+        for process in component_list:
+            col_name = f"{process}{suffix}"
+            for value in df[col_name].unique():
+                if value not in node_dict and pd.notna(value):
+                    node_dict[value] = idx
+                    # 각 value의 길이를 label로
+                    label_count = len(df[df[col_name] == value])
+                    nodes.append(f"{value} ({label_count})")
+                    idx += 1
+
+        # source, target, value 생성
+        sources, targets, values = [], [], []
+        for i in range(len(component_list) - 1):
+            source_col = f"{component_list[i]}{suffix}"
+            target_col = f"{component_list[i+1]}{suffix}"
+
+            flow = df.groupby([source_col, target_col]).size().reset_index()
+            for _, row in flow.iterrows():
+                if pd.notna(row[source_col]) and pd.notna(row[target_col]):
+                    sources.append(node_dict[row[source_col]])
+                    targets.append(node_dict[row[target_col]])
+                    values.append(row[0])
+
+        sankey = {
+            "node": nodes,
+            "sources": sources,
+            "targets": targets,
+            "values": values,
+        }
+
+        return sankey
