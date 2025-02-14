@@ -1,53 +1,19 @@
 import os
-import httpx
-import sqlalchemy
+from typing import AsyncGenerator
+
 from boto3 import client
 from fastapi import HTTPException, status
 from snowflake.sqlalchemy import URL
 from sqlalchemy import create_engine
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from supabase import create_client, Client
-from typing import AsyncGenerator
-from supabase._async.client import (
-    AsyncClient as aClient,
-    create_client as acreate_client,
-)
+from supabase._async.client import AsyncClient, create_client
 
 
-def supabase_public_clinet():
-    url: str = os.getenv("SUPABASE_URL")
-    key: str = os.getenv("SUPABASE_PUBLIC_KEY")
-    supabase = create_client(url, key)
-
-    return supabase
-
-
-async def aget_supabase_client() -> aClient:
-    url: str = os.getenv("SUPABASE_URL")
-    key: str = os.getenv("SUPABASE_PUBLIC_KEY")
-
-    return await acreate_client(url, key)
-
-
-async def aget_supabase_auth_client() -> aClient:
-    url: str = os.getenv("SUPABASE_URL")
-    key: str = os.getenv("SUPABASE_SECRET_KEY")
-
-    return await acreate_client(url, key)
-
-
-def supabase_auth_client():
-    url: str = os.getenv("SUPABASE_URL")
-    key: str = os.getenv("SUPABASE_SECRET_KEY")
-    supabase = create_client(url, key)
-
-    return supabase
-
-
-def aws_s3_client():
+# ============================================================
+def get_s3_client():
     s3_client = client(
         "s3",
         aws_access_key_id=os.getenv("AWS_ACCESS_KEY"),
@@ -57,22 +23,8 @@ def aws_s3_client():
     return s3_client
 
 
-def get_snowflake_session():
-    engine = sqlalchemy.create_engine(
-        URL(
-            account=os.getenv("SNOWFLAKE_ACCOUNT_IDENTIFIER"),
-            user=os.getenv("SNOWFLAKE_USERNAME"),
-            password=os.getenv("SNOWFLAKE_PASSWORD"),
-            database="CIRIUMSKY",
-            schema="PUBLIC",
-            warehouse="COMPUTE_WH",
-        )
-    )
-
-    return engine
-
-
-snowflake_engine = sqlalchemy.create_engine(
+# ============================================================
+SNOWFLAKE_ENGINE = create_engine(
     URL(
         account=os.getenv("SNOWFLAKE_ACCOUNT_IDENTIFIER"),
         user=os.getenv("SNOWFLAKE_USERNAME"),
@@ -83,48 +35,37 @@ snowflake_engine = sqlalchemy.create_engine(
     )
 )
 
-# supabase_url = sqlalchemy.engine.URL.create(
-#     drivername="postgresql",
-#     user="postgres",
-#     password=os.getenv("SUPABASE_PASSWORD"),
-#     host=os.getenv("SUPABASE_HOST"),
-#     port=5432,
-#     dbname="postgres",
-# )
 
-PASSWORD = os.getenv("SUPABASE_PASSWORD")
-HOST = os.getenv("SUPABASE_HOST")
-supabase_url = f"postgresql+psycopg2://postgres.zrljtluoitxroprmywhz:{PASSWORD}@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres?sslmode=require"
-
-supabase_engine = sqlalchemy.create_engine(supabase_url)
-SessionLocal = sessionmaker(autoflush=False, bind=supabase_engine)
-
-Base = declarative_base()
-
-
-async def context_get_supabase_conn():
+def get_snowflake_session():
     conn = None
     try:
-
-        conn = supabase_engine.connect()
-
+        conn = SNOWFLAKE_ENGINE.connect()
         yield conn
-
-    except SQLAlchemyError as e:
-        print(e)
+    except SQLAlchemyError as err:
+        print(err)
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="DB 접속 에러"
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="현재 요청하신 서비스 이용이 어려운 상태입니다.",
         )
-
     finally:
         if conn:
             conn.close()
+    return SUPABASE_ENGINE
 
 
-supabase_async_url = f"postgresql+asyncpg://postgres.zrljtluoitxroprmywhz:{PASSWORD}@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres"
-engine = create_async_engine(supabase_async_url, future=True, echo=True)
+# ============================================================
+SUPABASE_USERNAME = os.getenv("SUPABASE_USERNAME")
+SUPABASE_PASSWORD = os.getenv("SUPABASE_PASSWORD")
+SUPABASE_HOST = os.getenv("SUPABASE_HOST")
+SUPABASE_PORT = os.getenv("SUPABASE_PORT")
+SUPABASE_DBNAME = os.getenv("SUPABASE_DBNAME")
+
+SUPABASE_ENGINE = create_async_engine(
+    f"postgresql+asyncpg://{SUPABASE_USERNAME}:{SUPABASE_PASSWORD}@{SUPABASE_HOST}:{SUPABASE_PORT}/{SUPABASE_DBNAME}",
+)
+
 AsyncSessionLocal = sessionmaker(
-    bind=engine,
+    bind=SUPABASE_ENGINE,
     class_=AsyncSession,
     expire_on_commit=False,
 )
@@ -132,13 +73,28 @@ AsyncSessionLocal = sessionmaker(
 
 async def aget_supabase_session() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
-
         try:
             yield session
-
         except Exception:
             await session.rollback()
             raise
-
         finally:
             await session.close()
+
+
+async def aget_supabase_client() -> AsyncClient:
+    SUPABASE_PROJECT_URL: str = os.getenv("SUPABASE_PROJECT_URL")
+    SUPABASE_PUBLIC_KEY: str = os.getenv("SUPABASE_PUBLIC_KEY")
+
+    return await create_client(SUPABASE_PROJECT_URL, SUPABASE_PUBLIC_KEY)
+
+
+async def aget_supabase_auth_client() -> AsyncClient:
+    SUPABASE_PROJECT_URL: str = os.getenv("SUPABASE_PROJECT_URL")
+    SUPABASE_SECRET_KEY: str = os.getenv("SUPABASE_SECRET_KEY")
+
+    return await create_client(SUPABASE_PROJECT_URL, SUPABASE_SECRET_KEY)
+
+
+# ============================================================
+Base = declarative_base()

@@ -1,42 +1,35 @@
 from typing import Any
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
-from starlette.concurrency import run_in_threadpool
+from sqlalchemy import Connection
 
+from src.airports.schema import ShowupBody, ChoiceMatrixBody
 from src.airports.service import AirportService
 from src.database import get_snowflake_session
 
-
-airports_router = APIRouter()
+airports_router = APIRouter(prefix="/airports")
 airport_service = AirportService()
 
 
-@airports_router.get("/airports/general-declarations")
+@airports_router.get("/general-declarations")
 async def fetch_general_declarations(
     date: str,
     airport: str,
     flight_io: str = "departure",
-    session: Session = Depends(get_snowflake_session),
+    conn: Connection = Depends(get_snowflake_session),
 ):
-    # TODO: 아래 방법이 맞는지 확인하기
-    data = await run_in_threadpool(
-        AirportService.fetch_general_declarations, date, airport, flight_io, session
+    return await airport_service.fetch_general_declarations(
+        date=date, airport=airport, flight_io=flight_io, conn=conn
     )
-    return data
 
 
-# FIXME: 임시
-class Item(BaseModel):
-    inputs: Any
+# FIXME: 매서드명 변경필요 확정적으로 무엇으로 부르면 좋을지?
+@airports_router.post("/show-up")
+async def show_up(item: ShowupBody):
+    return airport_service.create_show_up(item)
 
 
-@airports_router.post("/airports/show-up")
-async def show_up(inputs: Item):
-    return airport_service.show_up(inputs)
-
-
-@airports_router.post("/airports/choice_matricx")
-async def choice_matricx(inputs: Item):
-    return airport_service.create_choice_matrix(inputs)
+# FIXME: 매서드명 변경필요 확정적으로 무엇으로 부르면 좋을지?
+@airports_router.post("/airports/choice_matrix")
+async def choice_matrix(item: ChoiceMatrixBody):
+    return airport_service.create_choice_matrix(item)

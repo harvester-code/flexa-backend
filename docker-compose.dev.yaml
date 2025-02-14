@@ -1,0 +1,8 @@
+services:
+  server:
+    image: 531915313382.dkr.ecr.ap-northeast-2.amazonaws.com/coop/flexa-waitfree-api:v1.0.0-beta.1
+    container_name: flexa-waitfree-api
+    environment:
+      - DOPPLER_TOKEN
+    ports:
+      - 4999:8000

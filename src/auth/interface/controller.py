@@ -1,20 +1,20 @@
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from supabase._async.client import AsyncClient as Client
 
 from src.auth.application.service import AuthService
 from src.auth.interface.schema import (
     CreateCertificationBody,
-    CreateUserBody,
     CreateUserAccessRequestBody,
+    CreateUserBody,
     LoginUser,
     ResetPassword,
 )
 from src.containers import Container
 from src.database import (
-    aget_supabase_client,
     aget_supabase_auth_client,
+    aget_supabase_client,
     aget_supabase_session,
 )
 

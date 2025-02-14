@@ -1,32 +1,31 @@
 [tool.poetry]
-name = "flexa-api"
+name = "flexa-waitless-api"
 version = "0.1.0"
 description = ""
-authors = ["Your Name <you@example.com>"]
+authors = []
 readme = "README.md"
 package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.11"
 art = "^6.4"
+asyncpg = "^0.30.0"
 boto3 = "^1.35.68"
+dependency-injector = "^4.45.0"
 fastapi = { extras = ["standard"], version = "^0.115.5" }
+greenlet = "^3.1.1"
+pandas = "^2.2.3"
 pendulum = "^3.0.0"
 pillow = "^11.0.0"
+psycopg2-binary = "^2.9.10"
 pydantic = "^2.9.2"
 python-multipart = "^0.0.17"
+python-ulid = "^3.0.0"
 snowflake-sqlalchemy = "^1.7.1"
 sqlmodel = "^0.0.22"
 supabase = "^2.10.0"
-snowflake-connector-python = "^3.12.4"
-pandas = "^2.2.3"
-psycopg2 = "^2.9.10"
-greenlet = "^3.1.1"
-asyncpg = "^0.30.0"
+loguru = "^0.7.3"
 
-
-[tool.poetry.group.dev.dependencies]
-ipykernel = "^6.29.5"
 
 [build-system]
 requires = ["poetry-core"]

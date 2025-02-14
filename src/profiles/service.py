@@ -4,11 +4,11 @@ from fastapi import File, HTTPException, UploadFile, status
 from PIL import Image, ImageOps
 from supabase import Client
 
-from src.database import aws_s3_client, supabase_public_clinet
+from src.database import get_s3_client, supabase_public_clinet
 from src.profiles.schema import InUserInfo
 
 supabase: Client = supabase_public_clinet()
-s3_client = aws_s3_client()
+s3_client = get_s3_client()
 
 
 class ProfilesService:

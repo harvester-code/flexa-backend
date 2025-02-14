@@ -1,178 +1,148 @@
 from datetime import datetime, timedelta
 from json import loads
-from typing import Annotated
 
 import numpy as np
 import pandas as pd
-from fastapi import Depends
-from sqlalchemy import Engine
+from sqlalchemy import Connection, text
+from sqlalchemy.exc import SQLAlchemyError
 
+from src.airports.schema import (
+    GeneralDeclarationArrival,
+    GeneralDeclarationDeparture,
+    ChoiceMatrixBody,
+    ShowupBody,
+)
 from src.airports.queries import SELECT_AIRPORT_ARRIVAL, SELECT_AIRPORT_DEPARTURE
-from src.database import get_snowflake_session
-
-SessionDep = Annotated[Engine, Depends(get_snowflake_session)]
 
 
 class AirportService:
     @staticmethod
-    def fetch_general_declarations(date, airport, flight_io, session: SessionDep):
-        with session.connect() as connection:
-            if flight_io == "arrival":
-                df = pd.read_sql(
-                    SELECT_AIRPORT_ARRIVAL.format(airport=airport, date=date),
-                    connection,
-                )
+    async def fetch_general_declarations(date, airport, flight_io, conn: Connection):
+        try:
+            query_map = {
+                "arrival": SELECT_AIRPORT_ARRIVAL,
+                "departure": SELECT_AIRPORT_DEPARTURE,
+            }
+            schema_map = {
+                "arrival": GeneralDeclarationArrival,
+                "departure": GeneralDeclarationDeparture,
+            }
 
-            if flight_io == "departure":
-                df = pd.read_sql(
-                    SELECT_AIRPORT_DEPARTURE.format(airport=airport, date=date),
-                    connection,
-                )
+            stmt = text(query_map.get(flight_io))
+            params = {
+                "airport": airport,
+                "date": date,
+            }
 
-        result = loads(df.to_json(orient="records"))
-        return result
+            result = conn.execute(stmt, params)
 
-    @staticmethod
-    def show_up(inputs):
-        df = pd.DataFrame([dict(row) for row in inputs.inputs["data"]])
+            rows = [schema_map.get(flight_io)(**row._mapping) for row in result]
+            return rows
+        # TODO: 에러핸들링 개선
+        except SQLAlchemyError as err:
+            raise err
+        except Exception as err:
+            raise err
+        finally:
+            result.close()
 
-        col_map = {
-            "Airline": "operating_carrier_iata",
-            "Region": "df_region",
-            "Country": "df_country",
-            "Airport": "df_airport",
-            "Flight_number": "flight_number",
-        }
+    def create_show_up(self, item: ShowupBody):
+        pax_df = self.show_up_pattern(
+            data=item.data,
+            destribution_conditions=item.destribution_conditions,
+        )
 
-        pax_df = pd.DataFrame()
-        for filter in inputs.inputs["filters"]:
-            filtered_df = df.copy()
+        # Condition 에 따른 Distribution 좌표 생성
+        distribution_xy_coords = self._create_normal_distribution(
+            item.destribution_conditions
+        )
 
-            for condition in filter["conditions"]:
-                filtered_df = filtered_df[
-                    filtered_df[col_map[condition["criteria"]]].isin(condition["value"])
-                ]
+        # Show up 그래프용 데이터
+        show_up_summary = self._create_show_up_summary(pax_df, interval_minutes=60)
 
-            # ========================
-            # filtered_df 뻥튀기 코드 (input: 평균 / 분산)
-            seats_80_percent = (
-                filtered_df["total_seat_count"].fillna(0).astype(int) * 0.8
-            )
-            partial_pax_df = filtered_df.loc[
-                filtered_df.index.repeat(seats_80_percent)
-            ].reset_index(drop=True)
+        # 시간 포맷 변경
+        pax_df["show_up_time"] = pax_df["show_up_time"].dt.strftime("%Y-%m-%dT%H:%M:%S")
 
-            departure_times = pd.to_datetime(
-                partial_pax_df["scheduled_gate_departure_local"]
-            )
-            random_minutes = np.random.normal(
-                loc=-90, scale=30, size=len(partial_pax_df)
-            )
-            partial_pax_df["showup_time"] = departure_times + pd.to_timedelta(
-                random_minutes, unit="m"
-            )
-            # ========================
+        return (
+            loads(pax_df.head().to_json(orient="records")),
+            distribution_xy_coords,
+            show_up_summary,
+        )
 
-            pax_df = pd.concat([pax_df, partial_pax_df], ignore_index=True)
-            df.drop(index=filtered_df.index, inplace=True)
-
-        # short_df = pax_df[["FLIGHT_ID", "showup_time"]]
-        # return loads(short_df.to_json(orient="records"))
-
-        ## 그래프용 코드 ##
-
-        def count_rows_by_time(df, time_column):
-            # 00:00부터 23:59까지의 모든 시간을 생성
-            times = []
-            counts = []
-
-            start_time = datetime.strptime("00:00", "%H:%M")
-            end_time = datetime.strptime("23:59", "%H:%M")
-
-            current_time = start_time
-            while current_time <= end_time:
-                time_str = current_time.strftime("%H:%M")
-                count = len(df[df[time_column].dt.strftime("%H:%M") == time_str])
-
-                times.append(time_str)
-                counts.append(count)
-
-                current_time += timedelta(minutes=1)
-
-            # 결과 데이터프레임 생성
-            # result_df = pd.DataFrame({"인원수": counts}, index=times)
-            result_df = pd.DataFrame({"시간": times, "인원수": counts})
-            return result_df
-
-        # 시간 열('time')을 기준으로 행 개수 계산
-        result_df = count_rows_by_time(pax_df.head(500), "showup_time")
-
-        return loads(result_df.to_json(orient="records"))
-
-    ##########################################
-    # NOTE: 이 아래로 매서드 구분을 해놨습니다
-
-    def create_choice_matrix(self, inputs):
+    def create_choice_matrix(self, item: ChoiceMatrixBody):
 
         # show-up에서 만드는 코드를 사용해서 데이터 프레임 반환
-        df_pax = self._show_up(inputs)
-
+        pax_df = self.show_up_pattern(
+            data=item.data,
+            destribution_conditions=item.destribution_conditions,
+        )
         # 초이스 매트릭스 부분만 가져오기
-        facility_detail = inputs.inputs["facility_detail"]
+        facility_detail = item.processes
 
         # 초이스 매트릭스 run
-        df_pax = self._add_columns(facility_detail, df_pax)
+        pax_df = self._add_columns(facility_detail, pax_df)
 
-        sanky = self._create_sankey_data(facility_detail, df_pax)
-        capacity = self._capacity_chart(df_pax, node_list=facility_detail["1"]["nodes"])
+        sanky = self._create_sankey_data(facility_detail, pax_df)
+        capacity = self._capacity_chart(pax_df, node_list=facility_detail["1"]["nodes"])
 
         return {"sanky": sanky, "capacity": capacity}
 
-    def _show_up(self, inputs):
-        df = pd.DataFrame([dict(row) for row in inputs.inputs["data"]])
-
+    def show_up_pattern(self, data: list, destribution_conditions: list):
+        df = pd.DataFrame(data)
         col_map = {
+            "International/Domestic": "flight_type",
             "Airline": "operating_carrier_iata",
-            "Region": "df_region",
-            "Country": "df_country",
-            "Airport": "df_airport",
-            "Flight_number": "flight_number",
+            "Region": "region_name",
+            "Country": "country_code",
         }
 
         pax_df = pd.DataFrame()
-        # df = df[df["operating_carrier_iata"].isin(["KE", "OZ"])]
-        for filter in inputs.inputs["filters"]:
-            filtered_df = df.copy()
-
-            for condition in filter["conditions"]:
-                filtered_df = filtered_df[
-                    filtered_df[col_map[condition["criteria"]]].isin(condition["value"])
+        for filter in destribution_conditions:
+            partial_df = df.copy()
+            for condition in filter.conditions:
+                partial_df = partial_df[
+                    partial_df[col_map[condition.criteria]].isin(condition.value)
                 ]
-
-            # ========================
-            # filtered_df 뻥튀기 코드 (input: 평균 / 분산)
-            seats_80_percent = (
-                filtered_df["total_seat_count"].fillna(0).astype(int) * 0.8
-            )
-            partial_pax_df = filtered_df.loc[
-                filtered_df.index.repeat(seats_80_percent)
-            ].reset_index(drop=True)
-
-            departure_times = pd.to_datetime(
+            partial_pax_df = partial_df.loc[
+                partial_df.index.repeat(partial_df["total_seat_count"])
+            ]
+            arrival_times = []
+            for _, row in partial_df.iterrows():
+                samples = np.random.normal(
+                    loc=filter.mean,
+                    scale=np.sqrt(filter.standard_deviation),
+                    size=int(row["total_seat_count"]),
+                )
+                arrival_times.extend(samples)
+            partial_pax_df["show_up_time"] = pd.to_datetime(
                 partial_pax_df["scheduled_gate_departure_local"]
-            )
-            random_minutes = np.random.normal(
-                loc=-90, scale=30, size=len(partial_pax_df)
-            )
-            partial_pax_df["showup_time"] = departure_times + pd.to_timedelta(
-                random_minutes, unit="m"
-            )
-            # ========================
-
+            ) - pd.to_timedelta(arrival_times, unit="minutes")
             pax_df = pd.concat([pax_df, partial_pax_df], ignore_index=True)
-            df.drop(index=filtered_df.index, inplace=True)
-
+            df.drop(index=partial_df.index, inplace=True)
+        # pax_df.to_csv(".idea/pax_df.csv", index=False) # 분산처리 데이터검증목적
         return pax_df
+
+    def _create_normal_distribution(self, destribution_conditions: list):
+        distribution_xy_coords = {}
+        for condition in destribution_conditions:
+            index = condition.index
+            mean = condition.mean
+            std_dev = condition.standard_deviation
+            x = np.linspace(mean - 4 * std_dev, mean + 4 * std_dev, 1000)
+            y = (1 / (std_dev * np.sqrt(2 * np.pi))) * np.exp(
+                -0.5 * ((x - mean) / std_dev) ** 2
+            )
+            distribution_xy_coords[index] = {"x": x.tolist(), "y": y.tolist()}
+        return distribution_xy_coords
+
+    def _create_show_up_summary(self, pax_df, interval_minutes=60):
+        pax_df["time_group"] = pax_df["show_up_time"].dt.floor(f"{interval_minutes}min")
+        counts_df = pax_df.groupby("time_group").size().reset_index()
+        summary = {
+            "times": counts_df["time_group"].dt.strftime("%Y-%m-%d %H:%M:%S").tolist(),
+            "counts": counts_df[0].tolist(),
+        }
+        return summary
 
     def _sample_node(self, row, edited_df):
         """
@@ -274,7 +244,7 @@ class AirportService:
 
             # 매트릭스 테이블 df 만들기
             edited_df = pd.DataFrame.from_dict(
-                facility_detail[facility]["filters"][-1]["matricx"], orient="index"
+                facility_detail[facility]["filters"][-1]["matrix"], orient="index"
             )
 
             # 매트릭스로 새로운 컬럼 생성
