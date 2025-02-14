@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
 from src.simulation.schema import SimulationBody
-from src.simulation.application.service import SimulationService
+from src.simulation.application._service import SimulationService
 
 simulation_router = APIRouter(prefix="/simulations")
 simulation_service = SimulationService()
