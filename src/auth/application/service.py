@@ -17,18 +17,17 @@ class AuthService:
         auth_repo: IAuthRepository,
     ):
         self.auth_repo = auth_repo
-        self.ulid = ULID()
-        self.tiemstamp = TimeStamp()
+        self.timestamp = TimeStamp()
 
     async def create_certification(self, db: AsyncSession, email: str):
-        id = self.ulid.generate()
+        id = str(ULID())
 
         certification: Certification = Certification(
             id=id,
             email=email,
             cert_number=int(random.randint(1234, 9999)),
-            expired_at=self.tiemstamp.time_now().add(minutes=5),
-            created_at=self.tiemstamp.time_now(),
+            expired_at=self.timestamp.time_now().add(minutes=5),
+            created_at=self.timestamp.time_now(),
         )
 
         await self.auth_repo.create_certification(db, certification)
@@ -36,7 +35,7 @@ class AuthService:
         return id
 
     async def fetch_certification(self, db: AsyncSession, id: str):
-        now = self.tiemstamp.time_now()
+        now = self.timestamp.time_now()
 
         cert = await self.auth_repo.fetch_certification(db, id, now)
 
@@ -81,7 +80,7 @@ class AuthService:
             admin_email=admin_email,
             request_mg=request_mg,
             is_checked=False,
-            created_at=self.tiemstamp.time_now(),
+            created_at=self.timestamp.time_now(),
         )
 
         await self.auth_repo.create_user_access_request(db, access)
