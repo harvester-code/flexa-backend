@@ -32,4 +32,4 @@ COPY . /code
 
 EXPOSE 8000
 
-CMD [ "doppler", "run", "--", "fastapi", "run", "src/main.py" ]
+CMD [ "doppler", "run", "--", "fastapi", "run", "code/src/main.py" ]
