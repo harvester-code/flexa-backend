@@ -866,5 +866,5 @@ class SimulationService:
         # output_file = "output.json"  # 저장할 JSON 파일명
         # with open(output_file, "w", encoding="utf-8") as json_file:
         #     json.dump(chart_result, json_file, ensure_ascii=False, indent=4)
-        return {"sankey": sankey, "chart": "chart_result"}
+        return {"sankey": sankey, "chart": "not yet"}
         # return "simulation success!!"

@@ -87,7 +87,7 @@ async def update_scenario_metadata(
     )
 
 
-@simulation_router.post("/flight_schedule", status_code=201)
+@simulation_router.post("/flight-schedule", status_code=201)
 @inject
 async def fetch_flight_schedule_chart(
     flight_schedule: FlightScheduleBody,
@@ -106,14 +106,14 @@ async def fetch_flight_schedule_chart(
         flight_schedule.first_load,
     )
 
-    await simulation_service.update_simulation_scenario(
-        supabase_db, flight_schedule.user_id, flight_schedule.date
-    )
+    # await simulation_service.update_simulation_scenario(
+    #     supabase_db, flight_schedule.user_id, flight_schedule.date
+    # )
 
     return flight_sch
 
 
-@simulation_router.post("/passenger_schedule", status_code=201)
+@simulation_router.post("/passenger-schedule", status_code=201)
 @inject
 async def generate_passenger_schedule_chart(
     passenger_schedule: PassengerScheduleBody,
@@ -130,7 +130,7 @@ async def generate_passenger_schedule_chart(
     )
 
 
-@simulation_router.post("/facility_conn", status_code=201)
+@simulation_router.post("/facility-conn", status_code=201)
 @inject
 async def generate_facility_conn(
     facility_conn: FacilityConnBody,
@@ -148,7 +148,7 @@ async def generate_facility_conn(
     )
 
 
-@simulation_router.post("/run_simulation", status_code=201)
+@simulation_router.post("/run-simulation", status_code=201)
 @inject
 async def run_simulation(
     run_simulation: RunSimulationBody,
