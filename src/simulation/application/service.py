@@ -23,7 +23,7 @@ from src.simulation.domain.simulation import ScenarioMetadata, SimulationScenari
 
 # FIXME: 스노우플레이크 정상작동시 삭제할 os 경로 코드
 # NOTE: samples 폴더 안에 sample_ICN_data.json 파일 필요
-SAMPLE_DATA = os.path.join(os.getcwd(), "samples/sample_ICN_data.json")
+SAMPLE_DATA = os.path.join(os.getcwd(), "code/samples/sample_ICN_data.json")
 
 
 class SimulationService:
