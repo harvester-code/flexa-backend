@@ -5,4 +5,4 @@ services:
     environment:
       - DOPPLER_TOKEN
     ports:
-      - 4999:8000
+      - 8000:8000
