@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ulid import ULID
 
 from src.common import TimeStamp
-from src.constants import COL_FILTER_MAP
+from src.constants import COL_FILTER_MAP, CRITERIA_MAP
 from src.simulation.application.core.graph import DsGraph
 from src.simulation.application.core.ouput_wrapper import DsOutputWrapper
 from src.simulation.application.core.simulator import DsSimulator
@@ -23,7 +23,8 @@ from src.simulation.domain.simulation import ScenarioMetadata, SimulationScenari
 
 # FIXME: 스노우플레이크 정상작동시 삭제할 os 경로 코드
 # NOTE: samples 폴더 안에 sample_ICN_data.json 파일 필요
-SAMPLE_DATA = os.path.join(os.getcwd(), "code/samples/sample_ICN_data.json")
+# SAMPLE_DATA = os.path.join(os.getcwd(), "code/samples/sample_ICN_data.json")
+SAMPLE_DATA = os.path.join(os.getcwd(), "samples/sample_ICN_data.json")
 
 
 class SimulationService:
@@ -130,6 +131,7 @@ class SimulationService:
 
         await self.simulation_repo.update_scenario_metadata(db, scenario_metadata)
 
+    # TODO: 스노우플레이크 정상화 되면 테스트 필요
     async def fetch_flight_schedule_data(
         self, db: Connection, date: str, airport: str, condition: list | None
     ):
@@ -198,6 +200,18 @@ class SimulationService:
         )
         df_grouped = df_grouped.sort_index()
 
+        total_groups = df_grouped.shape[1]
+        has_etc = total_groups > 9
+
+        if has_etc:
+            top_9_columns = df_grouped.sum().nlargest(9).index.tolist()
+            df_grouped["etc"] = df_grouped.drop(
+                columns=top_9_columns, errors="ignore"
+            ).sum(axis=1)
+            df_grouped = df_grouped[top_9_columns + ["etc"]]
+        else:
+            top_9_columns = df_grouped.columns.tolist()
+
         day = df_grouped.index[0].date()
         all_hours = pd.date_range(
             start=pd.Timestamp(day),
@@ -206,18 +220,23 @@ class SimulationService:
         )
         df_grouped = df_grouped.reindex(all_hours, fill_value=0)
 
+        group_order = df_grouped.sum().sort_values(ascending=False).index.tolist()
+        if has_etc and "etc" in group_order:
+            group_order.remove("etc")
+            group_order.append("etc")
+
         default_x = df_grouped.index.strftime("%H:%M").tolist()
+
         traces = [
-            {"name": column, "y": df_grouped[column].tolist()}
+            {
+                "name": column,
+                "order": group_order.index(column),
+                "y": df_grouped[column].tolist(),
+            }
             for column in df_grouped.columns
         ]
 
-        result = {
-            "default_x": default_x,
-            "traces": traces,
-        }
-
-        return result
+        return {"traces": traces, "default_x": default_x}
 
     async def generate_flight_schedule(
         self,
@@ -249,18 +268,40 @@ class SimulationService:
         # ======================
         flight_df = pd.DataFrame(data)
 
-        add_condition = None
+        add_conditions = None
         if first_load:
             # I/D, 항공사, 터미널
             i_d = flight_df["flight_type"].unique().tolist()
             airline = flight_df["operating_carrier_iata"].unique().tolist()
             terminal = flight_df["departure_terminal"].unique().tolist()
 
-            add_condition = {"I/D": i_d, "Airline": airline, "Terminal": terminal}
+            if None in terminal:
+                terminal = [t for t in terminal if t is not None]
+
+            add_conditions = [
+                {"name": "I/D", "operator": "=", "value": i_d},
+                {"name": "Airline", "operator": "is in", "value": airline},
+                {"name": "Terminal", "operator": "=", "value": terminal},
+            ]
+
+        add_priorities = None
+        if not first_load:
+            # ["Airline", "I/D", "Region", "Country"]
+            i_d = flight_df["flight_type"].unique().tolist()
+            airline = flight_df["operating_carrier_iata"].unique().tolist()
+            country = flight_df["country_code"].unique().tolist()
+            region = flight_df["region_name"].unique().tolist()
+
+            add_priorities = [
+                {"name": "I/D", "operator": "=", "value": i_d},
+                {"name": "Airline", "operator": "is in", "value": airline},
+                {"name": "Country", "operator": "is in", "value": country},
+                {"name": "Region", "operator": "is in", "value": region},
+            ]
 
         chart_result = {}
         for group_column in [
-            "operating_carrier_iata",
+            "operating_carrier_name",  # 항공사 명으로 통일
             "departure_terminal",
             "flight_type",
         ]:
@@ -268,9 +309,14 @@ class SimulationService:
                 flight_df, group_column
             )
 
-            chart_result[f"{group_column}_chart_data"] = chart_data
+            chart_result[CRITERIA_MAP[group_column]] = chart_data["traces"]
 
-        return {"condition": add_condition, "chart_data": chart_result}
+        return {
+            "add_conditions": add_conditions,
+            "add_priorities": add_priorities,
+            "chart_x_data": chart_data["default_x"],
+            "chart_y_data": chart_result,
+        }
 
     async def _calculate_show_up_pattern(
         self, data: list, destribution_conditions: list
@@ -305,7 +351,7 @@ class SimulationService:
         return pax_df
 
     async def _create_normal_distribution(self, destribution_conditions: list):
-        distribution_xy_coords = {}
+        distribution_xy_coords = []
         for condition in destribution_conditions:
             index = condition.index
             mean = condition.mean
@@ -314,7 +360,14 @@ class SimulationService:
             y = (1 / (std_dev * np.sqrt(2 * np.pi))) * np.exp(
                 -0.5 * ((x - mean) / std_dev) ** 2
             )
-            distribution_xy_coords[index] = {"x": x.tolist(), "y": y.tolist()}
+
+            dist_name = f"Priority{index+1}"
+            if index == 9999:
+                dist_name = "Default"
+
+            distribution_xy_coords.append(
+                {"name": dist_name, "x": x.tolist(), "y": y.tolist()}
+            )
         return distribution_xy_coords
 
     async def _create_show_up_summary(self, pax_df: pd.DataFrame, group_column: str):
@@ -323,6 +376,18 @@ class SimulationService:
             pax_df.groupby(["show_up_time", group_column]).size().unstack(fill_value=0)
         )
         df_grouped = df_grouped.sort_index()
+
+        total_groups = df_grouped.shape[1]
+        has_etc = total_groups > 9
+
+        if has_etc:
+            top_9_columns = df_grouped.sum().nlargest(9).index.tolist()
+            df_grouped["etc"] = df_grouped.drop(
+                columns=top_9_columns, errors="ignore"
+            ).sum(axis=1)
+            df_grouped = df_grouped[top_9_columns + ["etc"]]
+        else:
+            top_9_columns = df_grouped.columns.tolist()
 
         start_day = df_grouped.index[0].strftime("%Y-%m-%d %H:%M:%S")
         end_day = df_grouped.index[-1].strftime("%Y-%m-%d %H:%M:%S")
@@ -333,17 +398,23 @@ class SimulationService:
         )
         df_grouped = df_grouped.reindex(all_hours, fill_value=0)
 
+        group_order = df_grouped.sum().sort_values(ascending=False).index.tolist()
+        if has_etc and "etc" in group_order:
+            group_order.remove("etc")
+            group_order.append("etc")
+
         default_x = df_grouped.index.strftime("%Y-%m-%d %H:%M:%S").tolist()
+
         traces = [
-            {"name": column, "y": df_grouped[column].tolist()}
+            {
+                "name": column,
+                "order": group_order.index(column),
+                "y": df_grouped[column].tolist(),
+            }
             for column in df_grouped.columns
         ]
 
-        summary = {
-            "default_x": default_x,
-            "traces": traces,
-        }
-        return summary
+        return {"default_x": default_x, "traces": traces}
 
     async def generate_passenger_schedule(
         self, db: Connection, flight_sch: dict, destribution_conditions: list
@@ -375,15 +446,19 @@ class SimulationService:
 
         chart_result = {}
         for group_column in [
-            "operating_carrier_iata",
+            "operating_carrier_name",
             "departure_terminal",
             "country_code",
             "region_name",
         ]:
             chart_data = await self._create_show_up_summary(pax_df, group_column)
-            chart_result[f"{group_column}_chart_data"] = chart_data
+            chart_result[CRITERIA_MAP[group_column]] = chart_data["traces"]
 
-        return {"dst_chart": distribution_xy_coords, "bar_chart": chart_result}
+        return {
+            "dst_chart": distribution_xy_coords,
+            "bar_chart_x_data": chart_data["default_x"],
+            "bar_chart_y_data": chart_result,
+        }
 
     def _calculate_sample_node(self, row, edited_df):
         """
@@ -847,12 +922,12 @@ class SimulationService:
         #         for on_done in ["on", "done"]:
         #             # process = checkin / node = A / on_done = on
         #             for group_column in [
-        #                 "operating_carrier_iata",
+        #                 "operating_carrier_name",
         #                 "departure_terminal",
         #                 "country_code",
         #                 "region_name",
         #             ]:
-        #                 # process = checkin / node = A / on_done = on / group_column = operating_carrier_iata
+        #                 # process = checkin / node = A / on_done = on / group_column = operating_carrier_name
         #                 chart_data = await self._create_simulation_kpi_chart(
         #                     ow.passengers,
         #                     on_done=on_done,
