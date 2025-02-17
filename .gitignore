@@ -53,3 +53,6 @@ Thumbs.db
 
 # sample ICN data .json
 sample_ICN_data.json
+
+# .env
+.env
