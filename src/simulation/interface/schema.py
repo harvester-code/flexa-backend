@@ -77,7 +77,6 @@ class RunSimulationBody(BaseModel):
 
 
 class SimulationScenarioBody(BaseModel):
-    user_id: str
     simulation_name: str
     terminal: str
     editor: str

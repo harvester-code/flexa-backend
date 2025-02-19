@@ -14,7 +14,7 @@ from src.simulation.interface.schema import (
 )
 from src.containers import Container
 from src.database import get_snowflake_session, aget_supabase_session
-
+from src.common import verify_jwt
 from src.simulation.application.service import SimulationService
 
 simulation_router = APIRouter(prefix="/simulations")
@@ -29,6 +29,7 @@ simulation_router = APIRouter(prefix="/simulations")
 @inject
 async def create_scenario(
     scenario: SimulationScenarioBody,
+    user_id: str = Depends(verify_jwt),
     simulation_service: SimulationService = Depends(
         Provide[Container.simulation_service]
     ),
@@ -37,7 +38,7 @@ async def create_scenario(
 
     return await simulation_service.create_simulation_scenario(
         db,
-        scenario.user_id,
+        user_id,
         scenario.simulation_name,
         scenario.memo,
         scenario.terminal,
