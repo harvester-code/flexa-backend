@@ -279,9 +279,9 @@ class SimulationService:
                 terminal = [t for t in terminal if t is not None]
 
             add_conditions = [
-                {"name": "I/D", "operator": "=", "value": i_d},
-                {"name": "Airline", "operator": "is in", "value": airline},
-                {"name": "Terminal", "operator": "=", "value": terminal},
+                {"name": "I/D", "operator": ["="], "value": i_d},
+                {"name": "Airline", "operator": ["is in"], "value": airline},
+                {"name": "Terminal", "operator": ["="], "value": terminal},
             ]
 
         add_priorities = None
@@ -293,10 +293,10 @@ class SimulationService:
             region = flight_df["region_name"].unique().tolist()
 
             add_priorities = [
-                {"name": "I/D", "operator": "=", "value": i_d},
-                {"name": "Airline", "operator": "is in", "value": airline},
-                {"name": "Country", "operator": "is in", "value": country},
-                {"name": "Region", "operator": "is in", "value": region},
+                {"name": "I/D", "operator": ["="], "value": i_d},
+                {"name": "Airline", "operator": ["is in"], "value": airline},
+                {"name": "Country", "operator": ["is in"], "value": country},
+                {"name": "Region", "operator": ["is in"], "value": region},
             ]
 
         chart_result = {}
