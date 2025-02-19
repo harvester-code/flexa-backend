@@ -23,8 +23,8 @@ from src.simulation.domain.simulation import ScenarioMetadata, SimulationScenari
 
 # FIXME: 스노우플레이크 정상작동시 삭제할 os 경로 코드
 # NOTE: samples 폴더 안에 sample_ICN_data.json 파일 필요
-SAMPLE_DATA = os.path.join(os.getcwd(), "code/samples/sample_ICN_data.json")
-# SAMPLE_DATA = os.path.join(os.getcwd(), "samples/sample_ICN_data.json")
+# SAMPLE_DATA = os.path.join(os.getcwd(), "code/samples/sample_ICN_data.json")
+SAMPLE_DATA = os.path.join(os.getcwd(), "samples/sample_ICN_data.json")
 
 
 class SimulationService:
@@ -314,6 +314,7 @@ class SimulationService:
         return {
             "add_conditions": add_conditions,
             "add_priorities": add_priorities,
+            "total": flight_df.shape[0],
             "chart_x_data": chart_data["default_x"],
             "chart_y_data": chart_result,
         }
@@ -455,6 +456,7 @@ class SimulationService:
             chart_result[CRITERIA_MAP[group_column]] = chart_data["traces"]
 
         return {
+            "total": pax_df.shape[0],
             "dst_chart": distribution_xy_coords,
             "bar_chart_x_data": chart_data["default_x"],
             "bar_chart_y_data": chart_result,
@@ -509,7 +511,6 @@ class SimulationService:
         return sankey_data
 
     async def _create_capacity_chart(self, df_pax, node_list):
-        # 10분 단위의 시간 리스트 생성
         times = [
             time(hour=hour, minute=minute)
             for hour in range(24)
@@ -518,12 +519,10 @@ class SimulationService:
         time_df = pd.DataFrame({"index": times})
         time_df["index"] = time_df["index"].astype(str)
 
-        fin_dict = {}
+        node_data = {}
 
         for node in node_list:
-            # 노드별 데이터 필터링 후 복사본 생성
             df_pax_filtered = df_pax[df_pax["checkin_component"] == node].copy()
-            # '10T' 대신 '10min' 사용
             df_pax_filtered.loc[:, "show_up_time"] = df_pax_filtered[
                 "show_up_time"
             ].dt.floor("10min")
@@ -535,14 +534,17 @@ class SimulationService:
             total_capa["count"] = total_capa["count"].fillna(0)
             total_capa = total_capa.drop("show_up_time", axis=1)
 
-            total_dict = {
-                "x": total_capa["index"].tolist(),  # 시간 리스트
-                "y": total_capa["count"].tolist(),  # count 리스트
+            node_data[node] = {
+                "total": total_capa["count"].sum(),
+                "y": total_capa["count"].tolist(),
             }
 
-            fin_dict[node] = total_dict
+        total_data = {
+            "bar_chart_x_data": total_capa["index"].tolist(),
+            "bar_chart_y_data": node_data,
+        }
 
-        return fin_dict
+        return total_data
 
     async def _calculate_add_columns(self, facility_detail, df_pax):
         """
