@@ -17,7 +17,8 @@ class TimeStamp:
 
 # =============================================
 SUPABASE_JWT_SECRET_KEY = os.getenv("SUPABASE_JWT_SECRET_KEY")
-ALGORITHM = "HS256"
+# print(SUPABASE_JWT_SECRET_KEY)
+ALGORITHM = "RS256"
 
 # 토큰이 없을경우 401에러와 함께 "Not authenticated" 반환
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
@@ -31,13 +32,19 @@ def verify_jwt(token: str = Depends(oauth2_scheme)):
     )
 
     try:
-        payload = jwt.decode(token, SUPABASE_JWT_SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(
+            token,
+            SUPABASE_JWT_SECRET_KEY,
+            algorithms=[ALGORITHM],
+            audience="authenticated",
+        )
+        # print(payload)
         user_id: str = payload.get("sub")
-
         if user_id is None:
             raise credentials_exception
 
-    except JWTError:
+    except JWTError as e:
+        # print(f"Token verification failed: {str(e)}")  # 디버깅용
         raise credentials_exception
 
     return user_id
