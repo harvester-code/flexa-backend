@@ -18,7 +18,7 @@ class TimeStamp:
 # =============================================
 SUPABASE_JWT_SECRET_KEY = os.getenv("SUPABASE_JWT_SECRET_KEY")
 # print(SUPABASE_JWT_SECRET_KEY)
-ALGORITHM = "RS256"
+ALGORITHM = "HS256"
 
 # 토큰이 없을경우 401에러와 함께 "Not authenticated" 반환
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
