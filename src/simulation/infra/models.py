@@ -17,10 +17,11 @@ class SimulationScenario(Base):
     size: Mapped[Integer] = mapped_column(Integer, nullable=True)
     terminal: Mapped[str] = mapped_column(String(36), nullable=False)
     editor: Mapped[str] = mapped_column(String(36), nullable=False)
-    memo: Mapped[str] = mapped_column(String(36), nullable=True)
+    note: Mapped[str] = mapped_column(String(36), nullable=True)
     simulation_date: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
 
 class ScenarioMetadata(Base):
