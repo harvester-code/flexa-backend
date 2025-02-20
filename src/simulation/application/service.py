@@ -51,6 +51,9 @@ class SimulationService:
         self.simulation_repo = simulation_repo
         self.timestamp = TimeStamp()
 
+    # =====================================
+    # NOTE: 시뮬레이션 시나리오
+
     async def fetch_simulation_scenario(self, db: AsyncSession, user_id: str):
 
         scenario = await self.simulation_repo.fetch_simulation_scenario(db, user_id)
@@ -62,7 +65,7 @@ class SimulationService:
         db: AsyncSession,
         user_id: str,
         name: str,
-        memo: str,
+        note: str,
         terminal: str,
         editor: str,
     ):
@@ -76,7 +79,7 @@ class SimulationService:
             size=None,
             terminal=terminal,
             editor=editor,
-            memo=memo,
+            note=note,
             simulation_date=None,
             updated_at=self.timestamp.time_now(),
             created_at=self.timestamp.time_now(),
@@ -97,7 +100,29 @@ class SimulationService:
             db, simulation_scenario, scenario_metadata
         )
 
-        return id
+        return {
+            "simulation_id": id,
+            "overview": {},
+            "history": {},
+            "flight_sch": {},
+            "passenger_sch": {},
+            "passenger_attr": {},
+            "facility_conn": {},
+            "facility_info": {},
+        }
+
+    async def update_simulation_scenario(
+        self, db: AsyncSession, id: str, name: str | None, note: str | None
+    ):
+
+        await self.simulation_repo.update_simulation_scenario(db, id, name, note)
+
+    async def deactivate_simulation_scenario(self, db: AsyncSession, id: str):
+
+        await self.simulation_repo.deactivate_simulation_scenario(db, id)
+
+    # =====================================
+    # NOTE: 시뮬레이션 시나리오
 
     async def fetch_scenario_metadata(self, db: AsyncSession, simulation_id: str):
 
@@ -130,6 +155,9 @@ class SimulationService:
         )
 
         await self.simulation_repo.update_scenario_metadata(db, scenario_metadata)
+
+    # =====================================
+    # NOTE: 시뮬레이션 프로세스
 
     # TODO: 스노우플레이크 정상화 되면 테스트 필요
     async def fetch_flight_schedule_data(
@@ -175,14 +203,14 @@ class SimulationService:
 
         return data
 
-    async def update_simulation_scenario(
-        self, db: AsyncSession, user_id: str, target_date: str
+    async def update_simulation_scenario_target_date(
+        self, db: AsyncSession, id: str, target_date: str
     ):
 
         target_datetime = datetime.strptime(target_date, "%Y-%m-%d")
 
-        await self.simulation_repo.update_simulation_scenario(
-            db, user_id, target_datetime
+        await self.simulation_repo.update_simulation_scenario_target_date(
+            db, id, target_datetime
         )
 
     async def _create_flight_schedule_chart(

@@ -11,7 +11,7 @@ class SimulationScenario:
     size: str | None
     terminal: str
     editor: str
-    memo: str
+    note: str
     simulation_date: str | None
     created_at: datetime  # 생성날짜? 수정날짜? 수정날짜로 일단 생각
     updated_at: datetime

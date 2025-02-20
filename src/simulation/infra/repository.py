@@ -15,10 +15,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 class SimulationRepository(ISimulationRepository):
 
+    # ===================================
+    # NOTE: 시뮬레이션 시나리오
+
     async def fetch_simulation_scenario(self, db: AsyncSession, user_id: str):
 
         result = await db.execute(
-            select(SimulationScenario).where(SimulationScenario.user_id == user_id)
+            select(SimulationScenario)
+            .where(SimulationScenario.user_id == user_id)
+            .where(SimulationScenario.is_active is True)
         )
 
         scenario = result.scalars().all()
@@ -40,7 +45,7 @@ class SimulationRepository(ISimulationRepository):
             size=simulation_scenario.size,
             terminal=simulation_scenario.terminal,
             editor=simulation_scenario.editor,
-            memo=simulation_scenario.memo,
+            note=simulation_scenario.note,
             simulation_date=simulation_scenario.simulation_date,
             updated_at=simulation_scenario.updated_at,
             created_at=simulation_scenario.created_at,
@@ -62,6 +67,35 @@ class SimulationRepository(ISimulationRepository):
 
         db.add(new_metadata)
         await db.commit()
+
+    async def update_simulation_scenario(
+        self, db: AsyncSession, id: str, name: str | None, note: str | None
+    ):
+        values_to_update = {}
+
+        if name:
+            values_to_update[SimulationScenario.simulation_name] = name
+        if note:
+            values_to_update[SimulationScenario.note] = note
+
+        await db.execute(
+            update(SimulationScenario)
+            .where(SimulationScenario.id == id)
+            .values(values_to_update)
+        )
+        await db.commit()
+
+    async def deactivate_simulation_scenario(self, db: AsyncSession, id: str):
+
+        await db.execute(
+            update(SimulationScenario)
+            .where(SimulationScenario.id == id)
+            .values({SimulationScenario.is_active: False})
+        )
+        await db.commit()
+
+    # ===================================
+    # NOTE: 시나리오 메타데이터
 
     async def fetch_scenario_metadata(self, db: AsyncSession, simulation_id: str):
 
@@ -98,6 +132,9 @@ class SimulationRepository(ISimulationRepository):
 
             await db.commit()
 
+    # ===================================
+    # NOTE: 시뮬레이션 프로세스
+
     async def fetch_flight_schedule_data(
         self, conn: Connection, stmt, params, flight_io
     ):
@@ -112,16 +149,16 @@ class SimulationRepository(ISimulationRepository):
         rows = [dict(schema_map.get(flight_io)(**row._mapping)) for row in result]
         return rows
 
-    async def update_simulation_scenario(
+    async def update_simulation_scenario_target_date(
         self,
         db: AsyncSession,
-        user_id: str,
+        id: str,
         target_datetime,
     ):
 
         await db.execute(
             update(SimulationScenario)
-            .where(SimulationScenario.user_id == user_id)
+            .where(SimulationScenario.id == id)
             .values({SimulationScenario.simulation_date: target_datetime})
         )
         await db.commit()

@@ -80,7 +80,7 @@ class SimulationScenarioBody(BaseModel):
     simulation_name: str
     terminal: str
     editor: str
-    memo: str | None
+    note: str | None
 
 
 class ScenarioMetadataBody(BaseModel):
@@ -93,3 +93,9 @@ class ScenarioMetadataBody(BaseModel):
     passenger_attr: dict | None
     facility_conn: dict | None
     facility_info: dict | None
+
+
+class ScenarioUpdateBody(BaseModel):
+    id: str
+    simulation_name: str | None
+    note: str | None
