@@ -19,10 +19,13 @@ SUPABASE_JWT_SECRET_KEY = os.getenv("SUPABASE_JWT_SECRET_KEY")
 ALGORITHM = "HS256"
 AUDIENCE = "authenticated"
 
-EXCLUDED_PATHS = ["/docs", "/redoc", "/openapi.json"]
+EXCLUDED_PATHS = ["/docs", "/redoc", "/openapi.json", "/"]
 
 
 async def jwt_decoder(request: Request, call_next):
+
+    if request.method == "OPTIONS":
+        return await call_next(request)
 
     if request.url.path in EXCLUDED_PATHS:
         return await call_next(request)
