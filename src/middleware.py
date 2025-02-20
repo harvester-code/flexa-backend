@@ -19,7 +19,12 @@ SUPABASE_JWT_SECRET_KEY = os.getenv("SUPABASE_JWT_SECRET_KEY")
 ALGORITHM = "HS256"
 AUDIENCE = "authenticated"
 
-EXCLUDED_PATHS = ["/docs", "/redoc", "/openapi.json", "/"]
+# FIXME: 차후 개발이 완성되면 모든 api는 해당 jwt 인증을 거치도록 설정
+# EXCLUDED_PATHS = ["/docs", "/redoc", "/openapi.json", "/"]
+JWT_DECODER_PATH = [
+    "/api/v1/simulations/scenario",
+    "/api/v1/simulations/scenario/metadata",
+]
 
 
 async def jwt_decoder(request: Request, call_next):
@@ -27,7 +32,10 @@ async def jwt_decoder(request: Request, call_next):
     if request.method == "OPTIONS":
         return await call_next(request)
 
-    if request.url.path in EXCLUDED_PATHS:
+    # if request.url.path in EXCLUDED_PATHS:
+    #     return await call_next(request)
+
+    if request.url.path not in JWT_DECODER_PATH:
         return await call_next(request)
 
     credentials_exception = HTTPException(
