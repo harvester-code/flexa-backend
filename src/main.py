@@ -8,6 +8,7 @@ from src.auth.interface.controller import auth_router
 from src.containers import Container
 from src.simulation.router import simulation_router as past_simulation_router
 from src.simulation.interface.controller import simulation_router
+from src.middleware import add_middlewares
 
 app = FastAPI()
 app.container = Container()
@@ -18,6 +19,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+add_middlewares(app)
 
 router = APIRouter()
 

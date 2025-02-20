@@ -1,5 +1,5 @@
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from supabase._async.client import AsyncClient as Client
 from sqlalchemy import Connection
@@ -14,7 +14,6 @@ from src.simulation.interface.schema import (
 )
 from src.containers import Container
 from src.database import get_snowflake_session, aget_supabase_session
-from src.common import verify_jwt
 from src.simulation.application.service import SimulationService
 
 simulation_router = APIRouter(prefix="/simulations")
@@ -29,7 +28,7 @@ simulation_router = APIRouter(prefix="/simulations")
 @inject
 async def create_scenario(
     scenario: SimulationScenarioBody,
-    user_id: str = Depends(verify_jwt),
+    requset: Request,
     simulation_service: SimulationService = Depends(
         Provide[Container.simulation_service]
     ),
@@ -38,7 +37,7 @@ async def create_scenario(
 
     return await simulation_service.create_simulation_scenario(
         db,
-        user_id,
+        requset.state.user_id,
         scenario.simulation_name,
         scenario.memo,
         scenario.terminal,
@@ -54,13 +53,13 @@ async def create_scenario(
 )
 @inject
 async def fetch_scenario(
-    user_id: str,
+    request: Request,
     simulation_service: SimulationService = Depends(
         Provide[Container.simulation_service]
     ),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
-    return await simulation_service.fetch_simulation_scenario(db, user_id)
+    return await simulation_service.fetch_simulation_scenario(db, request.state.user_id)
 
 
 @simulation_router.get(
