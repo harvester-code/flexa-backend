@@ -4,8 +4,6 @@ from fastapi import FastAPI, HTTPException, Request, status
 from jose import JWTError, jwt
 from starlette.responses import JSONResponse
 
-# from src.main import app
-
 
 def add_middlewares(app: FastAPI):
     """미들웨어를 FastAPI 앱에 추가하는 함수"""
@@ -23,6 +21,7 @@ AUDIENCE = "authenticated"
 # EXCLUDED_PATHS = ["/docs", "/redoc", "/openapi.json", "/"]
 JWT_DECODER_PATH = [
     "/api/v1/simulations/scenario",
+    "/api/v1/simulations/scenario/deactivate",
     "/api/v1/simulations/scenario/metadata",
 ]
 
