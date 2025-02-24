@@ -26,6 +26,7 @@ sqlmodel = "^0.0.22"
 supabase = "^2.10.0"
 loguru = "^0.7.3"
 python-jose = "^3.4.0"
+awswrangler = "^3.11.0"
 
 
 [build-system]
