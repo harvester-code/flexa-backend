@@ -51,7 +51,6 @@ class SimulationBody(BaseModel):
 
 
 class FlightScheduleBody(BaseModel):
-    user_id: str | None
     airport: str
     date: str
     first_load: bool
@@ -70,6 +69,7 @@ class FacilityConnBody(BaseModel):
 
 
 class RunSimulationBody(BaseModel):
+    scenario_id: str
     flight_schedule: FlightScheduleBody
     destribution_conditions: List[destribution_conditions]
     processes: Dict[str, Processes]

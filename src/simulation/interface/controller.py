@@ -1,20 +1,21 @@
+import boto3
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import Connection
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.containers import Container
+from src.database import aget_supabase_session, get_boto3_session, get_snowflake_session
+from src.simulation.application.service import SimulationService
 from src.simulation.interface.schema import (
-    SimulationScenarioBody,
-    ScenarioUpdateBody,
-    ScenarioMetadataBody,
+    FacilityConnBody,
     FlightScheduleBody,
     PassengerScheduleBody,
-    FacilityConnBody,
     RunSimulationBody,
+    ScenarioMetadataBody,
+    ScenarioUpdateBody,
+    SimulationScenarioBody,
 )
-from src.containers import Container
-from src.database import get_snowflake_session, aget_supabase_session
-from src.simulation.application.service import SimulationService
 
 simulation_router = APIRouter(prefix="/simulations")
 
@@ -29,6 +30,7 @@ status 코드 정리
 
 # ==============================
 # NOTE: 시뮬레이션 시나리오
+
 
 @simulation_router.get(
     "/scenario",
@@ -119,6 +121,7 @@ async def deactivate_scenario(
 
 # ==============================
 # NOTE: 시나리오 메타데이터
+
 
 @simulation_router.get(
     "/scenario/metadata",
@@ -242,16 +245,44 @@ async def generate_facility_conn(
 @inject
 async def run_simulation(
     run_simulation: RunSimulationBody,
+    request: Request,
     simulation_service: SimulationService = Depends(
         Provide[Container.simulation_service]
     ),
     db: Connection = Depends(get_snowflake_session),
+    session: boto3.Session = Depends(get_boto3_session),
 ):
 
     return await simulation_service.run_simulation(
         db,
+        session,
+        request.state.user_id,
+        run_simulation.scenario_id,
         run_simulation.flight_schedule,
         run_simulation.destribution_conditions,
         run_simulation.processes,
         run_simulation.components,
+    )
+
+
+@simulation_router.post("/kpi-chart", status_code=200)
+@inject
+async def generate_simulation_kpi_chart(
+    scenario_id: str,
+    process: str,
+    node: str,
+    request: Request,
+    simulation_service: SimulationService = Depends(
+        Provide[Container.simulation_service]
+    ),
+    session: boto3.Session = Depends(get_boto3_session),
+):
+
+    return await simulation_service.generate_simulation_kpi_chart(
+        session=session,
+        user_id=request.state.user_id,
+        scenario_id=scenario_id,
+        process=process,
+        node=node,
+        sim_df=None,
     )

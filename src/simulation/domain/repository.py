@@ -47,3 +47,11 @@ class ISimulationRepository(metaclass=ABCMeta):
     @abstractmethod
     def update_simulation_scenario_target_date(self):
         raise NotImplementedError
+
+    @abstractmethod
+    def upload_to_s3(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def download_from_s3(self):
+        raise NotImplementedError

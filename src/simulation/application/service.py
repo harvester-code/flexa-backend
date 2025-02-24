@@ -3,6 +3,7 @@ from datetime import datetime, time
 
 import numpy as np
 import pandas as pd
+import boto3
 from dependency_injector.wiring import inject
 from sqlalchemy import Connection, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,7 +39,8 @@ class SimulationService:
 
     fetch : get
     create : post
-    update : put
+    update : patch / put
+    deactivate : patch (delete)
     """
 
     # TODO: 그래프 만드는 코드들이 서로 비슷한데 합칠수는 없을까?
@@ -347,6 +349,7 @@ class SimulationService:
             "chart_y_data": chart_result,
         }
 
+    # =====================================
     async def _calculate_show_up_pattern(
         self, data: list, destribution_conditions: list
     ):
@@ -490,6 +493,7 @@ class SimulationService:
             "bar_chart_y_data": chart_result,
         }
 
+    # =====================================
     def _calculate_sample_node(self, row, edited_df):
         """
         Sample a node based on the probabilities from the choice matrix.
@@ -670,6 +674,260 @@ class SimulationService:
 
         return {"sanky": sanky, "capacity": capacity}
 
+    # =====================================
+    async def _create_simulation_flow_chart(
+        self,
+        sim_df: pd.DataFrame,
+        flow: str,
+        process: str,
+        node: str,
+        group_column: str,
+    ):
+        sim_df = sim_df.loc[sim_df[f"{process}_pred"] == f"{process}_{node}"].copy()
+
+        sim_df.loc[:, f"{process}_{flow}_pred"] = sim_df[
+            f"{process}_{flow}_pred"
+        ].dt.floor("10min")
+
+        df_grouped = (
+            sim_df.groupby([f"{process}_{flow}_pred", group_column])
+            .size()
+            .unstack(fill_value=0)
+        )
+        df_grouped = df_grouped.sort_index()
+
+        total_groups = df_grouped.shape[1]
+        has_etc = total_groups > 9
+
+        if has_etc:
+            top_9_columns = df_grouped.sum().nlargest(9).index.tolist()
+            df_grouped["etc"] = df_grouped.drop(
+                columns=top_9_columns, errors="ignore"
+            ).sum(axis=1)
+            df_grouped = df_grouped[top_9_columns + ["etc"]]
+        else:
+            top_9_columns = df_grouped.columns.tolist()
+
+        start_day = df_grouped.index[0].strftime("%Y-%m-%d %H:%M:%S")
+        end_day = df_grouped.index[-1].strftime("%Y-%m-%d %H:%M:%S")
+        all_hours = pd.date_range(
+            start=pd.Timestamp(start_day),
+            end=pd.Timestamp(end_day),
+            freq="10min",
+        )
+        df_grouped = df_grouped.reindex(all_hours, fill_value=0)
+
+        group_order = df_grouped.sum().sort_values(ascending=False).index.tolist()
+        if has_etc and "etc" in group_order:
+            group_order.remove("etc")
+            group_order.append("etc")
+
+        default_x = df_grouped.index.strftime("%Y-%m-%d %H:%M:%S").tolist()
+
+        traces = [
+            {
+                "name": column,
+                "order": group_order.index(column),
+                "y": df_grouped[column].tolist(),
+            }
+            for column in df_grouped.columns
+        ]
+
+        return {"traces": traces, "default_x": default_x}
+
+    async def _create_simulation_queue_chart(
+        self,
+        sim_df: pd.DataFrame,
+        process,
+        group_column,
+    ):
+        start_time = f"{process}_on_pred"
+        end_time = f"{process}_pt_pred"
+
+        df_expanded = sim_df[[start_time, end_time, group_column]].copy()
+        df_expanded[start_time] = df_expanded[start_time].dt.round("10min")
+        df_expanded[end_time] = df_expanded[end_time].dt.round("10min")
+
+        df_expanded["start_int"] = (
+            (
+                (
+                    df_expanded[start_time] - df_expanded[start_time].min()
+                ).dt.total_seconds()
+                // 60
+            )
+            .fillna(0)
+            .astype(int)
+        )
+        df_expanded["end_int"] = (
+            (
+                (
+                    df_expanded[end_time] - df_expanded[start_time].min()
+                ).dt.total_seconds()
+                // 60
+            )
+            .fillna(0)
+            .astype(int)
+        )
+        df_expanded["Time"] = df_expanded.apply(
+            lambda row: list(range(row["start_int"], row["end_int"], 10)),
+            axis=1,  # 10분간격으로 설정
+        )
+
+        df_expanded = df_expanded.explode("Time")
+        df_expanded["Time"] = df_expanded[start_time] + pd.to_timedelta(
+            df_expanded["Time"] - df_expanded["start_int"], unit="m"
+        )
+
+        start_day = df_expanded["Time"].dropna().iloc[0].strftime("%Y-%m-%d %H:%M:%S")
+        end_day = df_expanded["Time"].dropna().iloc[-1].strftime("%Y-%m-%d %H:%M:%S")
+        all_hours = pd.date_range(
+            start=pd.Timestamp(start_day),
+            end=pd.Timestamp(end_day),
+            freq="10min",
+        )
+        df_expanded = df_expanded[
+            df_expanded["Time"].isin(all_hours)
+        ]  # 하루를 넘어가거나, 하루 이전의 값을 사전 제거
+
+        # df_grouped 만들기
+        df_grouped = (
+            df_expanded.groupby(["Time", group_column])
+            .size()
+            .unstack(fill_value=0)
+            .reset_index()
+        )
+        df_grouped = df_grouped.set_index("Time")
+        df_grouped = df_grouped.sort_index()
+
+        total_groups = df_grouped.shape[1]
+        has_etc = total_groups > 9
+
+        if has_etc:
+            top_9_columns = df_grouped.sum().nlargest(9).index.tolist()
+            df_grouped["etc"] = df_grouped.drop(
+                columns=top_9_columns, errors="ignore"
+            ).sum(axis=1)
+            df_grouped = df_grouped[top_9_columns + ["etc"]]
+        else:
+            top_9_columns = df_grouped.columns.tolist()
+
+        df_grouped = df_grouped.reindex(all_hours, fill_value=0)
+
+        group_order = df_grouped.sum().sort_values(ascending=False).index.tolist()
+        if has_etc and "etc" in group_order:
+            group_order.remove("etc")
+            group_order.append("etc")
+
+        default_x = df_grouped.index.strftime("%Y-%m-%d %H:%M:%S").tolist()
+
+        traces = [
+            {
+                "name": column,
+                "order": group_order.index(column),
+                "y": df_grouped[column].tolist(),
+            }
+            for column in df_grouped.columns
+        ]
+
+        return {"traces": traces, "default_x": default_x}
+
+    async def _create_simulation_kpi(self, sim_df: pd.DataFrame, process, node):
+        start_time = f"{process}_on_pred"
+        end_time = f"{process}_pt_pred"
+        process_time = f"{process}_pt"
+
+        filtered_sim_df = sim_df.loc[
+            sim_df[f"{process}_pred"] == f"{process}_{node}"
+        ].copy()
+
+        diff_arr = (
+            filtered_sim_df[end_time] - filtered_sim_df[start_time]
+        ).dt.total_seconds()
+        throughput = int(len(filtered_sim_df))
+        total_delay = int(diff_arr.sum() / 60)
+        max_delay = int(diff_arr.max() / 60)
+        average_delay = int((total_delay / throughput) * 100) / 100
+        average_transaction_time = int(filtered_sim_df[process_time].mean() * 10) / 10
+
+        result = {
+            "Processed Passengers": throughput,
+            "Maximum Wait Time": max_delay,
+            "Average Wait Time": average_delay,
+            "Average Processing Time": average_transaction_time,
+        }
+
+        return result
+
+    async def generate_simulation_kpi_chart(
+        self,
+        session: boto3.Session,
+        user_id: str | None,
+        scenario_id: str | None,
+        sim_df: pd.DataFrame | None,
+        process: str,
+        node: str,
+    ):
+
+        if user_id and scenario_id:
+            filename = f"{user_id}/{scenario_id}"
+
+            # s3에서 시뮬레이션 데이터 프레임 가져오기
+            sim_df = await self.simulation_repo.download_from_s3(session, filename)
+
+        # 해당 데이터프레임을 선택한 process와 node에 따라 kpi와 차트 생성
+        inbound = {}
+        outbound = {}
+        queing = {}
+        # process = checkin / node = A / flow = on
+        for group_column in [
+            "operating_carrier_name",
+            "departure_terminal",
+            "country_code",
+            "region_name",
+        ]:
+
+            queue_data = await self._create_simulation_queue_chart(
+                sim_df, process, group_column
+            )
+            queing[CRITERIA_MAP[group_column]] = queue_data["traces"]
+
+            for flow in ["on", "pt"]:
+                # process = checkin / node = A / flow = on / group_column = operating_carrier_name
+                flow_data = await self._create_simulation_flow_chart(
+                    sim_df,
+                    flow=flow,
+                    process=process,
+                    node=node,
+                    group_column=group_column,
+                )
+
+                if flow == "on":
+                    inbound[CRITERIA_MAP[group_column]] = flow_data["traces"]
+
+                if flow == "pt":
+                    outbound[CRITERIA_MAP[group_column]] = flow_data["traces"]
+
+        # KPI 생성
+        kpi = await self._create_simulation_kpi(sim_df, process, node)
+
+        result = {
+            "process": process,
+            "node": node,
+            "kpi": kpi,
+            "inbound": {
+                "chart_x_data": flow_data["default_x"],
+                "chart_y_data": inbound,
+            },
+            "outbound": {
+                "chart_x_data": flow_data["default_x"],
+                "chart_y_data": outbound,
+            },
+            "queing": {"chart_x_data": queue_data["default_x"], "chart_y_data": queing},
+        }
+
+        return result
+
+    # =====================================
     async def _create_simulation_sankey(
         self, df: pd.DataFrame, component_list, suffix="_pred"
     ) -> dict:
@@ -709,60 +967,20 @@ class SimulationService:
 
         return sankey
 
-    # TODO: 시뮬레이션으로 나오는 데이터 처리하는데, 양이 너무 많음.....
-    async def _create_simulation_kpi_chart(
-        self,
-        pax_df: pd.DataFrame,
-        on_done: str,
-        process_name: str,
-        process_node: str,
-        group_column: str,
-    ):
-        pax_df = pax_df.loc[
-            pax_df[f"{process_name}_pred"] == f"{process_name}_{process_node}"
-        ].copy()
-
-        pax_df.loc[:, f"{process_name}_{on_done}_pred"] = pax_df[
-            f"{process_name}_{on_done}_pred"
-        ].dt.floor("10min")
-
-        df_grouped = (
-            pax_df.groupby([f"{process_name}_{on_done}_pred", group_column])
-            .size()
-            .unstack(fill_value=0)
-        )
-        df_grouped = df_grouped.sort_index()
-
-        start_day = df_grouped.index[0].strftime("%Y-%m-%d %H:%M:%S")
-        end_day = df_grouped.index[-1].strftime("%Y-%m-%d %H:%M:%S")
-        all_hours = pd.date_range(
-            start=pd.Timestamp(start_day),
-            end=pd.Timestamp(end_day),
-            freq="10min",
-        )
-        df_grouped = df_grouped.reindex(all_hours, fill_value=0)
-
-        default_x = df_grouped.index.strftime("%Y-%m-%d %H:%M:%S").tolist()
-        traces = [
-            {"name": column, "y": df_grouped[column].tolist()}
-            for column in df_grouped.columns
-        ]
-
-        summary = {
-            "default_x": default_x,
-            "traces": traces,
-        }
-        return summary
-
     # TODO: 시뮬레이션 매서드 분리 or 클래스화 필요
     async def run_simulation(
         self,
         db: Connection,
+        session: boto3.Session,
+        user_id: str,
+        scenario_id: str,
         flight_sch: dict,
         destribution_conditions: list,
         processes: dict,
         component_list: list,
     ):
+        # FIXME: 테스트용 확인 코드
+        print(f"시작시간 : {datetime.now()}")
         # ============================================================
         # NOTE: 데이터 전처리
         components = []
@@ -896,6 +1114,7 @@ class SimulationService:
                         node_transition_graph.append([])
 
         # ============================================================
+        # NOTE: 메인 코드
         graph = DsGraph(
             components=components,
             component_node_pairs=component_node_pairs,
@@ -936,40 +1155,69 @@ class SimulationService:
         )
         ow.write_pred()
 
+        # =====================================
+        # NOTE: 시뮬레이션 결과 데이터 s3 저장
         # print(ow.passengers)
         # ow.passengers.to_csv("sim_pax_test.csv", encoding="utf-8-sig", index=False)
 
+        filename = f"{user_id}/{scenario_id}.parquet"
+        await self.simulation_repo.upload_to_s3(session, ow.passengers, filename)
+
+        # =====================================
+        # NOTE: 시뮬레이션 결과 데이터를 차트로 변환
         sankey = await self._create_simulation_sankey(
             df=ow.passengers, component_list=components
         )
 
-        # TODO: 차트만드는 코드는 현재 너무 길어서 고민
-        # chart_result = {}
-        # for process, nodes in comp_to_idx.items():
-        #     # process = checkin / nodes = A, B, C, D
-        #     for node in list(nodes.keys()):
-        #         # process = checkin / node = A
-        #         for on_done in ["on", "done"]:
-        #             # process = checkin / node = A / on_done = on
-        #             for group_column in [
-        #                 "operating_carrier_name",
-        #                 "departure_terminal",
-        #                 "country_code",
-        #                 "region_name",
-        #             ]:
-        #                 # process = checkin / node = A / on_done = on / group_column = operating_carrier_name
-        #                 chart_data = await self._create_simulation_kpi_chart(
-        #                     ow.passengers,
-        #                     on_done=on_done,
-        #                     process_name=process,
-        #                     process_node=node,
-        #                     group_column=group_column,
-        #                 )
-        #                 chart_result[
-        #                     f"{process}_{node}_{on_done}_{group_column}_chart_data"
-        #                 ] = chart_data
-        # output_file = "output.json"  # 저장할 JSON 파일명
-        # with open(output_file, "w", encoding="utf-8") as json_file:
-        #     json.dump(chart_result, json_file, ensure_ascii=False, indent=4)
-        return {"sankey": sankey, "chart": "not yet"}
+        first_process = next(iter(comp_to_idx), None)
+        first_value = comp_to_idx[first_process] if first_process else None
+        first_node = next(iter(first_value), None) if first_value else None
+
+        kpi_chart = await self.generate_simulation_kpi_chart(
+            session=session,
+            user_id=None,
+            scenario_id=None,
+            sim_df=ow.passengers,
+            process=first_process,
+            node=first_node,
+        )
+        # FIXME: 테스트용 확인코드
+        print(f"완료시간 : {datetime.now()}")
+        return {"sankey": sankey, "kpi_chart": kpi_chart}
         # return "simulation success!!"
+
+
+{
+    "kpi_chart": {
+        "process": "checkin",
+        "node": "A",
+        "chart_x_data": [],
+        "inbound": {
+            "Airline": [],
+            "Terminal": [],
+            "Region": [],
+            "Country": [],
+        },
+        "outbound": {
+            "Airline": [],
+            "Terminal": [],
+            "Region": [],
+            "Country": [],
+        },
+        "queing": {
+            "Airline": [],
+            "Terminal": [],
+            "Region": [],
+            "Country": [],
+        },
+        "kpi": {
+            "a": "a",
+            "a": "a",
+            "a": "a",
+            "a": "a",
+            "a": "a",
+            "a": "a",
+            "a": "a",
+        },
+    },
+}

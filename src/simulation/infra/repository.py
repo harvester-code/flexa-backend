@@ -1,16 +1,23 @@
+import awswrangler as wr
+import boto3
+import pandas as pd
+from sqlalchemy import Connection, update
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+
+from src.database import S3_SAVE_PATH
 from src.simulation.domain.repository import ISimulationRepository
+from src.simulation.domain.simulation import (
+    ScenarioMetadata as ScenarioMetadataVO,
+)
+from src.simulation.domain.simulation import (
+    SimulationScenario as SimulationScenarioVO,
+)
+from src.simulation.infra.models import ScenarioMetadata, SimulationScenario
 from src.simulation.infra.schema import (
     GeneralDeclarationArrival,
     GeneralDeclarationDeparture,
 )
-from src.simulation.domain.simulation import (
-    SimulationScenario as SimulationScenarioVO,
-    ScenarioMetadata as ScenarioMetadataVO,
-)
-from src.simulation.infra.models import SimulationScenario, ScenarioMetadata
-from sqlalchemy import Connection, update
-from sqlalchemy.future import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class SimulationRepository(ISimulationRepository):
@@ -162,3 +169,23 @@ class SimulationRepository(ISimulationRepository):
             .values({SimulationScenario.simulation_date: target_datetime})
         )
         await db.commit()
+
+    async def upload_to_s3(
+        self, session: boto3.Session, sim_df: pd.DataFrame, filename: str
+    ):
+
+        wr.s3.to_parquet(
+            df=sim_df,
+            path=f"{S3_SAVE_PATH}/{filename}",
+            boto3_session=session,
+        )
+
+    async def download_from_s3(
+        self, session: boto3.Session, filename: str
+    ) -> pd.DataFrame:
+
+        sim_df = wr.s3.read_parquet(
+            path=f"{S3_SAVE_PATH}/{filename}", boto3_session=session
+        )
+
+        return sim_df
