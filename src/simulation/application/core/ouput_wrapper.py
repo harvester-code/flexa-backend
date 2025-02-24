@@ -63,7 +63,7 @@ class DsOutputWrapper:
             column2 = f"{component}_done_pred"
 
             processing_time = pd.to_timedelta(
-                self.passengers[f"{component}_pt"], unit="S"
+                self.passengers[f"{component}_pt"], unit="s"
             )
 
             self.passengers[column1] = self.passengers[column2] - processing_time
