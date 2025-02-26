@@ -59,10 +59,10 @@ class SimulationRepository(ISimulationRepository):
         )
 
         db.add(new_scenario)
-        await db.commit()
+        await db.flush()
 
         new_metadata = ScenarioMetadata(
-            simulation_id=scenario_metadata.simulation_id,
+            simulation_id=new_scenario.id,
             overview=scenario_metadata.overview,
             history=scenario_metadata.history,
             flight_sch=scenario_metadata.flight_sch,
