@@ -9,10 +9,13 @@ from src.simulation.infra.repository import SimulationRepository
 from src.home.application.service import HomeService
 from src.home.infra.repository import HomeRepository
 
+from src.facility.application.service import FacilityService
+from src.facility.infra.repository import FacilityRepository
+
 
 class Container(containers.DeclarativeContainer):
     wiring_config = containers.WiringConfiguration(
-        packages=["src.simulation", "src.home"],  # "src.auth",
+        packages=["src.simulation", "src.home", "src.facility"],  # "src.auth",
     )
 
     # auth_repo = providers.Factory(AuthRepository)
@@ -25,3 +28,6 @@ class Container(containers.DeclarativeContainer):
 
     home_repo = providers.Factory(HomeRepository)
     home_service = providers.Factory(HomeService, home_repo=home_repo)
+
+    facility_repo = providers.Factory(FacilityRepository)
+    facility_service = providers.Factory(FacilityService, facility_repo=facility_repo)
