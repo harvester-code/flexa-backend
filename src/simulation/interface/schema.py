@@ -99,3 +99,12 @@ class ScenarioUpdateBody(BaseModel):
     id: str
     simulation_name: str | None
     note: str | None
+
+
+class TotalChartDict(BaseModel):
+    process: str
+    node: str
+
+
+class SimulationTotalChartBody(BaseModel):
+    total: List[TotalChartDict]

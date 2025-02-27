@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 
 import numpy as np
 import pandas as pd
@@ -24,8 +24,8 @@ from src.simulation.domain.simulation import ScenarioMetadata, SimulationScenari
 
 # FIXME: 스노우플레이크 정상작동시 삭제할 os 경로 코드
 # NOTE: samples 폴더 안에 sample_ICN_data.json 파일 필요
-# SAMPLE_DATA = os.path.join(os.getcwd(), "code/samples/sample_ICN_data.json")
-SAMPLE_DATA = os.path.join(os.getcwd(), "samples/sample_ICN_data.json")
+SAMPLE_DATA = os.path.join(os.getcwd(), "code/samples/sample_ICN_data.json")
+# SAMPLE_DATA = os.path.join(os.getcwd(), "samples/sample_ICN_data.json")
 
 
 class SimulationService:
@@ -683,6 +683,9 @@ class SimulationService:
         node: str,
         group_column: str,
     ):
+
+        _start = datetime.now()
+
         sim_df = sim_df.loc[sim_df[f"{process}_pred"] == f"{process}_{node}"].copy()
 
         sim_df.loc[:, f"{process}_{flow}_pred"] = sim_df[
@@ -733,6 +736,167 @@ class SimulationService:
             for column in df_grouped.columns
         ]
 
+        _end = datetime.now()
+        elapsed_time = (_end - _start).total_seconds()
+        print(f"{process}_{node}_{group_column}의 소요시간 : {elapsed_time:.2f}초")
+        return {"traces": traces, "default_x": default_x}
+
+    async def _create_simulation_queue_chart_new(
+        self, sim_df: pd.DataFrame, process, group_column
+    ):
+        _start = datetime.now()
+
+        start_time = f"{process}_on_pred"
+        end_time = f"{process}_pt_pred"
+
+        # 필요한 열만 복사 (불필요한 복사 최소화)
+        df = sim_df[[start_time, end_time, group_column]].copy()
+        df[start_time] = df[start_time].dt.round("10min")
+        df[end_time] = df[end_time].dt.round("10min")
+
+        # 시작 기준 오프셋(분) 계산 (벡터화)
+        min_start = df[start_time].min()
+        df["start_offset"] = (
+            ((df[start_time] - min_start).dt.total_seconds() // 60)
+            .fillna(0)
+            .astype(int)
+        )
+        df["end_offset"] = (
+            ((df[end_time] - min_start).dt.total_seconds() // 60).fillna(0).astype(int)
+        )
+
+        # 각 행에서 몇 개의 10분 간격이 있는지 계산
+        df["n_steps"] = ((df["end_offset"] - df["start_offset"]) // 10).astype(int)
+        df = df[df["n_steps"] > 0]  # 음수 또는 0인 경우는 제거
+
+        # 각 행을 n_steps만큼 반복 (벡터화된 확장)
+        repeated_idx = np.repeat(df.index.values, df["n_steps"])
+        df_expanded = df.loc[repeated_idx].copy()
+
+        # 각 행에 대해 반복 내 위치를 생성 (각 행마다 0, 1, ..., n_steps-1)
+        step_arr = np.concatenate([np.arange(n) for n in df["n_steps"]])
+        df_expanded["step"] = step_arr
+
+        # 새 Time 컬럼 계산: 시작 시간 + (step * 10분)
+        df_expanded["Time"] = df_expanded[start_time] + pd.to_timedelta(
+            df_expanded["step"] * 10, unit="m"
+        )
+
+        # 전체 시간 범위 생성 (필요한 경우 하루 범위에 한정)
+        start_day = df_expanded["Time"].min()
+        end_day = df_expanded["Time"].max()
+        all_times = pd.date_range(start=start_day, end=end_day, freq="10min")
+
+        # 그룹화: Time과 group_column으로 집계 후 전체 시간에 맞춰 reindex
+        df_grouped = (
+            df_expanded.groupby(["Time", group_column])
+            .size()
+            .unstack(fill_value=0)
+            .reindex(all_times, fill_value=0)
+        )
+
+        # 상위 9개 그룹 외에 나머지는 'etc'로 묶기
+        total_groups = df_grouped.shape[1]
+        if total_groups > 9:
+            top_9_columns = df_grouped.sum().nlargest(9).index.tolist()
+            df_grouped["etc"] = df_grouped.drop(
+                columns=top_9_columns, errors="ignore"
+            ).sum(axis=1)
+            df_grouped = df_grouped[top_9_columns + ["etc"]]
+        else:
+            top_9_columns = df_grouped.columns.tolist()
+
+        # 그룹 순서 정렬: 'etc'는 마지막으로
+        group_order = df_grouped.sum().sort_values(ascending=False).index.tolist()
+        if "etc" in group_order:
+            group_order.remove("etc")
+            group_order.append("etc")
+
+        default_x = df_grouped.index.strftime("%Y-%m-%d %H:%M:%S").tolist()
+        traces = [
+            {
+                "name": column,
+                "order": group_order.index(column),
+                "y": df_grouped[column].tolist(),
+            }
+            for column in df_grouped.columns
+        ]
+
+        elapsed_time = (datetime.now() - _start).total_seconds()
+        print(f"{process}_{group_column}의 소요시간 : {elapsed_time:.2f}초")
+        return {"traces": traces, "default_x": default_x}
+
+    async def _create_simulation_queue_chart_optimized(
+        self, sim_df: pd.DataFrame, process, group_column
+    ):
+
+        _start = datetime.now()
+
+        # 열 이름 설정 및 시간 반올림
+        start_time = f"{process}_on_pred"
+        end_time = f"{process}_pt_pred"
+        df = sim_df[[start_time, end_time, group_column]].copy()
+        df[start_time] = df[start_time].dt.round("10min")
+        df[end_time] = df[end_time].dt.round("10min")
+
+        # 전체 시간 구간 생성: 최소 시작 시간부터 최대 종료 시간까지 10분 간격으로 생성
+        global_start = df[start_time].min()
+        global_end = df[end_time].max()
+        all_times = pd.date_range(start=global_start, end=global_end, freq="10min")
+
+        # 각 그룹별로 누적합 기법을 적용하여 각 시간대의 대기 인원수를 계산
+        # 결과를 저장할 DataFrame 준비 (각 열은 그룹을 나타냄)
+        group_list = df[group_column].unique()
+        group_counts = pd.DataFrame(0, index=all_times, columns=group_list)
+
+        # 그룹별로 처리
+        for group, sub_df in df.groupby(group_column):
+            # 각 행의 시작 시간과 종료 시간에 해당하는 인덱스를 구함
+            start_idx = np.searchsorted(all_times, sub_df[start_time].values)
+            # 종료 시간은 해당 시간까지 포함하므로, 오른쪽 경계를 사용 (end 시점은 제외)
+            end_idx = np.searchsorted(all_times, sub_df[end_time].values, side="right")
+
+            # 차분 배열(diff_array)를 이용: 길이는 all_times의 길이보다 1 큰 배열 생성
+            diff_array = np.zeros(len(all_times) + 1, dtype=int)
+            # 각 시작 인덱스에 +1, 종료 인덱스에 -1 추가
+            np.add.at(diff_array, start_idx, 1)
+            np.add.at(diff_array, end_idx, -1)
+
+            # 누적합을 계산하여 각 시간대에 몇 명의 인터벌이 겹치는지 구함
+            counts = np.cumsum(diff_array)[:-1]
+            group_counts[group] = counts
+
+        # 상위 9개 그룹을 제외한 나머지를 "etc"로 합산 (그룹 수가 9개 초과 시)
+        total_groups = group_counts.shape[1]
+        if total_groups > 9:
+            top_9 = group_counts.sum().nlargest(9).index.tolist()
+            group_counts["etc"] = group_counts.drop(columns=top_9).sum(axis=1)
+            group_counts = group_counts[top_9 + ["etc"]]
+
+        # 그룹 순서 설정: 'etc'는 마지막에 오도록 정렬
+        group_order = group_counts.sum().sort_values(ascending=False).index.tolist()
+        group_order = [g for g in group_order if pd.notna(g)]
+
+        if "etc" in group_order:
+            group_order.remove("etc")
+            group_order.append("etc")
+
+        print()
+
+        default_x = group_counts.index.strftime("%Y-%m-%d %H:%M:%S").tolist()
+        traces = [
+            {
+                "name": col,
+                "order": group_order.index(col),
+                "y": group_counts[col].tolist(),
+            }
+            for col in group_counts.columns
+            if pd.notna(col)
+        ]
+
+        _end = datetime.now()
+        elapsed_time = (_end - _start).total_seconds()
+        print(f"{process}_{group_column}의 소요시간 : {elapsed_time:.2f}초")
         return {"traces": traces, "default_x": default_x}
 
     async def _create_simulation_queue_chart(
@@ -741,6 +905,8 @@ class SimulationService:
         process,
         group_column,
     ):
+        _start = datetime.now()
+
         start_time = f"{process}_on_pred"
         end_time = f"{process}_pt_pred"
 
@@ -829,9 +995,16 @@ class SimulationService:
             for column in df_grouped.columns
         ]
 
+        _end = datetime.now()
+        elapsed_time = (_end - _start).total_seconds()
+        print(f"{process}_{group_column}의 소요시간 : {elapsed_time:.2f}초")
+
         return {"traces": traces, "default_x": default_x}
 
     async def _create_simulation_kpi(self, sim_df: pd.DataFrame, process, node):
+
+        _start = datetime.now()
+
         start_time = f"{process}_on_pred"
         end_time = f"{process}_pt_pred"
         process_time = f"{process}_pt"
@@ -856,25 +1029,34 @@ class SimulationService:
             "Average Processing Time": average_transaction_time,
         }
 
+        _end = datetime.now()
+        elapsed_time = (_end - _start).total_seconds()
+        print(f"{process}_{node}의 소요시간 : {elapsed_time:.2f}초")
+
         return result
 
     async def generate_simulation_kpi_chart(
         self,
         session: boto3.Session,
-        user_id: str | None,
-        scenario_id: str | None,
-        sim_df: pd.DataFrame | None,
+        user_id: str,
         process: str,
         node: str,
+        scenario_id: str | None = None,
+        sim_df: pd.DataFrame | None = None,
     ):
+        _start = datetime.now()
 
-        if user_id and scenario_id:
+        # s3에서 시뮬레이션 데이터 프레임 가져오기
+        if scenario_id:
             filename = f"{user_id}/{scenario_id}"
 
-            # s3에서 시뮬레이션 데이터 프레임 가져오기
             sim_df = await self.simulation_repo.download_from_s3(session, filename)
 
-        # 해당 데이터프레임을 선택한 process와 node에 따라 kpi와 차트 생성
+            _end_ = datetime.now()
+            elapsed_time_ = (_end_ - _start).total_seconds()
+            print(f"S3에서 데이터를 불러오는 소요시간 : {elapsed_time_:.2f}초")
+
+        # 해당 데이터프레임을 선택한 process와 node에 따라 차트 생성
         inbound = {}
         outbound = {}
         queing = {}
@@ -886,9 +1068,14 @@ class SimulationService:
             "region_name",
         ]:
 
-            queue_data = await self._create_simulation_queue_chart(
+            # queue_data = await self._create_simulation_queue_chart(
+            #     sim_df, process, group_column
+            # )
+            queue_data = await self._create_simulation_queue_chart_optimized(
                 sim_df, process, group_column
             )
+
+            # queue_data = {"traces": "a"}
             queing[CRITERIA_MAP[group_column]] = queue_data["traces"]
 
             for flow in ["on", "pt"]:
@@ -924,8 +1111,39 @@ class SimulationService:
             },
             "queing": {"chart_x_data": queue_data["default_x"], "chart_y_data": queing},
         }
+        # queue_data["default_x"]
+        _end = datetime.now()
+        elapsed_time = (_end - _start).total_seconds()
+        print(f"전체 소요시간 : {elapsed_time:.2f}초")
 
         return result
+
+    async def generate_simulation_total_chart(
+        self,
+        session: boto3.Session,
+        user_id: str,
+        scenario_id: str,
+        total: list,
+    ):
+        filename = f"{user_id}/{scenario_id}"
+        sim_df = await self.simulation_repo.download_from_s3(session, filename)
+
+        kpi_list = []
+        for li in total:
+            kpi = await self._create_simulation_kpi(
+                sim_df=sim_df, process=li.process, node=li.node
+            )
+            kpi["process"] = li.process
+            kpi["node"] = li.node
+
+            kpi_list.append(kpi)
+
+        total_df = pd.DataFrame(kpi_list)
+
+        x_data = [f"{row['process']}_{row['node']}" for _, row in total_df.iterrows()]
+        y_data = total_df.drop(columns=["process", "node"]).to_dict(orient="list")
+
+        return {"x": x_data, "y": y_data}
 
     # =====================================
     async def _create_simulation_sankey(

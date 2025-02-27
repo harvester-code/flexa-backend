@@ -15,6 +15,7 @@ from src.simulation.interface.schema import (
     ScenarioMetadataBody,
     ScenarioUpdateBody,
     SimulationScenarioBody,
+    SimulationTotalChartBody,
 )
 
 simulation_router = APIRouter(prefix="/simulations")
@@ -280,9 +281,29 @@ async def generate_simulation_kpi_chart(
 
     return await simulation_service.generate_simulation_kpi_chart(
         session=session,
-        user_id=request.state.user_id,
+        user_id="tommie",  # request.state.user_id,
         scenario_id=scenario_id,
         process=process,
         node=node,
         sim_df=None,
+    )
+
+
+@simulation_router.post("/total-chart", status_code=200)
+@inject
+async def generate_simulation_total_chart(
+    scenario_id: str,
+    total: SimulationTotalChartBody,
+    request: Request,
+    simulation_service: SimulationService = Depends(
+        Provide[Container.simulation_service]
+    ),
+    session: boto3.Session = Depends(get_boto3_session),
+):
+
+    return await simulation_service.generate_simulation_total_chart(
+        session=session,
+        user_id="tommie",  # request.state.user_id,
+        scenario_id=scenario_id,
+        total=total.total,
     )
