@@ -6,10 +6,13 @@ from dependency_injector import containers, providers
 from src.simulation.application.service import SimulationService
 from src.simulation.infra.repository import SimulationRepository
 
+from src.home.application.service import HomeService
+from src.home.infra.repository import HomeRepository
+
 
 class Container(containers.DeclarativeContainer):
     wiring_config = containers.WiringConfiguration(
-        packages=["src.simulation"],  # "src.auth",
+        packages=["src.simulation", "src.home"],  # "src.auth",
     )
 
     # auth_repo = providers.Factory(AuthRepository)
@@ -19,3 +22,6 @@ class Container(containers.DeclarativeContainer):
     simulation_service = providers.Factory(
         SimulationService, simulation_repo=simulation_repo
     )
+
+    home_repo = providers.Factory(HomeRepository)
+    home_service = providers.Factory(HomeService, home_repo=home_repo)

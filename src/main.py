@@ -4,8 +4,9 @@ from fastapi.responses import PlainTextResponse
 from starlette.middleware.cors import CORSMiddleware
 
 from src.containers import Container
-from src.simulation.interface.controller import simulation_router
 from src.middleware import add_middlewares
+from src.simulation.interface.controller import simulation_router
+from src.home.interface.controller import home_router
 
 app = FastAPI()
 app.container = Container()
@@ -31,6 +32,7 @@ API_PREFIX = "/api/v1"
 
 app.include_router(router)
 app.include_router(simulation_router, prefix=API_PREFIX, tags=["Simulations"])
+app.include_router(home_router, prefix=API_PREFIX, tags=["Homes"])
 
 # app.include_router(airports_router, prefix=API_PREFIX, tags=["Airports"])
 # app.include_router(auth_router, prefix=API_PREFIX, tags=["Auth"])
