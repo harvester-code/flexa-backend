@@ -1,7 +1,7 @@
 import awswrangler as wr
 import boto3
 import pandas as pd
-from sqlalchemy import Connection, update
+from sqlalchemy import Connection, update, true
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -30,7 +30,7 @@ class SimulationRepository(ISimulationRepository):
         result = await db.execute(
             select(SimulationScenario)
             .where(SimulationScenario.user_id == user_id)
-            .where(SimulationScenario.is_active is True)
+            .where(SimulationScenario.is_active.is_(true()))
         )
 
         scenario = result.scalars().all()
