@@ -281,7 +281,7 @@ async def generate_simulation_kpi_chart(
 
     return await simulation_service.generate_simulation_kpi_chart(
         session=session,
-        user_id="tommie",  # request.state.user_id,
+        user_id=request.state.user_id,
         scenario_id=scenario_id,
         process=process,
         node=node,
@@ -303,7 +303,7 @@ async def generate_simulation_total_chart(
 
     return await simulation_service.generate_simulation_total_chart(
         session=session,
-        user_id="tommie",  # request.state.user_id,
+        user_id=request.state.user_id,
         scenario_id=scenario_id,
         total=total.total,
     )
