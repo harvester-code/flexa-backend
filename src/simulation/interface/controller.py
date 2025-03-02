@@ -62,7 +62,7 @@ async def fetch_scenario(
 @inject
 async def create_scenario(
     scenario: SimulationScenarioBody,
-    requset: Request,
+    request: Request,
     simulation_service: SimulationService = Depends(
         Provide[Container.simulation_service]
     ),
@@ -71,7 +71,7 @@ async def create_scenario(
 
     return await simulation_service.create_simulation_scenario(
         db,
-        requset.state.user_id,
+        request.state.user_id,
         scenario.simulation_name,
         scenario.note,
         scenario.terminal,
@@ -131,7 +131,7 @@ async def deactivate_scenario(
 )
 @inject
 async def duplicate_scenario(
-    requset: Request,
+    request: Request,
     scenario_id: str,
     editor: str,
     simulation_service: SimulationService = Depends(
@@ -141,7 +141,7 @@ async def duplicate_scenario(
 ):
 
     return await simulation_service.duplicate_simulation_scenario(
-        db, requset.state.user_id, scenario_id, editor
+        db, request.state.user_id, scenario_id, editor
     )
 
 

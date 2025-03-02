@@ -22,6 +22,8 @@ AUDIENCE = "authenticated"
 JWT_DECODER_PATH = [
     "/api/v1/simulations/scenario",
     "/api/v1/simulations/scenario/deactivate",
+    "/api/v1/simulations/scenario/duplicate",
+    "/api/v1/simulations/scenario/master",
     "/api/v1/simulations/scenario/metadata",
 ]
 
