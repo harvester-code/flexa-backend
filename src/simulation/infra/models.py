@@ -36,3 +36,14 @@ class ScenarioMetadata(Base):
     passenger_attr: Mapped[dict] = mapped_column(JSONB, nullable=True)
     facility_conn: Mapped[dict] = mapped_column(JSONB, nullable=True)
     facility_info: Mapped[dict] = mapped_column(JSONB, nullable=True)
+
+
+class Groups(Base):
+    __tablename__ = "groups"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    master_scenario_id: Mapped[str] = mapped_column(String(36), nullable=True)
+    group_name: Mapped[str] = mapped_column(String(36), nullable=False)
+    description: Mapped[str] = mapped_column(String(36), nullable=True)
+    timezone: Mapped[str] = mapped_column(String(36), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

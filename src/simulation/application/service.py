@@ -39,6 +39,7 @@ class SimulationService:
 
     fetch : get
     create : post
+    duplicate : post
     update : patch / put
     deactivate : patch (delete)
     """
@@ -56,9 +57,13 @@ class SimulationService:
     # =====================================
     # NOTE: 시뮬레이션 시나리오
 
-    async def fetch_simulation_scenario(self, db: AsyncSession, user_id: str):
+    async def fetch_simulation_scenario(
+        self, db: AsyncSession, user_id: str, group_id: str
+    ):
 
-        scenario = await self.simulation_repo.fetch_simulation_scenario(db, user_id)
+        scenario = await self.simulation_repo.fetch_simulation_scenario(
+            db, user_id, group_id
+        )
 
         return scenario
 
@@ -123,8 +128,25 @@ class SimulationService:
 
         await self.simulation_repo.deactivate_simulation_scenario(db, id)
 
+    async def duplicate_simulation_scenario(
+        self, db: AsyncSession, user_id: str, old_scenario_id: str, editor: str
+    ):
+
+        new_scenario_id = str(ULID())
+        time_now = self.timestamp.time_now()
+
+        await self.simulation_repo.duplicate_simulation_scenario(
+            db, user_id, old_scenario_id, new_scenario_id, editor, time_now
+        )
+
+    async def update_master_scenario(
+        self, db: AsyncSession, group_id: str, simulaion_id: str
+    ):
+
+        await self.simulation_repo.update_master_scenario(db, group_id, simulaion_id)
+
     # =====================================
-    # NOTE: 시뮬레이션 시나리오
+    # NOTE: 시나리오 메타데이터
 
     async def fetch_scenario_metadata(self, db: AsyncSession, simulation_id: str):
 

@@ -42,12 +42,15 @@ status 코드 정리
 @inject
 async def fetch_scenario(
     request: Request,
+    group_id: str,
     simulation_service: SimulationService = Depends(
         Provide[Container.simulation_service]
     ),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
-    return await simulation_service.fetch_simulation_scenario(db, request.state.user_id)
+    return await simulation_service.fetch_simulation_scenario(
+        db, request.state.user_id, group_id
+    )
 
 
 @simulation_router.post(
@@ -118,6 +121,47 @@ async def deactivate_scenario(
         db,
         scenario_id,
     )
+
+
+@simulation_router.post(
+    "/scenario/duplicate",
+    status_code=204,
+    summary="06_SI_001",
+    description="06_SI_001에서 각 시나리오의 액션버튼을 눌러 나오는 duplicate를 클릭하여 실행하면 실행되는 앤드포인트",
+)
+@inject
+async def duplicate_scenario(
+    requset: Request,
+    scenario_id: str,
+    editor: str,
+    simulation_service: SimulationService = Depends(
+        Provide[Container.simulation_service]
+    ),
+    db: AsyncSession = Depends(aget_supabase_session),
+):
+
+    return await simulation_service.duplicate_simulation_scenario(
+        db, requset.state.user_id, scenario_id, editor
+    )
+
+
+@simulation_router.patch(
+    "/scenario/master",
+    status_code=204,
+    summary="06_SI_001",
+    description="06_SI_001에서 각 시나리오의 액션버튼을 눌러 나오는 master(미정)를 클릭하여 실행하면 실행되는 앤드포인트",
+)
+@inject
+async def update_master_scenario(
+    group_id: str,
+    scenario_id: str,
+    simulation_service: SimulationService = Depends(
+        Provide[Container.simulation_service]
+    ),
+    db: AsyncSession = Depends(aget_supabase_session),
+):
+
+    return await simulation_service.update_master_scenario(db, group_id, scenario_id)
 
 
 # ==============================

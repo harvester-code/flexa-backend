@@ -4,6 +4,7 @@ import pandas as pd
 from sqlalchemy import Connection, update, true
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.inspection import inspect
 
 from src.database import S3_SAVE_PATH
 from src.simulation.domain.repository import ISimulationRepository
@@ -13,7 +14,7 @@ from src.simulation.domain.simulation import (
 from src.simulation.domain.simulation import (
     SimulationScenario as SimulationScenarioVO,
 )
-from src.simulation.infra.models import ScenarioMetadata, SimulationScenario
+from src.simulation.infra.models import ScenarioMetadata, SimulationScenario, Groups
 from src.simulation.infra.schema import (
     GeneralDeclarationArrival,
     GeneralDeclarationDeparture,
@@ -25,17 +26,34 @@ class SimulationRepository(ISimulationRepository):
     # ===================================
     # NOTE: 시뮬레이션 시나리오
 
-    async def fetch_simulation_scenario(self, db: AsyncSession, user_id: str):
+    async def fetch_simulation_scenario(
+        self, db: AsyncSession, user_id: str, group_id: str
+    ):
 
-        result = await db.execute(
-            select(SimulationScenario)
-            .where(SimulationScenario.user_id == user_id)
-            .where(SimulationScenario.is_active.is_(true()))
-        )
+        async with db.begin():
+            result = await db.execute(
+                select(Groups.master_scenario_id).where(Groups.id == int(group_id))
+            )
 
-        scenario = result.scalars().all()
+            master_scenario_id = result.scalar_one_or_none()
 
-        return scenario
+            result = await db.execute(
+                select(SimulationScenario)
+                .where(SimulationScenario.id == master_scenario_id)
+                .where(SimulationScenario.is_active.is_(true()))
+            )
+
+            master_scenario = result.scalar_one_or_none()
+
+            result = await db.execute(
+                select(SimulationScenario)
+                .where(SimulationScenario.user_id == user_id)
+                .where(SimulationScenario.is_active.is_(true()))
+            )
+
+            user_scenario = result.scalars().all()
+
+        return {"master_scenario": [master_scenario], "user_scenario": user_scenario}
 
     async def create_simulation_scenario(
         self,
@@ -98,6 +116,72 @@ class SimulationRepository(ISimulationRepository):
             update(SimulationScenario)
             .where(SimulationScenario.id == id)
             .values({SimulationScenario.is_active: False})
+        )
+        await db.commit()
+
+    async def duplicate_simulation_scenario(
+        self,
+        db: AsyncSession,
+        user_id: str,
+        old_id: str,
+        new_id: str,
+        editor: str,
+        time_now,
+    ):
+        scenario_result = await db.execute(
+            select(SimulationScenario)
+            .where(SimulationScenario.id == old_id)
+            .where(SimulationScenario.is_active.is_(true()))
+        )
+
+        origin_scenario = scenario_result.scalar_one()
+
+        scenario_state = inspect(origin_scenario)
+
+        scenario_data = {
+            attr.key: getattr(origin_scenario, attr.key)
+            for attr in scenario_state.mapper.column_attrs
+            if attr.key not in ("id", "user_id", "editor", "updated_at", "created_at")
+        }
+
+        cloned_scenario = origin_scenario.__class__(**scenario_data)
+
+        cloned_scenario.user_id = user_id
+        cloned_scenario.id = new_id
+        cloned_scenario.editor = editor
+        cloned_scenario.updated_at = time_now
+        cloned_scenario.created_at = time_now
+        db.add(cloned_scenario)
+        await db.flush()
+
+        metadata_result = await db.execute(
+            select(ScenarioMetadata).where(ScenarioMetadata.simulation_id == old_id)
+        )
+
+        origin_metadata = metadata_result.scalar_one()
+
+        metadata_state = inspect(origin_metadata)
+
+        metadata_data = {
+            attr.key: getattr(origin_metadata, attr.key)
+            for attr in metadata_state.mapper.column_attrs
+            if attr.key not in ("simulation_id")
+        }
+
+        cloned_metadata = origin_metadata.__class__(**metadata_data)
+
+        cloned_metadata.simulation_id = cloned_scenario.id
+        db.add(cloned_metadata)
+        await db.commit()
+
+    async def update_master_scenario(
+        self, db: AsyncSession, group_id: str, simulation_id: str
+    ):
+
+        await db.execute(
+            update(Groups)
+            .where(Groups.id == int(group_id))
+            .values({Groups.master_scenario_id: simulation_id})
         )
         await db.commit()
 
