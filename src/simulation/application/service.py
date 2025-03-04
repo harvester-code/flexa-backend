@@ -339,19 +339,18 @@ class SimulationService:
             ]
 
         add_priorities = None
-        if not first_load:
-            # ["Airline", "I/D", "Region", "Country"]
-            i_d = flight_df["flight_type"].unique().tolist()
-            airline = flight_df["operating_carrier_iata"].unique().tolist()
-            country = flight_df["country_code"].unique().tolist()
-            region = flight_df["region_name"].unique().tolist()
+        # ["Airline", "I/D", "Region", "Country"]
+        i_d = flight_df["flight_type"].unique().tolist()
+        airline = flight_df["operating_carrier_iata"].unique().tolist()
+        country = flight_df["country_code"].unique().tolist()
+        region = flight_df["region_name"].unique().tolist()
 
-            add_priorities = [
-                {"name": "I/D", "operator": ["="], "value": i_d},
-                {"name": "Airline", "operator": ["is in"], "value": airline},
-                {"name": "Country", "operator": ["is in"], "value": country},
-                {"name": "Region", "operator": ["is in"], "value": region},
-            ]
+        add_priorities = [
+            {"name": "I/D", "operator": ["="], "value": i_d},
+            {"name": "Airline", "operator": ["is in"], "value": airline},
+            {"name": "Country", "operator": ["is in"], "value": country},
+            {"name": "Region", "operator": ["is in"], "value": region},
+        ]
 
         chart_result = {}
         for group_column in [
