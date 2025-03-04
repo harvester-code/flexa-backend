@@ -3,7 +3,7 @@ import boto3
 import pandas as pd
 
 from typing import Union, List
-from sqlalchemy import Connection, update, true, desc
+from sqlalchemy import Connection, update, true, desc, bindparam
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.inspection import inspect
@@ -245,6 +245,7 @@ class SimulationRepository(ISimulationRepository):
             "arrival": GeneralDeclarationArrival,
             "departure": GeneralDeclarationDeparture,
         }
+        stmt = stmt.bindparams(bindparam("airline", expanding=True))
 
         result = conn.execute(stmt, params)
 

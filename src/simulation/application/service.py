@@ -202,12 +202,12 @@ class SimulationService:
         if condition:
             for con in condition:
                 if con.criteria == "I/D":
-                    where_conditions.append("FLIGHT_TYPE = :i/d")
-                    params["i/d"] = con.value
+                    where_conditions.append("FLIGHT_TYPE = :i_d")
+                    params["i_d"] = con.value[0]
 
                 if con.criteria == "Terminal":
                     where_conditions.append("F.departure_terminal = :terminal")
-                    params["terminal"] = con.value
+                    params["terminal"] = con.value[0]
 
                 if con.criteria == "Airline":
                     where_conditions.append("F.OPERATING_CARRIER_IATA IN :airline")
