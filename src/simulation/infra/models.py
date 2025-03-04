@@ -17,7 +17,7 @@ class SimulationScenario(Base):
     size: Mapped[Integer] = mapped_column(Integer, nullable=True)
     terminal: Mapped[str] = mapped_column(String(36), nullable=False)
     editor: Mapped[str] = mapped_column(String(36), nullable=False)
-    note: Mapped[str] = mapped_column(String(36), nullable=True)
+    memo: Mapped[str] = mapped_column(String(36), nullable=True)
     simulation_date: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)

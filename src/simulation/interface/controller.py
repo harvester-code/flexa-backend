@@ -74,7 +74,7 @@ async def create_scenario(
         db,
         request.state.user_id,
         scenario.simulation_name,
-        scenario.note,
+        scenario.memo,
         scenario.terminal,
         scenario.editor,
     )
@@ -99,7 +99,7 @@ async def update_scenario(
         db,
         scenario.id,
         scenario.simulation_name,
-        scenario.note,
+        scenario.memo,
     )
 
 

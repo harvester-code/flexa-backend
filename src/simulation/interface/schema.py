@@ -80,7 +80,7 @@ class SimulationScenarioBody(BaseModel):
     simulation_name: str
     terminal: str
     editor: str
-    note: str | None
+    memo: str | None
 
 
 class ScenarioMetadataBody(BaseModel):
@@ -98,7 +98,7 @@ class ScenarioMetadataBody(BaseModel):
 class ScenarioUpdateBody(BaseModel):
     id: str
     simulation_name: str | None
-    note: str | None
+    memo: str | None
 
 
 class TotalChartDict(BaseModel):

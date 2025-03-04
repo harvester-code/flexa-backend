@@ -73,7 +73,7 @@ class SimulationRepository(ISimulationRepository):
             size=simulation_scenario.size,
             terminal=simulation_scenario.terminal,
             editor=simulation_scenario.editor,
-            note=simulation_scenario.note,
+            memo=simulation_scenario.memo,
             simulation_date=simulation_scenario.simulation_date,
             updated_at=simulation_scenario.updated_at,
             created_at=simulation_scenario.created_at,
@@ -97,14 +97,14 @@ class SimulationRepository(ISimulationRepository):
         await db.commit()
 
     async def update_simulation_scenario(
-        self, db: AsyncSession, id: str, name: str | None, note: str | None
+        self, db: AsyncSession, id: str, name: str | None, memo: str | None
     ):
         values_to_update = {}
 
         if name:
             values_to_update[SimulationScenario.simulation_name] = name
-        if note:
-            values_to_update[SimulationScenario.note] = note
+        if memo:
+            values_to_update[SimulationScenario.memo] = memo
 
         await db.execute(
             update(SimulationScenario)

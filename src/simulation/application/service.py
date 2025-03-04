@@ -1,5 +1,4 @@
-import os
-from datetime import datetime, time, timedelta
+from datetime import datetime, time
 from typing import Union, List
 
 import boto3
@@ -67,7 +66,7 @@ class SimulationService:
         db: AsyncSession,
         user_id: str,
         name: str,
-        note: str,
+        memo: str,
         terminal: str,
         editor: str,
     ):
@@ -81,7 +80,7 @@ class SimulationService:
             size=None,
             terminal=terminal,
             editor=editor,
-            note=note,
+            memo=memo,
             simulation_date=None,
             updated_at=self.timestamp.time_now(),
             created_at=self.timestamp.time_now(),
@@ -114,10 +113,10 @@ class SimulationService:
         }
 
     async def update_simulation_scenario(
-        self, db: AsyncSession, id: str, name: str | None, note: str | None
+        self, db: AsyncSession, id: str, name: str | None, memo: str | None
     ):
 
-        await self.simulation_repo.update_simulation_scenario(db, id, name, note)
+        await self.simulation_repo.update_simulation_scenario(db, id, name, memo)
 
     async def deactivate_simulation_scenario(
         self, db: AsyncSession, id: Union[str, List[str]]
