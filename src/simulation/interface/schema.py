@@ -108,3 +108,7 @@ class TotalChartDict(BaseModel):
 
 class SimulationTotalChartBody(BaseModel):
     total: List[TotalChartDict]
+
+
+class MultipleScenarioDeactivateBody(BaseModel):
+    scenario_ids: List[str]

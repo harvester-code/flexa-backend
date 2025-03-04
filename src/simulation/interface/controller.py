@@ -16,6 +16,7 @@ from src.simulation.interface.schema import (
     ScenarioUpdateBody,
     SimulationScenarioBody,
     SimulationTotalChartBody,
+    MultipleScenarioDeactivateBody,
 )
 
 simulation_router = APIRouter(prefix="/simulations")
@@ -120,6 +121,27 @@ async def deactivate_scenario(
     return await simulation_service.deactivate_simulation_scenario(
         db,
         scenario_id,
+    )
+
+
+@simulation_router.patch(
+    "/scenario/deactivate/multiple",
+    status_code=204,
+    summary="06_SI_001",
+    description="06_SI_001에서 여러개 시나리오를 한번에 선택하여 삭제하는 엔드포인트",
+)
+@inject
+async def deactivate_multiple_scenario(
+    scenario_ids: MultipleScenarioDeactivateBody,
+    simulation_service: SimulationService = Depends(
+        Provide[Container.simulation_service]
+    ),
+    db: AsyncSession = Depends(aget_supabase_session),
+):
+
+    return await simulation_service.deactivate_simulation_scenario(
+        db,
+        scenario_ids,
     )
 
 

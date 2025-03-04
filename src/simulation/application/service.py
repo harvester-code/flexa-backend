@@ -1,9 +1,10 @@
 import os
 from datetime import datetime, time, timedelta
+from typing import Union, List
 
+import boto3
 import numpy as np
 import pandas as pd
-import boto3
 from dependency_injector.wiring import inject
 from sqlalchemy import Connection, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,11 +22,10 @@ from src.simulation.application.queries import (
 from src.simulation.domain.repository import ISimulationRepository
 from src.simulation.domain.simulation import ScenarioMetadata, SimulationScenario
 
-
 # FIXME: 스노우플레이크 정상작동시 삭제할 os 경로 코드
 # NOTE: samples 폴더 안에 sample_ICN_data.json 파일 필요
-SAMPLE_DATA = os.path.join(os.getcwd(), "code/samples/sample_ICN_data.json")
-# SAMPLE_DATA = os.path.join(os.getcwd(), "samples/sample_ICN_data.json")
+# SAMPLE_DATA = os.path.join(os.getcwd(), "code/samples/sample_ICN_data.json")
+SAMPLE_DATA = os.path.join(os.getcwd(), "samples/sample_ICN_data.json")
 
 
 class SimulationService:
@@ -124,7 +124,9 @@ class SimulationService:
 
         await self.simulation_repo.update_simulation_scenario(db, id, name, note)
 
-    async def deactivate_simulation_scenario(self, db: AsyncSession, id: str):
+    async def deactivate_simulation_scenario(
+        self, db: AsyncSession, id: Union[str, List[str]]
+    ):
 
         await self.simulation_repo.deactivate_simulation_scenario(db, id)
 

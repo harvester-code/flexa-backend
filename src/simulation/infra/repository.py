@@ -1,7 +1,9 @@
 import awswrangler as wr
 import boto3
 import pandas as pd
-from sqlalchemy import Connection, update, true
+
+from typing import Union, List
+from sqlalchemy import Connection, update, true, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.inspection import inspect
@@ -49,6 +51,7 @@ class SimulationRepository(ISimulationRepository):
                 select(SimulationScenario)
                 .where(SimulationScenario.user_id == user_id)
                 .where(SimulationScenario.is_active.is_(true()))
+                .order_by(desc(SimulationScenario.updated_at))
             )
 
             user_scenario = result.scalars().all()
@@ -110,11 +113,19 @@ class SimulationRepository(ISimulationRepository):
         )
         await db.commit()
 
-    async def deactivate_simulation_scenario(self, db: AsyncSession, id: str):
+    async def deactivate_simulation_scenario(
+        self, db: AsyncSession, id: Union[str, List[str]]
+    ):
+
+        if isinstance(id, str):
+            id_list = [id]
+
+        else:
+            id_list = id
 
         await db.execute(
             update(SimulationScenario)
-            .where(SimulationScenario.id == id)
+            .where(SimulationScenario.id.in_(id_list))
             .values({SimulationScenario.is_active: False})
         )
         await db.commit()
