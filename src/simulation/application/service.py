@@ -22,11 +22,6 @@ from src.simulation.application.queries import (
 from src.simulation.domain.repository import ISimulationRepository
 from src.simulation.domain.simulation import ScenarioMetadata, SimulationScenario
 
-# FIXME: 스노우플레이크 정상작동시 삭제할 os 경로 코드
-# NOTE: samples 폴더 안에 sample_ICN_data.json 파일 필요
-# SAMPLE_DATA = os.path.join(os.getcwd(), "code/samples/sample_ICN_data.json")
-SAMPLE_DATA = os.path.join(os.getcwd(), "samples/sample_ICN_data.json")
-
 
 class SimulationService:
     """
@@ -308,18 +303,7 @@ class SimulationService:
         현재 출도착은 출발을 고정으로 가져온다.
         """
 
-        # data = await self.fetch_flight_schedule_data(db, date, airport, condition)
-        # =====================
-        # FIXME: 스노우플레이크 정상화되면 삭제할 코드
-        import json
-
-        with open(
-            SAMPLE_DATA,
-            "r",
-            encoding="utf-8",
-        ) as file:
-            data = json.load(file)
-        # ======================
+        data = await self.fetch_flight_schedule_data(db, date, airport, condition)
         flight_df = pd.DataFrame(data)
 
         add_conditions = None
@@ -475,23 +459,12 @@ class SimulationService:
         self, db: Connection, flight_sch: dict, destribution_conditions: list
     ):
 
-        # data = await self.fetch_flight_schedule_data(
-        #     db,
-        #     flight_sch.date,
-        #     flight_sch.airport,
-        #     flight_sch.condition,
-        # )
-        # =====================
-        # FIXME: 스노우플레이크 정상화되면 삭제할 코드
-        import json
-
-        with open(
-            SAMPLE_DATA,
-            "r",
-            encoding="utf-8",
-        ) as file:
-            data = json.load(file)
-        # =====================
+        data = await self.fetch_flight_schedule_data(
+            db,
+            flight_sch.date,
+            flight_sch.airport,
+            flight_sch.condition,
+        )
 
         pax_df = await self._calculate_show_up_pattern(data, destribution_conditions)
 
@@ -672,20 +645,9 @@ class SimulationService:
         destribution_conditions: list,
         processes: dict,
     ):
-        # data = await self.fetch_flight_schedule_data(
-        #     db, flight_sch.date, flight_sch.airport, flight_sch.condition
-        # )
-        # =====================
-        # FIXME: 스노우플레이크 정상화되면 삭제할 코드
-        import json
-
-        with open(
-            SAMPLE_DATA,
-            "r",
-            encoding="utf-8",
-        ) as file:
-            data = json.load(file)
-        # =====================
+        data = await self.fetch_flight_schedule_data(
+            db, flight_sch.date, flight_sch.airport, flight_sch.condition
+        )
 
         pax_df = await self._calculate_show_up_pattern(data, destribution_conditions)
         pax_df = await self._calculate_add_columns(processes, pax_df)
@@ -1139,21 +1101,9 @@ class SimulationService:
 
         # ============================================================
         # NOTE: 쇼업패턴으로 생성된 여객데이터
-        # data = await self.fetch_flight_schedule_data(
-        #     db, flight_sch.date, flight_sch.airport, flight_sch.condition
-        # )
-        # =====================
-        # FIXME: 스노우플레이크 정상화되면 삭제할 코드
-        import json
-
-        with open(
-            SAMPLE_DATA,
-            "r",
-            encoding="utf-8",
-        ) as file:
-            data = json.load(file)
-        # =====================
-
+        data = await self.fetch_flight_schedule_data(
+            db, flight_sch.date, flight_sch.airport, flight_sch.condition
+        )
         df_pax = await self._calculate_show_up_pattern(data, destribution_conditions)
 
         # ============================================================
