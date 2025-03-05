@@ -148,7 +148,11 @@ class SimulationService:
 
         metadata = await self.simulation_repo.fetch_scenario_metadata(db, simulation_id)
 
-        return metadata
+        checkpoint = self.timestamp.time_now()
+
+        result = {"checkpoint": checkpoint, "metadata": metadata}
+
+        return result
 
     async def update_scenario_metadata(
         self,
@@ -162,6 +166,9 @@ class SimulationService:
         facility_conn: dict | None,
         facility_info: dict | None,
     ):
+
+        if history:
+            history["modification_date"] = self.timestamp.time_now()
 
         scenario_metadata: ScenarioMetadata = ScenarioMetadata(
             simulation_id=simulation_id,
@@ -179,7 +186,6 @@ class SimulationService:
     # =====================================
     # NOTE: 시뮬레이션 프로세스
 
-    # TODO: 스노우플레이크 정상화 되면 테스트 필요
     async def fetch_flight_schedule_data(
         self, db: Connection, date: str, airport: str, condition: list | None
     ):
