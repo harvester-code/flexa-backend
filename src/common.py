@@ -3,7 +3,7 @@ import pendulum
 
 class TimeStamp:
 
-    tz = pendulum.timezone("Asia/Seoul")
+    def time_now(self, timezone: str = "Asia/Seoul"):
 
-    def time_now(self):
-        return pendulum.now(tz=self.tz).replace(tzinfo=None)
+        tz = pendulum.timezone(timezone)
+        return pendulum.now(tz=tz).replace(tzinfo=None)
