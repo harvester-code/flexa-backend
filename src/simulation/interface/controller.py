@@ -304,7 +304,7 @@ async def fetch_processing_procedures(
     db: Connection = Depends(get_snowflake_session),
 ):
 
-    return await simulation_service.fetch_processing_procedures
+    return await simulation_service.fetch_processing_procedures()
 
 
 @simulation_router.post("/facility-conn", status_code=200)
