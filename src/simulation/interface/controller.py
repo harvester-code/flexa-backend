@@ -290,6 +290,23 @@ async def generate_passenger_schedule(
     )
 
 
+@simulation_router.post(
+    "/processing-procedures",
+    status_code=200,
+    summary="06_SI_012",
+    description="06_SI_009에서 Apply 버튼을 눌렀을 때 실행되는 엔드포인트",
+)
+@inject
+async def fetch_processing_procedures(
+    simulation_service: SimulationService = Depends(
+        Provide[Container.simulation_service]
+    ),
+    db: Connection = Depends(get_snowflake_session),
+):
+
+    return await simulation_service.fetch_processing_procedures
+
+
 @simulation_router.post("/facility-conn", status_code=200)
 @inject
 async def generate_facility_conn(
