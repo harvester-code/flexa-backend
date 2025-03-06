@@ -1,12 +1,14 @@
+import asyncio
 import heapq
+import math
 import time
 
 import numpy as np
-import pandas as pd
+from fastapi import WebSocket
 from loguru import logger
 
-from src.simulation.application.core.graph import DsGraph
 from src.constants import COL_FILTER_MAP
+from src.simulation.application.core.graph import DsGraph
 
 
 class DsSimulator:
@@ -110,9 +112,12 @@ class DsSimulator:
             self.passenger_id += 1
             node.passenger_node_id += 1
 
-    def run(self, start_time, end_time, unit=1):
+    async def run(self, websocket: WebSocket, start_time, end_time, unit=1):
         logger.info("시뮬레이션을 시작합니다.")
         start_at = time.time()
+        previous_progress = 35
+        start_progress = 35
+        end_progress = 94
 
         # 매 초마다 소스 데이터를 시작으로 마지막 컴포넌트까지 돌고 오는 방식이다.
         for current_second in range(start_time, end_time + 1, unit):
@@ -127,6 +132,15 @@ class DsSimulator:
                 minute=minute_of_day,
                 passengers=self.passengers,
             )
+
+            progress_time = start_progress + (current_second / end_time) * (
+                end_progress - start_progress
+            )
+            progress = math.floor(progress_time)
+            if progress > previous_progress:
+                await websocket.send_json({"progress": f"{progress}%"})
+                await asyncio.sleep(0.001)
+                previous_progress = progress
 
         logger.info(
             f"시뮬레이션을 종료합니다. (소요 시간: {round(time.time() - start_at)}초)"

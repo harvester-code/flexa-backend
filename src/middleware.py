@@ -1,6 +1,6 @@
 import os
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, HTTPException, Request, WebSocket, status
 from jose import JWTError, jwt
 from starlette.responses import JSONResponse
 
@@ -26,7 +26,13 @@ JWT_DECODER_PATH = [
     "/api/v1/simulations/scenario/duplicate",
     "/api/v1/simulations/scenario/master",
     "/api/v1/simulations/scenario/metadata",
+    "/api/v1/simulations/kpi-chart",
+    "/api/v1/simulations/total-chart",
 ]
+
+
+# =============================================
+# NOTE: http request
 
 
 async def jwt_decoder(request: Request, call_next):
@@ -81,6 +87,38 @@ async def jwt_decoder(request: Request, call_next):
 
     response = await call_next(request)
     return response
+
+
+# =============================================
+# NOTE: websocket
+
+
+async def websocket_jwt_decoder(websocket: WebSocket):
+
+    token = websocket.headers.get("Authorization")
+    if not token or not token.startswith("Bearer "):
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        raise Exception("Missing or invalid Authorization header")
+
+    token = token.split(" ")[1]
+
+    try:
+        payload = jwt.decode(
+            token,
+            SUPABASE_JWT_SECRET_KEY,
+            algorithms=[ALGORITHM],
+            audience=AUDIENCE,
+        )
+        user_id = payload.get("sub")
+        if user_id is None:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            raise Exception("Unauthorized: user_id not found")
+
+        websocket.state.user_id = user_id
+
+    except JWTError:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        raise Exception("JWT DECODING ERROR")
 
 
 # =============================================

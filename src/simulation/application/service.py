@@ -1,10 +1,12 @@
+import asyncio
 from datetime import datetime, time
-from typing import Union, List
+from typing import List, Union
 
 import boto3
 import numpy as np
 import pandas as pd
 from dependency_injector.wiring import inject
+from fastapi import WebSocket
 from sqlalchemy import Connection, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from ulid import ULID
@@ -496,8 +498,8 @@ class SimulationService:
     # =====================================
     # FIXME: 운영세팅이 완료되면 변경될 코드
     async def fetch_processing_procedures(self):
-        import os
         import json
+        import os
 
         sample_data = os.path.join(
             os.getcwd(), "samples/sample_processing_procedures.json"
@@ -1101,6 +1103,7 @@ class SimulationService:
     # TODO: 시뮬레이션 매서드 분리 or 클래스화 필요
     async def run_simulation(
         self,
+        websocket: WebSocket | None,
         db: Connection,
         session: boto3.Session,
         user_id: str,
@@ -1111,7 +1114,7 @@ class SimulationService:
         component_list: list,
     ):
         # FIXME: 테스트용 확인 코드
-        print(f"시작시간 : {datetime.now()}")
+        # print(f"시작시간 : {datetime.now()}")
         # ============================================================
         # NOTE: 데이터 전처리
         components = []
@@ -1140,13 +1143,19 @@ class SimulationService:
                 else:
                     component_node_map[comp.name] = [node.id]
 
+        await websocket.send_json({"progress": "5%"})
+        await asyncio.sleep(0.001)
         # ============================================================
         # NOTE: 쇼업패턴으로 생성된 여객데이터
         data = await self.fetch_flight_schedule_data(
             db, flight_sch.date, flight_sch.airport, flight_sch.condition
         )
-        df_pax = await self._calculate_show_up_pattern(data, destribution_conditions)
+        await websocket.send_json({"progress": "30%"})
+        await asyncio.sleep(0.001)
 
+        df_pax = await self._calculate_show_up_pattern(data, destribution_conditions)
+        await websocket.send_json({"progress": "31%"})
+        await asyncio.sleep(0.001)
         # ============================================================
         # NOTE: dist_key와 td_arr을 생성
         np_pax_col = df_pax.columns.to_numpy()
@@ -1176,6 +1185,8 @@ class SimulationService:
             [(td.total_seconds()) + v0 for td in (ck_on - np.array(ck_on[0]))]
         )
 
+        await websocket.send_json({"progress": "33%"})
+        await asyncio.sleep(0.001)
         # ============================================================
         # NOTE: dist_map과 graph_list를 생성
 
@@ -1232,6 +1243,8 @@ class SimulationService:
                     for node in range(len(nodes)):
                         node_transition_graph.append([])
 
+        await websocket.send_json({"progress": "35%"})
+        await asyncio.sleep(0.001)
         # ============================================================
         # NOTE: 메인 코드
         graph = DsGraph(
@@ -1261,9 +1274,10 @@ class SimulationService:
         SECONDS_IN_THREE_DAYS = 3600 * 24 * 3
         last_passenger_arrival_time = td_arr[-1]
 
-        sim.run(
+        await sim.run(
             start_time=0,
             end_time=max(SECONDS_IN_THREE_DAYS, last_passenger_arrival_time),
+            websocket=websocket,
         )
 
         ow = DsOutputWrapper(
@@ -1274,6 +1288,9 @@ class SimulationService:
         )
         ow.write_pred()
 
+        await websocket.send_json({"progress": "95%"})
+        await asyncio.sleep(0.001)
+
         # =====================================
         # NOTE: 시뮬레이션 결과 데이터 s3 저장
         # print(ow.passengers)
@@ -1282,11 +1299,16 @@ class SimulationService:
         filename = f"{user_id}/{scenario_id}.parquet"
         await self.simulation_repo.upload_to_s3(session, ow.passengers, filename)
 
+        await websocket.send_json({"progress": "97%"})
+        await asyncio.sleep(0.001)
+
         # =====================================
         # NOTE: 시뮬레이션 결과 데이터를 차트로 변환
         sankey = await self._create_simulation_sankey(
             df=ow.passengers, component_list=components
         )
+        await websocket.send_json({"progress": "98%"})
+        await asyncio.sleep(0.001)
 
         first_process = next(iter(comp_to_idx), None)
         first_value = comp_to_idx[first_process] if first_process else None
@@ -1300,7 +1322,9 @@ class SimulationService:
             process=first_process,
             node=first_node,
         )
+        await websocket.send_json({"progress": "99%"})
+        await asyncio.sleep(0.001)
+
         # FIXME: 테스트용 확인코드
-        print(f"완료시간 : {datetime.now()}")
+        # print(f"완료시간 : {datetime.now()}")
         return {"sankey": sankey, "kpi_chart": kpi_chart}
-        # return "simulation success!!"

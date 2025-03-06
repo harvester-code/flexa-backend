@@ -11,7 +11,6 @@ from src.simulation.interface.schema import (
     FacilityConnBody,
     FlightScheduleBody,
     PassengerScheduleBody,
-    RunSimulationBody,
     ScenarioMetadataBody,
     ScenarioUpdateBody,
     SimulationScenarioBody,
@@ -326,28 +325,29 @@ async def generate_facility_conn(
     )
 
 
-@simulation_router.post("/run-simulation", status_code=200)
-@inject
-async def run_simulation(
-    run_simulation: RunSimulationBody,
-    request: Request,
-    simulation_service: SimulationService = Depends(
-        Provide[Container.simulation_service]
-    ),
-    db: Connection = Depends(get_snowflake_session),
-    session: boto3.Session = Depends(get_boto3_session),
-):
+# @simulation_router.post("/run-simulation", status_code=200)
+# @inject
+# async def run_simulation(
+#     run_simulation: RunSimulationBody,
+#     request: Request,
+#     simulation_service: SimulationService = Depends(
+#         Provide[Container.simulation_service]
+#     ),
+#     db: Connection = Depends(get_snowflake_session),
+#     session: boto3.Session = Depends(get_boto3_session),
+# ):
 
-    return await simulation_service.run_simulation(
-        db,
-        session,
-        request.state.user_id,
-        run_simulation.scenario_id,
-        run_simulation.flight_schedule,
-        run_simulation.destribution_conditions,
-        run_simulation.processes,
-        run_simulation.components,
-    )
+#     return await simulation_service.run_simulation(
+#         None,
+#         db,
+#         session,
+#         "6c377bfd-6679-48e5-ab27-49ed3ca4611c",
+#         run_simulation.scenario_id,
+#         run_simulation.flight_schedule,
+#         run_simulation.destribution_conditions,
+#         run_simulation.processes,
+#         run_simulation.components,
+#     )
 
 
 @simulation_router.post("/kpi-chart", status_code=200)
