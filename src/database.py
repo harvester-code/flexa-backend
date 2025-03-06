@@ -43,7 +43,7 @@ SNOWFLAKE_ENGINE = create_engine(
         password=os.getenv("SNOWFLAKE_PASSWORD"),
         database="CIRIUMSKY",
         schema="PUBLIC",
-        warehouse="DEV_FLEXA_DEVELOPER_WH_XS",
+        warehouse="DEV_FLEXA_DEVELOPER_WH_S",
     )
 )
 
