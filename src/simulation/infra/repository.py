@@ -245,7 +245,8 @@ class SimulationRepository(ISimulationRepository):
             "arrival": GeneralDeclarationArrival,
             "departure": GeneralDeclarationDeparture,
         }
-        stmt = stmt.bindparams(bindparam("airline", expanding=True))
+        if params.get("airline"):
+            stmt = stmt.bindparams(bindparam("airline", expanding=True))
 
         result = conn.execute(stmt, params)
 
