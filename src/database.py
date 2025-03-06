@@ -72,6 +72,7 @@ SUPABASE_HOST = os.getenv("SUPABASE_HOST")
 SUPABASE_PORT = os.getenv("SUPABASE_PORT")
 SUPABASE_DBNAME = os.getenv("SUPABASE_DBNAME")
 
+# HACK: 현재 간헐적으로 서버와 통신이 끊기는 상황, 코드상 풀은 제대로 연결되어있으나 정확한 해결방법을 찾지못해 임시로 풀사이즈와 pool_pre_ping을 추가함.
 SUPABASE_ENGINE = create_async_engine(
     f"postgresql+asyncpg://{SUPABASE_USERNAME}:{SUPABASE_PASSWORD}@{SUPABASE_HOST}:{SUPABASE_PORT}/{SUPABASE_DBNAME}",
     pool_size=5,
