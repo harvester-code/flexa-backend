@@ -74,6 +74,9 @@ SUPABASE_DBNAME = os.getenv("SUPABASE_DBNAME")
 
 SUPABASE_ENGINE = create_async_engine(
     f"postgresql+asyncpg://{SUPABASE_USERNAME}:{SUPABASE_PASSWORD}@{SUPABASE_HOST}:{SUPABASE_PORT}/{SUPABASE_DBNAME}",
+    pool_size=5,
+    max_overflow=2,
+    pool_pre_ping=True,
 )
 
 AsyncSessionLocal = sessionmaker(
