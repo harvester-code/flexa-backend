@@ -5,7 +5,7 @@ import boto3
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 
-from middleware import websocket_jwt_decoder
+from src.middleware import websocket_jwt_decoder
 from src.containers import Container
 from src.database import get_boto3_session, get_snowflake_session
 from src.simulation.application.service import SimulationService
