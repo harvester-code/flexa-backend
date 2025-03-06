@@ -39,13 +39,15 @@ class SimulationRepository(ISimulationRepository):
 
             master_scenario_id = result.scalar_one_or_none()
 
-            result = await db.execute(
-                select(SimulationScenario)
-                .where(SimulationScenario.id == master_scenario_id)
-                .where(SimulationScenario.is_active.is_(true()))
-            )
+            master_scenario = None
+            if master_scenario_id:
+                result = await db.execute(
+                    select(SimulationScenario)
+                    .where(SimulationScenario.id == master_scenario_id)
+                    .where(SimulationScenario.is_active.is_(true()))
+                )
 
-            master_scenario = result.scalar_one_or_none()
+                master_scenario = result.scalar_one_or_none()
 
             result = await db.execute(
                 select(SimulationScenario)
@@ -200,16 +202,28 @@ class SimulationRepository(ISimulationRepository):
     # NOTE: 시나리오 메타데이터
 
     async def fetch_scenario_metadata(self, db: AsyncSession, simulation_id: str):
+        async with db.begin():
 
-        result = await db.execute(
-            select(ScenarioMetadata).where(
-                ScenarioMetadata.simulation_id == simulation_id
+            result = await db.execute(
+                select(
+                    SimulationScenario.simulation_name,
+                    SimulationScenario.memo,
+                    SimulationScenario.editor,
+                    SimulationScenario.terminal,
+                ).where(SimulationScenario.id == simulation_id)
             )
-        )
 
-        metadata = result.scalar_one_or_none()
+            scenario_info = result.mappings().first()
 
-        return metadata
+            result = await db.execute(
+                select(ScenarioMetadata).where(
+                    ScenarioMetadata.simulation_id == simulation_id
+                )
+            )
+
+            metadata = result.scalar_one_or_none()
+
+        return {"scenario_info": scenario_info, "metadata": metadata}
 
     async def update_scenario_metadata(
         self, db: AsyncSession, scenario_metadata: ScenarioMetadataVO
@@ -256,13 +270,13 @@ class SimulationRepository(ISimulationRepository):
     async def update_simulation_scenario_target_date(
         self,
         db: AsyncSession,
-        id: str,
+        simulation_id: str,
         target_datetime,
     ):
 
         await db.execute(
             update(SimulationScenario)
-            .where(SimulationScenario.id == id)
+            .where(SimulationScenario.id == simulation_id)
             .values({SimulationScenario.simulation_date: target_datetime})
         )
         await db.commit()

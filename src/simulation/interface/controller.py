@@ -245,6 +245,7 @@ async def update_scenario_metadata(
 )
 @inject
 async def fetch_flight_schedule(
+    simulation_id: str,
     flight_schedule: FlightScheduleBody,
     simulation_service: SimulationService = Depends(
         Provide[Container.simulation_service]
@@ -261,9 +262,9 @@ async def fetch_flight_schedule(
         flight_schedule.first_load,
     )
 
-    # await simulation_service.update_simulation_scenario_target_date(
-    #     supabase_db, flight_schedule.user_id, flight_schedule.date
-    # )
+    await simulation_service.update_simulation_scenario_target_date(
+        supabase_db, simulation_id, flight_schedule.date
+    )
 
     return flight_sch
 

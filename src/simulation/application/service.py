@@ -146,11 +146,10 @@ class SimulationService:
 
     async def fetch_scenario_metadata(self, db: AsyncSession, simulation_id: str):
 
-        metadata = await self.simulation_repo.fetch_scenario_metadata(db, simulation_id)
+        result = await self.simulation_repo.fetch_scenario_metadata(db, simulation_id)
 
         checkpoint = self.timestamp.time_now()
-
-        result = {"checkpoint": checkpoint, "metadata": metadata}
+        result["checkpoint"] = checkpoint
 
         return result
 
@@ -230,13 +229,13 @@ class SimulationService:
         return data
 
     async def update_simulation_scenario_target_date(
-        self, db: AsyncSession, id: str, target_date: str
+        self, db: AsyncSession, simulation_id: str, target_date: str
     ):
 
         target_datetime = datetime.strptime(target_date, "%Y-%m-%d")
 
         await self.simulation_repo.update_simulation_scenario_target_date(
-            db, id, target_datetime
+            db, simulation_id, target_datetime
         )
 
     async def _create_flight_schedule_chart(
