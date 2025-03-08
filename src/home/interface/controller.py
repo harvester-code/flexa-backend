@@ -1,11 +1,7 @@
 import boto3
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, Request
-from sqlalchemy import Connection
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from fastapi import APIRouter, Depends
 from src.containers import Container
-from src.database import aget_supabase_session, get_boto3_session
 from src.home.application.service import HomeService
 
 home_router = APIRouter(prefix="/homes")
@@ -20,19 +16,37 @@ status 코드 정리
 
 
 @home_router.get(
-    "/sample",
+    "/supabase-test",
     status_code=200,
-    summary="샘플코드",
+    summary="Supabase 연결 테스트",
 )
 @inject
-async def fetch_scenario(
-    request: Request,
+async def test_supabase_connection(
     home_service: HomeService = Depends(Provide[Container.home_service]),
-    db: AsyncSession = Depends(aget_supabase_session),
-    session: boto3.Session = Depends(get_boto3_session),
 ):
+    return await home_service.fetch_supabase_data()
 
-    # user_id = request.state.user_id
-    # await home_service.test_method(db, session, user_id, ...)
 
-    return "테스트 성공"
+@home_router.get(
+    "/simulation-files",
+    status_code=200,
+    summary="시뮬레이션 파일 목록 조회",
+)
+@inject
+async def fetch_simulation_files(
+    home_service: HomeService = Depends(Provide[Container.home_service]),
+):
+    return await home_service.fetch_simulation_files()
+
+
+@home_router.get(
+    "/simulation-files/{file_id}",
+    status_code=200,
+    summary="선택된 시뮬레이션 파일의 요약 정보 추출",
+)
+@inject
+async def fetch_simulation_summary(
+    file_id: str = "simulations/tommie/test.parquet",
+    home_service: HomeService = Depends(Provide[Container.home_service]),
+):
+    return await home_service.fetch_simulation_summary(file_id)
