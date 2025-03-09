@@ -1,4 +1,5 @@
 from abc import ABCMeta, abstractmethod
+from fastapi import Request
 
 
 class IHomeRepository(metaclass=ABCMeta):
@@ -7,13 +8,17 @@ class IHomeRepository(metaclass=ABCMeta):
     """
 
     @abstractmethod
-    def fetch_supabase_data(self):
+    async def login_supabase(self, email: str, password: str):
         raise NotImplementedError
 
     @abstractmethod
-    def fetch_simulation_files(self):
+    async def fetch_supabase_data(self):
         raise NotImplementedError
 
     @abstractmethod
-    def fetch_simulation_summary(self, file_id: str):
+    async def fetch_simulation_files(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    async def fetch_simulation_summary(self, file_id: str):
         raise NotImplementedError

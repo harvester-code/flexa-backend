@@ -1,4 +1,5 @@
 from dependency_injector.wiring import inject
+from fastapi import Request
 from src.home.domain.repository import IHomeRepository
 
 
@@ -14,6 +15,9 @@ class HomeService:
         home_repo: IHomeRepository,
     ):
         self.home_repo = home_repo
+
+    async def login_supabase(self, email: str, password: str):
+        return await self.home_repo.login_supabase(email, password)
 
     async def fetch_supabase_data(self):
         return await self.home_repo.fetch_supabase_data()

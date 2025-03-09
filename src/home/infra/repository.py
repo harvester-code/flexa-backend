@@ -3,21 +3,42 @@ from src.database import get_boto3_session, aget_supabase_client
 import pandas as pd
 import awswrangler as wr
 import os
+from fastapi import Request
 
 
 class HomeRepository(IHomeRepository):
     def __init__(self):
         self.boto3_session = get_boto3_session()
-        self.supabase = aget_supabase_client()
 
-    async def fetch_supabase_data(self):
+    async def login_supabase(self, email: str, password: str):
+        supabase = await aget_supabase_client()
         try:
-            response = await self.supabase.table("user_info").select("*").execute()
-            return response.data
+            response = await supabase.auth.sign_in_with_password(
+                {"email": email, "password": password}
+            )
+            return {
+                "message": "로그인 성공",
+                "access_token": response.session.access_token,
+                "refresh_token": response.session.refresh_token,
+                "user": response.user,
+            }
+        except Exception as e:
+            return {"message": "로그인 실패", "error": str(e)}
+
+    async def fetch_supabase_data(self, user_id: str):
+        supabase = await aget_supabase_client()
+        try:
+            data = (
+                await supabase.table("user_info")
+                .select("*")
+                .eq("id", user_id)
+                .execute()
+            )
+            return {"message": "성공", "data": data}
         except Exception as e:
             return {"message": "Supabase 데이터 조회 실패", "error": str(e)}
 
-    async def fetch_simulation_files(self):
+    async def fetch_simulation_files(self, request: Request):
         try:
             s3_client = self.boto3_session.client("s3")
             bucket_name = "flexa-prod-ap-northeast-2-data-storage"
@@ -49,8 +70,7 @@ class HomeRepository(IHomeRepository):
         except Exception as e:
             return {"message": "S3 데이터 조회 실패", "error": str(e)}
 
-    async def fetch_simulation_summary(self, file_id: str):
-
+    async def fetch_simulation_summary(self, request: Request, file_id: str):
         # 방법1. S3에서 직접 읽기
         bucket_name = os.getenv("AWS_S3_BUCKET_NAME")
         file_key = f"simulations/tommie/test.parquet"
