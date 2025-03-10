@@ -184,40 +184,49 @@ class FacilityService:
         #         session, filename
         #     )
 
-        kpi_result = {
-            "values": [
-                [
-                    "Throughput",
-                    "Queue Length",
-                    "Waiting Time",
-                    "Facility Efficiency",
-                ]
-            ]
-        }
+        kpi_result = {"header": {"columns": [], "subColumns": []}, "body": []}
         # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
         sim_df = pd.read_csv("samples/sim_pax.csv")
         node_list: list = sim_df[f"{process}_pred"].unique().tolist()
 
-        node_list.sort()
-        node_list.insert(0, "All")
-        node_list.insert(0, "KPI")
+        kpi_result["header"]["columns"].append({"label": "KPI"})
+        kpi_result["header"]["columns"].append({"label": "AVERAGE"})
+        kpi_result["header"]["columns"].append(
+            {"label": process, "colSpan": len(node_list)}
+        )
 
-        kpi_result["headers"] = node_list
+        for node in node_list:
+            kpi_result["header"]["subColumns"].append({"label": node})
 
         # TP
         tp_data = await self._create_throughput(sim_df, process)
         tp_all = round(tp_data.sum().mean())
         tp_list = tp_data.sum().astype(int).values.tolist()
+        tp_list.insert(0, tp_all)
+
+        kpi_result["body"].append(
+            {"label": "Throughput", "unit": "pax", "values": tp_list}
+        )
 
         # QL
         ql_data = await self._create_queue_length(sim_df, process)
         ql_all = round(ql_data.sum().mean())
         ql_list = ql_data.sum().astype(int).values.tolist()
+        ql_list.insert(0, ql_all)
+
+        kpi_result["body"].append(
+            {"label": "Queue Length", "unit": "pax", "values": ql_list}
+        )
 
         # WT
         wt_data = await self._create_waiting_time(sim_df, process, func)
         wt_all = round(wt_data.mean().mean())
         wt_list = wt_data.mean().astype(int).values.tolist()
+        wt_list.insert(0, wt_all)
+
+        kpi_result["body"].append(
+            {"label": "Waiting Time", "unit": "sec", "values": wt_list}
+        )
 
         # FE
         fe_data = await self._create_facility_efficiency(sim_df, process)
@@ -232,11 +241,17 @@ class FacilityService:
             ratio = round(num_ones / total_rows * 100)
             fe_list.append(ratio)
 
-        # Result
-        kpi_result["values"].append([tp_all, ql_all, wt_all, fe_all])
-        for tp, ql, wt, fe in zip(tp_list, ql_list, wt_list, fe_list):
+        fe_list.insert(0, fe_all)
 
-            kpi_result["values"].append([tp, ql, wt, fe])
+        kpi_result["body"].append(
+            {"label": "Facility Efficiency", "unit": "%", "values": fe_list}
+        )
+
+        # # Result
+        # kpi_result["values"].append([tp_all, ql_all, wt_all, fe_all])
+        # for tp, ql, wt, fe in zip(tp_list, ql_list, wt_list, fe_list):
+
+        #     kpi_result["values"].append([tp, ql, wt, fe])
 
         return kpi_result
 
