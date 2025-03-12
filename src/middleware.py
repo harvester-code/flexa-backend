@@ -97,8 +97,8 @@ async def websocket_jwt_decoder(websocket: WebSocket):
 
     token = websocket.headers.get("Authorization")
     if not token or not token.startswith("Bearer "):
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        raise Exception("Missing or invalid Authorization header")
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Please JWT")
+        raise
 
     token = token.split(" ")[1]
 
@@ -112,13 +112,13 @@ async def websocket_jwt_decoder(websocket: WebSocket):
         user_id = payload.get("sub")
         if user_id is None:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            raise Exception("Unauthorized: user_id not found")
+            raise
 
         websocket.state.user_id = user_id
 
     except JWTError:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        raise Exception("JWT DECODING ERROR")
+        raise
 
 
 # =============================================

@@ -19,11 +19,13 @@ class FacilityService:
         self.facility_repo = facility_repo
 
     # ==============================================================
-    # NOTE: 공용 로직
+    # NOTE: KPI Summary
 
-    async def _create_throughput(self, sim_df: pd.DataFrame, process) -> pd.DataFrame:
+    # NOTE: 공용로직들
+    async def _create_throughput(
+        self, sim_df: pd.DataFrame, group_column, process
+    ) -> pd.DataFrame:
         end_time = f"{process}_pt_pred"
-        group_column = f"{process}_pred"
 
         df = sim_df.dropna(subset=[end_time]).copy()
 
@@ -48,62 +50,18 @@ class FacilityService:
 
         return df_grouped
 
-    async def _create_queue_length(self, sim_df: pd.DataFrame, process) -> pd.DataFrame:
-
-        start_time = f"{process}_on_pred"
-        end_time = f"{process}_pt_pred"
-        group_column = f"{process}_pred"
-
-        df = sim_df[[start_time, end_time, group_column]].copy()
-
-        df[end_time] = pd.to_datetime(df[end_time])
-        df[start_time] = pd.to_datetime(df[start_time])
-
-        df[start_time] = df[start_time].dt.round("10min")
-        df[end_time] = df[end_time].dt.round("10min")
-
-        global_start = df[start_time].min()
-        global_end = df[end_time].max()
-        all_times = pd.date_range(start=global_start, end=global_end, freq="10min")
-
-        group_list = df[group_column].unique()
-        group_counts = pd.DataFrame(0, index=all_times, columns=group_list)
-
-        for group, sub_df in df.groupby(group_column):
-
-            start_idx = np.searchsorted(all_times, sub_df[start_time].values)
-            end_idx = np.searchsorted(all_times, sub_df[end_time].values, side="right")
-
-            diff_array = np.zeros(len(all_times) + 1, dtype=int)
-            np.add.at(diff_array, start_idx, 1)
-            np.add.at(diff_array, end_idx, -1)
-
-            counts = np.cumsum(diff_array)[:-1]
-            group_counts[group] = counts
-
-        # print(df)
-        # row_sums = df.sum(axis=1)
-        # print(row_sums)
-        # print(df.sum())
-        # print(df.sum().mean())
-
-        return group_counts
-
-    async def _create_waiting_time(
-        self, sim_df: pd.DataFrame, process, func: str = "mean"
+    async def _create_queue_length(
+        self, sim_df: pd.DataFrame, process, group_column, func: str = "mean"
     ) -> pd.DataFrame:
         start_time = f"{process}_on_pred"
         end_time = f"{process}_pt_pred"
-        group_column = f"{process}_pred"
+        process_que = f"{process}_que"
 
         sim_df[start_time] = pd.to_datetime(sim_df[start_time])
         sim_df[end_time] = pd.to_datetime(sim_df[end_time])
+        df = sim_df[[start_time, end_time, group_column, process_que]].copy()
 
-        sim_df["waiting_time"] = (
-            sim_df[end_time] - sim_df[start_time]
-        ).dt.total_seconds()
-
-        sim_df.loc[:, end_time] = sim_df[end_time].dt.floor("10min")
+        df.loc[:, end_time] = df[end_time].dt.floor("10min")
 
         if func == "top5":
             func = lambda x: np.percentile(x, 95)
@@ -112,7 +70,57 @@ class FacilityService:
             func = lambda x: np.percentile(x, 5)
 
         df_grouped = (
-            sim_df.groupby([end_time, group_column], as_index=False)
+            df.groupby([end_time, group_column], as_index=False)
+            .agg({process_que: func})
+            .pivot_table(
+                index=end_time,
+                columns=group_column,
+                values=process_que,
+                fill_value=0,
+            )
+        )
+
+        start_day = df_grouped.index[0].strftime("%Y-%m-%d %H:%M:%S")
+        end_day = df_grouped.index[-1].strftime("%Y-%m-%d %H:%M:%S")
+        all_hours = pd.date_range(
+            start=pd.Timestamp(start_day),
+            end=pd.Timestamp(end_day),
+            freq="10min",
+        )
+        df_grouped = df_grouped.reindex(all_hours, fill_value=0)
+
+        # print("=================")
+        # print(df_grouped)  # 히트맵
+        # print(df_grouped.mean(axis=1))  # 차트
+        # print(df_grouped.mean())  # 테이블
+        # print(df_grouped.mean().mean())  # 테이블에서 평균(ALL)
+
+        return df_grouped
+
+    async def _create_waiting_time(
+        self, sim_df: pd.DataFrame, process, group_column, func: str = "mean"
+    ) -> pd.DataFrame:
+        start_time = f"{process}_on_pred"
+        end_time = f"{process}_pt_pred"
+
+        sim_df[start_time] = pd.to_datetime(sim_df[start_time])
+        sim_df[end_time] = pd.to_datetime(sim_df[end_time])
+        df = sim_df[[start_time, end_time, group_column]].copy()
+
+        df["waiting_time"] = (df[end_time] - df[start_time]).dt.total_seconds()
+
+        df.loc[:, end_time] = df[end_time].dt.floor("10min")
+
+        if func == "top5":
+            func = lambda x: np.percentile(x, 95)  # 지금은 단일 지정값
+            # lambda x: np.sum(x[x >= np.percentile(x, 95)]) 상위의 평균
+
+        if func == "bottom5":
+            func = lambda x: np.percentile(x, 5)
+            # lambda x: np.sum(x[x <= np.percentile(x, 5)]) 하위의 평균
+
+        df_grouped = (
+            df.groupby([end_time, group_column], as_index=False)
             .agg({"waiting_time": func})
             .pivot_table(
                 index=end_time,
@@ -147,10 +155,9 @@ class FacilityService:
 
         sim_df[end_time] = pd.to_datetime(sim_df[end_time])
         sim_df.loc[:, end_time] = sim_df[end_time].dt.floor("10min")
+        df = sim_df[[end_time, group_column]].copy()
 
-        df_grouped = (
-            sim_df.groupby([end_time, group_column]).size().unstack(fill_value=0)
-        )
+        df_grouped = df.groupby([end_time, group_column]).size().unstack(fill_value=0)
         df_grouped[df_grouped > 0] = 1
         df_grouped = df_grouped.sort_index()
 
@@ -165,9 +172,7 @@ class FacilityService:
 
         return df_grouped
 
-    # ==============================================================
     # NOTE: KPI
-
     async def generate_kpi(
         self,
         session: boto3.Session,
@@ -186,7 +191,7 @@ class FacilityService:
 
         kpi_result = {"header": {"columns": [], "subColumns": []}, "body": []}
         # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
-        sim_df = pd.read_csv("samples/sim_pax.csv")
+        sim_df = pd.read_csv("samples/test_sample.csv")
         node_list: list = sim_df[f"{process}_pred"].unique().tolist()
 
         kpi_result["header"]["columns"].append({"label": "KPI"})
@@ -199,7 +204,9 @@ class FacilityService:
             kpi_result["header"]["subColumns"].append({"label": node})
 
         # TP
-        tp_data = await self._create_throughput(sim_df, process)
+        tp_data = await self._create_throughput(
+            sim_df=sim_df, process=process, group_column=f"{process}_pred"
+        )
         tp_all = round(tp_data.sum().mean())
         tp_list = tp_data.sum().astype(int).values.tolist()
         tp_list.insert(0, tp_all)
@@ -209,9 +216,11 @@ class FacilityService:
         )
 
         # QL
-        ql_data = await self._create_queue_length(sim_df, process)
-        ql_all = round(ql_data.sum().mean())
-        ql_list = ql_data.sum().astype(int).values.tolist()
+        ql_data = await self._create_queue_length(
+            sim_df=sim_df, process=process, group_column=f"{process}_pred", func=func
+        )
+        ql_all = round(ql_data.mean().mean())
+        ql_list = ql_data.mean().astype(int).values.tolist()
         ql_list.insert(0, ql_all)
 
         kpi_result["body"].append(
@@ -219,7 +228,9 @@ class FacilityService:
         )
 
         # WT
-        wt_data = await self._create_waiting_time(sim_df, process, func)
+        wt_data = await self._create_waiting_time(
+            sim_df=sim_df, process=process, group_column=f"{process}_pred", func=func
+        )
         wt_all = round(wt_data.mean().mean())
         wt_list = wt_data.mean().astype(int).values.tolist()
         wt_list.insert(0, wt_all)
@@ -232,7 +243,6 @@ class FacilityService:
         fe_data = await self._create_facility_efficiency(sim_df, process)
         fe_all = round(((fe_data.sum(axis=1) / 4) * 100).mean())
         column_list = fe_data.columns.tolist()
-
         fe_list = []
         for column in column_list:
             num_ones = (fe_data[column] == 1).sum()
@@ -247,18 +257,10 @@ class FacilityService:
             {"label": "Facility Efficiency", "unit": "%", "values": fe_list}
         )
 
-        # # Result
-        # kpi_result["values"].append([tp_all, ql_all, wt_all, fe_all])
-        # for tp, ql, wt, fe in zip(tp_list, ql_list, wt_list, fe_list):
-
-        #     kpi_result["values"].append([tp, ql, wt, fe])
-
         return kpi_result
 
-    # ==============================================================
-    # NOTE: Chart
-
-    async def generate_chart(
+    # NOTE: KPI Summary Chart
+    async def generate_ks_chart(
         self,
         session: boto3.Session,
         process: str,
@@ -275,10 +277,12 @@ class FacilityService:
         chart_result = {}
 
         # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
-        sim_df = pd.read_csv("samples/sim_pax.csv")
+        sim_df = pd.read_csv("samples/test_sample.csv")
 
         # TP
-        tp_data = await self._create_throughput(sim_df, process)
+        tp_data = await self._create_throughput(
+            sim_df=sim_df, process=process, group_column=f"{process}_pred"
+        )
         tp = tp_data.sum(axis=1)
         tp_x_list = tp.index.astype(str).tolist()
         tp_y_list = tp.astype(int).values.tolist()
@@ -286,34 +290,36 @@ class FacilityService:
         chart_result["troughput"] = {"x": tp_x_list, "y": tp_y_list}
 
         # QL
-        ql_data = await self._create_queue_length(sim_df, process)
-        ql = ql_data.sum(axis=1)
+        ql_data = await self._create_queue_length(
+            sim_df=sim_df, process=process, group_column=f"{process}_pred"
+        )
+        ql = ql_data.mean(axis=1)
         ql_x_list = ql.index.astype(str).tolist()
         ql_y_list = ql.astype(int).values.tolist()
 
         chart_result["queue_length"] = {"x": ql_x_list, "y": ql_y_list}
 
         # WT
-        wt_data = await self._create_waiting_time(sim_df, process)
+        wt_data = await self._create_waiting_time(
+            sim_df=sim_df, process=process, group_column=f"{process}_pred"
+        )
         wt = wt_data.mean(axis=1)
         wt_x_list = wt.index.astype(str).tolist()
         wt_y_list = wt.astype(int).values.tolist()
 
         chart_result["waiting_time"] = {"x": wt_x_list, "y": wt_y_list}
 
-        # FE
-        fe_data = await self._create_facility_efficiency(sim_df, process, "mean")
-        fe_data["fe"] = (fe_data.sum(axis=1) / 4) * 100
-        fe_x_list = fe_data.index.astype(str).tolist()
-        fe_y_list = fe_data["fe"].astype(int).values.tolist()
+        # # FE
+        # fe_data = await self._create_facility_efficiency(sim_df, process)
+        # fe_data["fe"] = (fe_data.sum(axis=1) / 4) * 100
+        # fe_x_list = fe_data.index.astype(str).tolist()
+        # fe_y_list = fe_data["fe"].astype(int).values.tolist()
 
-        chart_result["facility_efficiency"] = {"x": fe_x_list, "y": fe_y_list}
+        # chart_result["facility_efficiency"] = {"x": fe_x_list, "y": fe_y_list}
 
         return chart_result
 
-    # ==============================================================
     # NOTE: HeatMap
-
     async def generate_heatmap(
         self,
         session: boto3.Session,
@@ -331,10 +337,12 @@ class FacilityService:
         heatmap_result = {}
 
         # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
-        sim_df = pd.read_csv("samples/sim_pax.csv")
+        sim_df = pd.read_csv("samples/test_sample.csv")
 
         # TP
-        tp = await self._create_throughput(sim_df, process)
+        tp = await self._create_throughput(
+            sim_df=sim_df, process=process, group_column=f"{process}_pred"
+        )
         tp_x_list = tp.index.astype(str).tolist()
         tp_y_list = []
         tp_z_list = []
@@ -346,7 +354,9 @@ class FacilityService:
         heatmap_result["troughput"] = {"x": tp_x_list, "y": tp_y_list, "z": tp_z_list}
 
         # QL
-        ql = await self._create_queue_length(sim_df, process)
+        ql = await self._create_queue_length(
+            sim_df=sim_df, process=process, group_column=f"{process}_pred"
+        )
         ql_x_list = ql.index.astype(str).tolist()
         ql_y_list = []
         ql_z_list = []
@@ -362,7 +372,9 @@ class FacilityService:
         }
 
         # WT
-        wt = await self._create_waiting_time(sim_df, process)
+        wt = await self._create_waiting_time(
+            sim_df=sim_df, process=process, group_column=f"{process}_pred"
+        )
         wt_x_list = wt.index.astype(str).tolist()
         wt_y_list = []
         wt_z_list = []
@@ -380,205 +392,165 @@ class FacilityService:
         return heatmap_result
 
     # ============================================================
-    async def test(self, session: boto3.Session, process):
+    # NOTE: Passenger Analysis
 
-        # data = pd.read_csv(".idea/etc/samples/test.csv")
-        data = pd.read_csv("samples/sim_pax.csv")
-        # user_id = "6c377bfd-6679-48e5-ab27-49ed3ca4611c"
-        # scenario_id = "01JM14SGPX0ZREQMGE3NRRKTWQ"
-        # filename = f"{user_id}/{scenario_id}"
-        # data: pd.DataFrame = await self.facility_repo.download_from_s3(
-        #     session, filename
-        # )
-        # node_list: list = data[f"{process}_pred"].unique().tolist()
+    # NOTE: Pie Chart
+    async def generate_pie_chart(self, session, process):
 
-        # node_list.sort()
-        # node_list.insert(0, "kpi")
+        # s3에서 시뮬레이션 데이터 프레임 가져오기
+        # if scenario_id:
+        #     filename = f"{user_id}/{scenario_id}"
+        #     sim_df: pd.DataFrame = await self.facility_repo.download_from_s3(
+        #         session, filename
+        #     )
 
-        # print(node_list)
+        # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
+        sim_df = pd.read_csv("samples/test_sample.csv")
 
-        await self._create_facility_efficiency(data, process)
-        # await self.create_max_queue_chart(data, process=process)
-        # print(data)
+        group_mapping = {
+            "Airline": "operating_carrier_name",
+            "Destination": "country_code",
+            "Flight Number": "flight_number",
+            f"{process} Counter": f"{process}_pred",
+        }
 
-    # ==============================================================
-    # NOTE: KPI 테이블에서 func 사용하는 로직
+        start_time = f"{process}_on_pred"
+        queue_length = f"{process}_que"
 
-    async def set_groupby_function(
-        self, df: pd.DataFrame, end_time, group_column, all_hours: bool
+        pie_result = {}
+        table_result = {}
+        for group_name, group_column in group_mapping.items():
+            df = sim_df[[start_time, group_column, queue_length]].copy()
+            df[start_time] = pd.to_datetime(df[start_time])
+
+            group_max_queue = df.groupby(group_column)[queue_length].max()
+            top5_groups = group_max_queue.nlargest(5).index
+            top5_df = df[df[group_column].isin(top5_groups)]
+
+            labels = []
+            values = []
+            table_values = []
+            for label, column_name in enumerate(
+                top5_df[group_column].unique().tolist(), start=1
+            ):
+                df = top5_df[top5_df[group_column] == column_name].copy()
+
+                max_que = df[queue_length].max()
+                max_time = (
+                    df.loc[df[queue_length] == max_que, start_time]
+                    .iloc[0]
+                    .floor("10min")
+                )
+                max_time_plus_10 = max_time + pd.Timedelta(minutes=10)
+                max_time_minus_10 = max_time - pd.Timedelta(minutes=10)
+
+                df.loc[:, start_time] = df[start_time].dt.floor("10min")
+                filtered_df = df[
+                    (df[start_time] >= max_time_minus_10)
+                    & (df[start_time] <= max_time_plus_10)
+                ]
+
+                que_mean = round(filtered_df[queue_length].mean())
+
+                values.append(que_mean)
+                labels.append(column_name)
+
+                table_values.append(
+                    {"label": label, "values": [f"{column_name} {que_mean} {max_time}"]}
+                )
+
+            group_result = {"labels": labels, "values": values}
+            pie_result[group_name] = group_result
+
+            header = {
+                "columns": [
+                    {"label": f"{group_name} Top{len(table_values)}", "rowSpan": 2}
+                ]
+            }
+            table_result[group_name] = {"header": header, "body": table_values}
+
+        return {"pie_result": pie_result, "table_result": table_result}
+
+    # NOTE: Chart 공용로직
+    async def _create_top5_chart(
+        self, sim_df: pd.DataFrame, group_result: dict, kpi_name: str
     ):
 
-        df.loc[:, end_time] = df[end_time].dt.floor("10min")
+        total_groups = sim_df.shape[1]
+        has_etc = total_groups > 5
+        if has_etc:
+            top_5_columns = sim_df.sum().nlargest(5).index.tolist()
+            sim_df = sim_df[top_5_columns]
 
-        df_grouped = df.groupby([end_time, group_column]).size().unstack(fill_value=0)
-        df_grouped = df_grouped.sort_index()
+        sim_df_x_list = sim_df.index.astype(str).tolist()
+        traces = []
+        group_order = sim_df.sum().sort_values(ascending=False).index.tolist()
 
-        start_day = df_grouped.index[0].strftime("%Y-%m-%d %H:%M:%S")
-        end_day = df_grouped.index[-1].strftime("%Y-%m-%d %H:%M:%S")
-        all_hours = pd.date_range(
-            start=pd.Timestamp(start_day),
-            end=pd.Timestamp(end_day),
-            freq="10min",
-        )
-        df_grouped = df_grouped.reindex(all_hours, fill_value=0)
-        print(df_grouped)
+        for column in sim_df.columns.unique().tolist():
+            traces.append(
+                {
+                    "name": column,
+                    "order": group_order.index(column),
+                    "y": sim_df[column].astype(int).values.tolist(),
+                }
+            )
+        group_result[kpi_name] = {"default_x": sim_df_x_list, "traces": traces}
 
-        print(sum(df_grouped))
+        return group_result
 
-    async def _create_simulation_kpi(self, sim_df: pd.DataFrame, process, node):
+    # NOTE: Passenger Analysis Chart
+    async def generate_pa_chart(self, session, process):
+        # s3에서 시뮬레이션 데이터 프레임 가져오기
+        # if scenario_id:
+        #     filename = f"{user_id}/{scenario_id}"
+        #     sim_df: pd.DataFrame = await self.facility_repo.download_from_s3(
+        #         session, filename
+        #     )
 
-        start_time = f"{process}_on_pred"
-        end_time = f"{process}_pt_pred"
-        process_time = f"{process}_pt"
+        # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
+        sim_df = pd.read_csv("samples/test_sample.csv")
 
-        sim_df[end_time] = pd.to_datetime(sim_df[end_time])
-        sim_df[start_time] = pd.to_datetime(sim_df[start_time])
+        group_mapping = {
+            "Airline": "operating_carrier_name",
+            "Destination": "country_code",
+            "Flight Number": "flight_number",
+            f"{process} Counter": f"{process}_pred",
+        }
 
-        filtered_sim_df = sim_df.loc[
-            sim_df[f"{process}_pred"] == f"{process}_{node}"
-        ].copy()
-
-        diff_arr = (
-            filtered_sim_df[end_time] - filtered_sim_df[start_time]
-        ).dt.total_seconds()
-        throughput = int(len(filtered_sim_df))
-
-        total_delay = int(diff_arr.sum() / 60)
-        max_delay = int(diff_arr.max() / 60)
-        average_delay = int((total_delay / throughput) * 100) / 100
-        average_transaction_time = int(filtered_sim_df[process_time].mean() * 10) / 10
-
-        result = [throughput, max_delay, average_delay, average_transaction_time]
-
-        return result
-
-    async def _create_simulation_throughput(self, sim_df: pd.DataFrame, process):
-
-        end_time = f"{process}_pt_pred"
-        group_column = f"{process}_pred"
-
-        df = sim_df.dropna(subset=[end_time]).copy()
-
-        df[end_time] = pd.to_datetime(df[end_time])
-        df.loc[:, end_time] = df[end_time].dt.floor("10min")
-
-        df_grouped = df.groupby([end_time, group_column]).size().unstack(fill_value=0)
-        df_grouped = df_grouped.sort_index()
-
-        start_day = df_grouped.index[0].strftime("%Y-%m-%d %H:%M:%S")
-        end_day = df_grouped.index[-1].strftime("%Y-%m-%d %H:%M:%S")
-        all_hours = pd.date_range(
-            start=pd.Timestamp(start_day),
-            end=pd.Timestamp(end_day),
-            freq="10min",
-        )
-        df_grouped = df_grouped.reindex(all_hours, fill_value=0)
-        print(df_grouped)
-
-    async def _create_simulation_waiting_time(self, sim_df: pd.DataFrame, process):
-
-        start_time = f"{process}_on_pred"
-        end_time = f"{process}_pt_pred"
-
-        node_list = sim_df[f"{process}_pred"].unique().tolist()
-
-        sim_df[start_time] = pd.to_datetime(sim_df[start_time])
-        sim_df[end_time] = pd.to_datetime(sim_df[end_time])
-
-        for node in node_list:
-            df = sim_df.loc[sim_df[f"{process}_pred"] == f"{node}"].copy()
-
-            df["waiting_time"] = (df[end_time] - df[start_time]).dt.total_seconds()
-
-            df.loc[:, end_time] = df[end_time].dt.floor("10min")
-            df_grouped = (
-                df.groupby([end_time], as_index=False)
-                .agg({"waiting_time": "mean"})
-                .set_index("checkin_pt_pred")
+        chart_result = {}
+        for group_name, group_column in group_mapping.items():
+            group_result = {}
+            # TP
+            tp = await self._create_throughput(
+                sim_df=sim_df, process=process, group_column=group_column
             )
 
-            start_day = df_grouped.index[0].strftime("%Y-%m-%d %H:%M:%S")
-            end_day = df_grouped.index[-1].strftime("%Y-%m-%d %H:%M:%S")
-            all_hours = pd.date_range(
-                start=pd.Timestamp(start_day),
-                end=pd.Timestamp(end_day),
-                freq="10min",
+            group_result = await self._create_top5_chart(tp, group_result, "troughput")
+
+            # QL
+            ql = await self._create_queue_length(
+                sim_df=sim_df, process=process, group_column=group_column
             )
-            df_grouped = df_grouped.reindex(all_hours, fill_value=0)
 
-            print("=================")
-            print(node)
-            print(df_grouped)
+            group_result = await self._create_top5_chart(
+                ql, group_result, "queue_length"
+            )
 
-    # ==============================================================
-    # NOTE: KPI past
+            # WT
+            wt = await self._create_waiting_time(
+                sim_df=sim_df, process=process, group_column=group_column
+            )
+            group_result = await self._create_top5_chart(
+                wt, group_result, "waiting_time"
+            )
 
-    async def create_throughput_kpi(self, sim_df: pd.DataFrame, process):
+            chart_result[group_name] = group_result
 
-        end_time = f"{process}_pt_pred"
-        counter = f"{process}_pred"
+        return chart_result
 
-        df = sim_df.dropna(subset=[end_time]).copy()
-        counts = df[counter].value_counts()
+    # ============================================================
+    async def test(self, session: boto3.Session, process):
 
-        counts = counts.astype(int).tolist()
-        counts.insert(0, sum(counts))
+        data = pd.read_csv("samples/test_sample.csv")
 
-        return counts
-
-    async def create_max_queue_kpi(self, sim_df: pd.DataFrame, process):
-
-        df: pd.DataFrame = await self._create_simulation_queue(sim_df, process)
-
-        counts = df.sum()
-        counts = counts.astype(int).tolist()
-        counts.insert(0, sum(counts))
-
-        return counts
-
-    async def create_waiting_time_kpi(self, sim_df: pd.DataFrame, process, func):
-
-        start_time = f"{process}_on_pred"
-        end_time = f"{process}_pt_pred"
-
-        sim_df[start_time] = pd.to_datetime(sim_df[start_time])
-        sim_df[end_time] = pd.to_datetime(sim_df[end_time])
-
-        sim_df["waiting_time"] = (
-            sim_df[end_time] - sim_df[start_time]
-        ).dt.total_seconds()
-
-        df_grouped = sim_df.groupby([f"{process}_pred"], as_index=False).agg(
-            {"waiting_time": f"{func}"}
-        )
-        wt_list = df_grouped["waiting_time"].round().astype(int).tolist()
-        wt_list.insert(0, sum(wt_list))
-
-        return wt_list
-
-    async def create_facility_efficiency_kpi(self, sim_df: pd.DataFrame, process, func):
-
-        df_grouped = sim_df.groupby([f"{process}_pred"], as_index=False).agg(
-            {f"{process}_pt": f"{func}"}
-        )
-
-        fe_list = df_grouped[f"{process}_pt"].round().astype(int).tolist()
-        fe_list.insert(0, sum(fe_list))
-
-        return fe_list
-
-
-kpi_result = {
-    "counter_A": [
-        "throughput",
-        "max_delay",
-        "average_delay",
-        "average_transaction_time",
-    ],
-    "counter_B": [
-        "throughput",
-        "max_delay",
-        "average_delay",
-        "average_transaction_time",
-    ],
-}
+        await self.create_pie_chart(data, process)
