@@ -57,9 +57,9 @@ async def fetch_kpi(
 
 
 @facility_router.get(
-    "/chart",
+    "/ks-chart",
     status_code=status.HTTP_200_OK,
-    summary="chart를 위한 데이터",
+    summary="kpi-summary chart를 위한 데이터",
 )
 @inject
 async def fetch_chart(
@@ -68,7 +68,7 @@ async def fetch_chart(
     session: boto3.Session = Depends(get_boto3_session),
 ):
 
-    result = await facility_service.generate_chart(session=session, process=process)
+    result = await facility_service.generate_ks_chart(session=session, process=process)
 
     return result
 
@@ -86,5 +86,39 @@ async def fetch_heatmap(
 ):
 
     result = await facility_service.generate_heatmap(session=session, process=process)
+
+    return result
+
+
+@facility_router.get(
+    "/pie-chart",
+    status_code=status.HTTP_200_OK,
+    summary="pie-chart를 위한 데이터",
+)
+@inject
+async def fetch_pie_chart(
+    process: str,
+    facility_service: FacilityService = Depends(Provide[Container.facility_service]),
+    session: boto3.Session = Depends(get_boto3_session),
+):
+
+    result = await facility_service.generate_pie_chart(session=session, process=process)
+
+    return result
+
+
+@facility_router.get(
+    "/pa-chart",
+    status_code=status.HTTP_200_OK,
+    summary="passenger-analysis chart를 위한 데이터",
+)
+@inject
+async def fetch_pa_chart(
+    process: str,
+    facility_service: FacilityService = Depends(Provide[Container.facility_service]),
+    session: boto3.Session = Depends(get_boto3_session),
+):
+
+    result = await facility_service.generate_pa_chart(session=session, process=process)
 
     return result
