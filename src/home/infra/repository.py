@@ -3,7 +3,7 @@ from src.database import get_boto3_session, aget_supabase_client
 import pandas as pd
 import awswrangler as wr
 import os
-from fastapi import Request
+import numpy as np
 
 
 class HomeRepository(IHomeRepository):
@@ -25,20 +25,15 @@ class HomeRepository(IHomeRepository):
         except Exception as e:
             return {"message": "로그인 실패", "error": str(e)}
 
-    async def fetch_supabase_data(self, user_id: str):
+    async def fetch_supabase_data(self):
         supabase = await aget_supabase_client()
         try:
-            data = (
-                await supabase.table("user_info")
-                .select("*")
-                .eq("id", user_id)
-                .execute()
-            )
+            data = await supabase.table("user_info").select("*").execute()
             return {"message": "성공", "data": data}
         except Exception as e:
             return {"message": "Supabase 데이터 조회 실패", "error": str(e)}
 
-    async def fetch_simulation_files(self, request: Request):
+    async def fetch_simulation_files(self):
         try:
             s3_client = self.boto3_session.client("s3")
             bucket_name = "flexa-prod-ap-northeast-2-data-storage"
@@ -53,8 +48,16 @@ class HomeRepository(IHomeRepository):
             files = []
             if "Contents" in response:
                 for obj in response["Contents"]:
+                    # 파일 키에서 ID 추출
+                    key_parts = obj["Key"].split("/")
+                    if len(key_parts) >= 3:
+                        file_id = key_parts[1]  # simulations/<file_id>/filename.parquet
+                    else:
+                        file_id = "unknown"
+
                     files.append(
                         {
+                            "file_id": file_id,
                             "key": obj["Key"],
                             "size": obj["Size"],
                             "last_modified": obj["LastModified"].isoformat(),
@@ -70,36 +73,13 @@ class HomeRepository(IHomeRepository):
         except Exception as e:
             return {"message": "S3 데이터 조회 실패", "error": str(e)}
 
-    async def fetch_simulation_summary(self, request: Request, file_id: str):
-        # 방법1. S3에서 직접 읽기
-        bucket_name = os.getenv("AWS_S3_BUCKET_NAME")
-        file_key = f"simulations/tommie/test.parquet"
-        file_path = f"s3://{bucket_name}/{file_key}"
-        df = wr.s3.read_parquet(path=file_path, boto3_session=self.boto3_session)
+    async def fetch_simulation_summary(self, file_id: str):
+        """시뮬레이션 요약 정보를 조회합니다."""
 
-        # # 방법2. 로컬 파일에서 직접 parquet 읽기
-        # file_path = "samples/test.parquet"
-        # df = pd.read_parquet(file_path)
+        # bucket_name = os.getenv("AWS_S3_BUCKET_NAME")
+        # file_key = f"simulations/tommie/{file_id}.parquet"
+        # file_path = f"s3://{bucket_name}/{file_key}"
+        # df = wr.s3.read_parquet(path=file_path, boto3_session=self.boto3_session)
 
-        return_dict = {
-            "terminal_overview": {
-                "start_time": pd.to_datetime(df["show_up_time"].min()).strftime(
-                    "%Y-%m-%d %H:00:00"
-                ),
-                "end_time": pd.to_datetime(df["show_up_time"].max()).strftime(
-                    "%Y-%m-%d %H:00:00"
-                ),
-            },
-            "summary": {
-                "departure_flights": df["flight_number"].nunique(),
-                "arrival_flights": 0,
-                "delay_flights": df[df["gate_departure_delay"] > 15][
-                    "flight_number"
-                ].nunique(),
-                "return_flights": int(df["is_cancelled"].sum()),
-                "departure_pax": len(df),
-                "arrival_pax": 0,
-                "transfer_pax": 0,
-            },
-        }
-        return return_dict
+        df = pd.read_csv("samples/sim_pax.csv")
+        return df
