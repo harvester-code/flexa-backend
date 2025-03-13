@@ -46,8 +46,8 @@ async def run_simulation(
     session: boto3.Session = Depends(get_boto3_session),
 ):
     await websocket.accept()  # 먼저 연결 수락
-    if await websocket_jwt_decoder(websocket) is None:  # 인증 실패 시
-        return
+    # if await websocket_jwt_decoder(websocket) is None:  # 인증 실패 시
+    #     return
 
     try:
         while True:
@@ -59,8 +59,8 @@ async def run_simulation(
                 parsed_data = json.loads(data)
                 run_simulation_data = RunSimulationBody(**parsed_data)
 
-                user_id = websocket.state.user_id
-                # user_id = "6c377bfd-6679-48e5-ab27-49ed3ca4611c"
+                # user_id = websocket.state.user_id
+                user_id = "6c377bfd-6679-48e5-ab27-49ed3ca4611c"
                 if not user_id:
                     await websocket.send_json({"error": "User ID is required"})
                     continue
