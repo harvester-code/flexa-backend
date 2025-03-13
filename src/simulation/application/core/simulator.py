@@ -111,6 +111,7 @@ class DsSimulator:
             # ============================================================
             self.passenger_id += 1
             node.passenger_node_id += 1
+            node.que_history[node.passenger_node_id] = len(node.passenger_queues)
 
     async def run(self, websocket: WebSocket, start_time, end_time, unit=1):
         logger.info("시뮬레이션을 시작합니다.")

@@ -42,6 +42,7 @@ class DsNode:
         self.passenger_ids = []
         self.passenger_node_id = 0
         self.passenger_queues = []
+        self.que_history = np.zeros(num_passengers, dtype=int) - 1
         self.processing_time = np.zeros(num_passengers, dtype=int)
         self.unoccupied_facilities = np.ones(num_facilities, dtype=int)
         self.on_time = np.zeros(num_passengers, dtype=int)
@@ -92,6 +93,10 @@ class DsNode:
             destination.on_time[_passenger_node_id] = (
                 self.done_time[passenger_node_id] + movement_time
             )  # TODO: 검증과정이 필요함. 시그마를 0으로 두고 10분씩 뒤로 밀리는지 체크가 1번.
+
+            destination.que_history[_passenger_node_id] = len(
+                destination.passenger_queues
+            )
 
             minute_of_day = min(
                 1439, (destination.on_time[_passenger_node_id] % 86400) // 60
@@ -408,7 +413,8 @@ class DsNode:
         adjusted_processing_time = int(
             round(np.random.normal(processing_time, sigma * sigma_multiple))
         )
-        return max(adjusted_processing_time, processing_time // 2)
+        # return max(adjusted_processing_time, processing_time // 2)
+        return processing_time
 
     def test_pt(self, pt_orig, sigma_multiple=0):
         sigma = np.sqrt(pt_orig)
