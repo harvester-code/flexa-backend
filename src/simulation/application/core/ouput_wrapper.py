@@ -49,12 +49,12 @@ class DsOutputWrapper:
             self.passengers.loc[:, col_label] = pd.NaT
 
         mask = arr >= 0
-        orig_idx = node.orig_idx[: len(arr[mask])]
+        passenger_ids = node.passenger_ids[: len(arr[mask])]
         values_arr = arr[mask]
 
-        self.passengers.iloc[orig_idx, self.passengers.columns.get_loc(col_label)] = (
-            values_arr
-        )
+        self.passengers.iloc[
+            passenger_ids, self.passengers.columns.get_loc(col_label)
+        ] = values_arr
 
     def write_pred(self):
         for n in self.nodes:
@@ -63,13 +63,13 @@ class DsOutputWrapper:
             new_col_on = "_".join(n.node_label.split("_")[:-1]) + "_on_pred"
             new_col_done = "_".join(n.node_label.split("_")[:-1]) + "_done_pred"
             new_pt = "_".join(n.node_label.split("_")[:-1]) + "_pt"
-            # new_que = "_".join(n.node_label.split("_")[:-1]) + "_que"
+            new_que = "_".join(n.node_label.split("_")[:-1]) + "_que"
             new_col_fac = "_".join(n.node_label.split("_")[:-1]) + "_pred"
 
             self._add_column_dt(n, n.on_time, new_col_on, method="normal")
             self._add_column_dt(n, n.done_time, new_col_done, method="normal")
             self._add_column_dt(n, n.processing_time, new_pt, method="delta")
-            # self.add_column_que(n, n.que_history, new_que)
+            self.add_column_que(n, n.que_history, new_que)
             self._add_column_string(n, new_col_fac)
 
         for component in self.components:
