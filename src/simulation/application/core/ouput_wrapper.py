@@ -63,13 +63,13 @@ class DsOutputWrapper:
             new_col_on = "_".join(n.node_label.split("_")[:-1]) + "_on_pred"
             new_col_done = "_".join(n.node_label.split("_")[:-1]) + "_done_pred"
             new_pt = "_".join(n.node_label.split("_")[:-1]) + "_pt"
-            new_que = "_".join(n.node_label.split("_")[:-1]) + "_que"
+            # new_que = "_".join(n.node_label.split("_")[:-1]) + "_que"
             new_col_fac = "_".join(n.node_label.split("_")[:-1]) + "_pred"
 
             self._add_column_dt(n, n.on_time, new_col_on, method="normal")
             self._add_column_dt(n, n.done_time, new_col_done, method="normal")
             self._add_column_dt(n, n.processing_time, new_pt, method="delta")
-            self.add_column_que(n, n.que_history, new_que)
+            # self.add_column_que(n, n.que_history, new_que)
             self._add_column_string(n, new_col_fac)
 
         for component in self.components:

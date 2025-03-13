@@ -25,15 +25,33 @@ status 코드 정리
 # )
 # @inject
 # async def fetch_scenario(
-#     process: str,
+#     # process: str,
 #     facility_service: FacilityService = Depends(Provide[Container.facility_service]),
 #     db: AsyncSession = Depends(aget_supabase_session),
 #     session: boto3.Session = Depends(get_boto3_session),
 # ):
 
-#     await facility_service.test(session=session, process=process)
+#     # await facility_service.test(session=session, process=process)
+#     data = await facility_service.fetch_process_list(session=session)
 
 #     return "테스트 성공"
+
+
+@facility_router.get(
+    "/process",
+    status_code=status.HTTP_200_OK,
+    summary="최초 시나리오를 불러올 시 process list를 응답하는 엔드포인트",
+)
+@inject
+async def fetch_process_list(
+    scenario_id: str | None = None,
+    facility_service: FacilityService = Depends(Provide[Container.facility_service]),
+    session: boto3.Session = Depends(get_boto3_session),
+):
+
+    result = await facility_service.fetch_process_list(session=session)
+
+    return result
 
 
 @facility_router.get(

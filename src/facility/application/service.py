@@ -18,6 +18,37 @@ class FacilityService:
     ):
         self.facility_repo = facility_repo
 
+    async def fetch_process_list(
+        self,
+        session: boto3.Session,
+        user_id: str | None = None,
+        scenario_id: str | None = None,
+    ):
+
+        # s3에서 시뮬레이션 데이터 프레임 가져오기
+        # if scenario_id:
+        #     filename = f"{user_id}/{scenario_id}"
+        #     sim_df: pd.DataFrame = await self.facility_repo.download_from_s3(
+        #         session, filename
+        #     )
+
+        # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
+        sim_df = pd.read_csv("samples/test_sample.csv")
+
+        process_columns = sim_df.columns[
+            sim_df.columns.str.contains("pt_pred", case=False)
+        ]
+
+        result = []
+        for process in process_columns:
+            value = process.replace("_pt_pred", "")
+            label = value.replace("_", " ").capitalize().replace("Checkin", "Check-in")
+
+            process_result = {"label": label, "value": value}
+            result.append(process_result)
+
+        return result
+
     # ==============================================================
     # NOTE: KPI Summary
 
