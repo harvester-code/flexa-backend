@@ -188,13 +188,13 @@ class SimulationRepository(ISimulationRepository):
         await db.commit()
 
     async def update_master_scenario(
-        self, db: AsyncSession, group_id: str, simulation_id: str
+        self, db: AsyncSession, group_id: str, scenario_id: str
     ):
 
         await db.execute(
             update(Groups)
             .where(Groups.id == int(group_id))
-            .values({Groups.master_scenario_id: simulation_id})
+            .values({Groups.master_scenario_id: scenario_id})
         )
         await db.commit()
 
