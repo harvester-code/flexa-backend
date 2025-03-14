@@ -9,6 +9,7 @@ from src.home.interface.controller import home_router
 from src.middleware import add_middlewares
 from src.passenger_flow.controller import passenger_flow_router
 from src.simulation.interface.controller import simulation_router
+from src.admin.interface.controller import admin_router
 from src.simulation.interface.websocket_controller import ws_router
 
 app = FastAPI()
@@ -40,6 +41,7 @@ app.include_router(simulation_router, prefix=API_PREFIX, tags=["Simulations"])
 app.include_router(home_router, prefix=API_PREFIX, tags=["Homes"])
 app.include_router(facility_router, prefix=API_PREFIX, tags=["Detailed-Facilities"])
 app.include_router(passenger_flow_router, prefix=API_PREFIX, tags=["Passenger-Flow"])
+app.include_router(admin_router, prefix=API_PREFIX, tags=["Admins"])
 
 # ================================
 app.include_router(ws_router, prefix=API_PREFIX, tags=["ws"])
