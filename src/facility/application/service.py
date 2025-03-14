@@ -445,53 +445,38 @@ class FacilityService:
             f"{process} Counter": f"{process}_pred",
         }
 
-        start_time = f"{process}_on_pred"
         queue_length = f"{process}_que"
 
         pie_result = {}
         table_result = {}
+        total_queue_length_result = {}
         for group_name, group_column in group_mapping.items():
-            df = sim_df[[start_time, group_column, queue_length]].copy()
-            df[start_time] = pd.to_datetime(df[start_time])
-
-            group_max_queue = df.groupby(group_column)[queue_length].max()
+            group_max_queue = sim_df.groupby(group_column)[queue_length].max()
             top5_groups = group_max_queue.nlargest(5).index
-            top5_df = df[df[group_column].isin(top5_groups)]
+            top5_df = sim_df[sim_df[group_column].isin(top5_groups)].copy()
+
+            group_df = await self._create_queue_length(
+                sim_df=top5_df, process=process, group_column=group_column
+            )
+
+            df = group_df.mean().sort_values(ascending=False)
 
             labels = []
             values = []
             table_values = []
-            for label, column_name in enumerate(
-                top5_df[group_column].unique().tolist(), start=1
-            ):
-                df = top5_df[top5_df[group_column] == column_name].copy()
+            total_queue_length = 0
+            for row in range(len(df)):
 
-                max_que = df[queue_length].max()
-                max_time = (
-                    df.loc[df[queue_length] == max_que, start_time]
-                    .iloc[0]
-                    .floor("10min")
-                )
-                max_time_plus_10 = max_time + pd.Timedelta(minutes=10)
-                max_time_minus_10 = max_time - pd.Timedelta(minutes=10)
-
-                df.loc[:, start_time] = df[start_time].dt.floor("10min")
-                filtered_df = df[
-                    (df[start_time] >= max_time_minus_10)
-                    & (df[start_time] <= max_time_plus_10)
-                ]
-
-                que_mean = round(filtered_df[queue_length].mean())
+                que_mean = round(df.iloc[row])
+                total_queue_length += que_mean
+                column_name = df.index[row]
 
                 values.append(que_mean)
                 labels.append(column_name)
 
                 table_values.append(
-                    {"label": label, "values": [f"{column_name} {que_mean} {max_time}"]}
+                    {"label": row + 1, "values": [f"{column_name} {que_mean}pax"]}
                 )
-
-            group_result = {"labels": labels, "values": values}
-            pie_result[group_name] = group_result
 
             header = {
                 "columns": [
@@ -499,8 +484,48 @@ class FacilityService:
                 ]
             }
             table_result[group_name] = {"header": header, "body": table_values}
+            pie_result[group_name] = {"labels": labels, "values": values}
+            total_queue_length_result[group_name] = total_queue_length
 
-        return {"pie_result": pie_result, "table_result": table_result}
+        return {
+            "total_queue_length": total_queue_length_result,
+            "pie_result": pie_result,
+            "table_result": table_result,
+        }
+
+        # labels = []
+        # values = []
+        # table_values = []
+        # for label, column_name in enumerate(
+        #     top5_df[group_column].unique().tolist(), start=1
+        # ):
+        #     df = top5_df[top5_df[group_column] == column_name].copy()
+
+        #     max_que = df[queue_length].max()
+        #     max_time = (
+        #         df.loc[df[queue_length] == max_que, start_time]
+        #         .iloc[0]
+        #         .floor("10min")
+        #     )
+        #     max_time_plus_10 = max_time + pd.Timedelta(minutes=10)
+        #     max_time_minus_10 = max_time - pd.Timedelta(minutes=10)
+
+        #     df.loc[:, start_time] = df[start_time].dt.floor("10min")
+        #     filtered_df = df[
+        #         (df[start_time] >= max_time_minus_10)
+        #         & (df[start_time] <= max_time_plus_10)
+        #     ]
+
+        #     que_mean = round(filtered_df[queue_length].mean())
+
+        #     values.append(que_mean)
+        #     labels.append(column_name)
+
+        #     table_values.append(
+        #         {"label": label, "values": [f"{column_name} {que_mean} {max_time}"]}
+        #     )
+
+        # return
 
     # NOTE: Chart 공용로직
     async def _create_top5_chart(
