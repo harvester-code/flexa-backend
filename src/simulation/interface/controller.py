@@ -151,8 +151,8 @@ async def deactivate_multiple_scenario(
 ):
 
     await simulation_service.deactivate_simulation_scenario(
-        db,
-        scenario_ids,
+        db=db,
+        id=scenario_ids,
     )
 
 
@@ -166,7 +166,7 @@ async def deactivate_multiple_scenario(
 async def duplicate_scenario(
     request: Request,
     scenario_id: str,
-    editor: DuplicateScenarioBody,
+    scenario: DuplicateScenarioBody,
     simulation_service: SimulationService = Depends(
         Provide[Container.simulation_service]
     ),
@@ -176,7 +176,10 @@ async def duplicate_scenario(
         raise BadRequestException("Scenario ID is required")
 
     await simulation_service.duplicate_simulation_scenario(
-        db, request.state.user_id, scenario_id, editor.editor
+        db=db,
+        user_id=request.state.user_id,
+        old_scenario_id=scenario_id,
+        editor=scenario.editor,
     )
 
 
@@ -199,7 +202,9 @@ async def update_master_scenario(
     if not group_id or not scenario_id:
         raise BadRequestException("Group ID and Scenario ID is required")
 
-    return await simulation_service.update_master_scenario(db, group_id, scenario_id)
+    return await simulation_service.update_master_scenario(
+        db=db, group_id=group_id, scenario_id=scenario_id
+    )
 
 
 # ==============================
@@ -224,17 +229,20 @@ async def fetch_scenario_metadata(
     if not simulation_id:
         raise BadRequestException("Simulation ID is required")
 
-    return await simulation_service.fetch_scenario_metadata(db, simulation_id)
+    return await simulation_service.fetch_scenario_metadata(
+        db=db, simulation_id=simulation_id
+    )
 
 
 @simulation_router.put(
-    "/scenario/metadata",
+    "/scenario/metadata/{simulation_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="06_SI_002 ~ 021",
     description="06_SI_002 ~ 021에서 우상단의 save버튼을 눌렀을때 각 항목의 필터값들을 저장하는 엔드포인트",
 )
 @inject
 async def update_scenario_metadata(
+    simulation_id: str,
     metadata: ScenarioMetadataBody,
     simulation_service: SimulationService = Depends(
         Provide[Container.simulation_service]
@@ -244,7 +252,7 @@ async def update_scenario_metadata(
 
     return await simulation_service.update_scenario_metadata(
         db,
-        metadata.simulation_id,
+        simulation_id,
         metadata.overview,
         metadata.history,
         metadata.flight_sch,
