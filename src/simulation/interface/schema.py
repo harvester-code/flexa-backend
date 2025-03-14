@@ -96,7 +96,6 @@ class ScenarioMetadataBody(BaseModel):
 
 
 class ScenarioUpdateBody(BaseModel):
-    id: str
     simulation_name: str | None
     memo: str | None
 
@@ -112,3 +111,7 @@ class SimulationTotalChartBody(BaseModel):
 
 class MultipleScenarioDeactivateBody(BaseModel):
     scenario_ids: List[str]
+
+
+class DuplicateScenarioBody(BaseModel):
+    editor: str
