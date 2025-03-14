@@ -7,5 +7,13 @@ class IAdminRepository(metaclass=ABCMeta):
     """
 
     @abstractmethod
-    def download_from_s3(self):
+    def fetch_operation_setting(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_operation_setting(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_operation_setting(self):
         raise NotImplementedError
