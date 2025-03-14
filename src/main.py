@@ -6,6 +6,7 @@ from starlette.middleware.cors import CORSMiddleware
 from src.admin.interface.controller import admin_router
 from src.containers import Container
 from src.middleware import add_middlewares
+from src.exceptions import add_exception_handlers
 from src.facility.interface.controller import facility_router
 from src.home.interface.controller import home_router
 from src.passenger_flow.controller import passenger_flow_router
@@ -24,6 +25,7 @@ app.add_middleware(
 )
 
 add_middlewares(app)
+add_exception_handlers(app)
 
 router = APIRouter()
 
