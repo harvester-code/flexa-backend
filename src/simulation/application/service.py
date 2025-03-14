@@ -684,24 +684,6 @@ class SimulationService:
 
         return {"sanky": sanky, "capacity": capacity}
 
-    # # FIXME: 운영세팅이 완료되면 변경될 코드
-    # async def fetch_facility_default_setting(self):
-    #     import os
-    #     import json
-
-    #     sample_data = os.path.join(
-    #         os.getcwd(), "samples/sample_processing_procedures.json"
-    #     )
-
-    #     with open(
-    #         sample_data,
-    #         "r",
-    #         encoding="utf-8",
-    #     ) as file:
-    #         data = json.load(file)
-
-    #     return data
-
     # =====================================
     async def _create_simulation_flow_chart(
         self,
