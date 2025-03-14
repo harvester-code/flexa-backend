@@ -51,8 +51,9 @@ Thumbs.db
 # hayden test
 /hayden
 
-# sample ICN data .json
+# sample data
 sample_ICN_data.json
+sim_pax_test.csv
 
 # .env
 .env
