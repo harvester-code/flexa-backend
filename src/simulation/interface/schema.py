@@ -84,7 +84,6 @@ class SimulationScenarioBody(BaseModel):
 
 
 class ScenarioMetadataBody(BaseModel):
-    simulation_id: str
     # 여기서 dict는 jsonb 형태로 supabase에 저장될 예정
     overview: dict | None
     history: dict | None
