@@ -1,13 +1,15 @@
 import boto3
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import Connection
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.exceptions import BadRequestException
 from src.containers import Container
 from src.database import aget_supabase_session, get_boto3_session, get_snowflake_session
 from src.simulation.application.service import SimulationService
 from src.simulation.interface.schema import (
+    DuplicateScenarioBody,
     FacilityConnBody,
     FlightScheduleBody,
     MultipleScenarioDeactivateBody,
@@ -34,7 +36,7 @@ status 코드 정리
 
 
 @simulation_router.get(
-    "/scenario",
+    "/scenario/{group_id}",
     status_code=status.HTTP_200_OK,
     summary="06_SI_001",
     description="06_SI_001에서 각 유저가 가지고 있는 시나리오 리스트를 디비에서 불러오는 엔드포인트",
@@ -48,8 +50,12 @@ async def fetch_scenario(
     ),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
+
+    if not group_id:
+        raise BadRequestException("Group ID is required")
+
     return await simulation_service.fetch_simulation_scenario(
-        db, request.state.user_id, group_id
+        db=db, user_id=request.state.user_id, group_id=group_id
     )
 
 
@@ -70,40 +76,43 @@ async def create_scenario(
 ):
 
     return await simulation_service.create_simulation_scenario(
-        db,
-        request.state.user_id,
-        scenario.simulation_name,
-        scenario.memo,
-        scenario.terminal,
-        scenario.editor,
+        db=db,
+        user_id=request.state.user_id,
+        name=scenario.simulation_name,
+        memo=scenario.memo,
+        terminal=scenario.terminal,
+        editor=scenario.editor,
     )
 
 
 @simulation_router.patch(
-    "/scenario",
+    "/scenario/{scenario_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="06_SI_001",
     description="06_SI_001에서 각 시나리오의 액션버튼을 눌러 나오는 edit을 클릭하여 실행하면 실행되는 앤드포인트",
 )
 @inject
 async def update_scenario(
+    scenario_id: str,
     scenario: ScenarioUpdateBody,
     simulation_service: SimulationService = Depends(
         Provide[Container.simulation_service]
     ),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
+    if not scenario_id:
+        raise BadRequestException("Scenario ID is required")
 
     await simulation_service.update_simulation_scenario(
-        db,
-        scenario.id,
-        scenario.simulation_name,
-        scenario.memo,
+        db=db,
+        id=scenario_id,
+        name=scenario.simulation_name,
+        memo=scenario.memo,
     )
 
 
 @simulation_router.patch(
-    "/scenario/deactivate",
+    "/scenario/deactivate/{scenario_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="06_SI_001",
     description="06_SI_001에서 각 시나리오의 액션버튼을 눌러 나오는 delete를 클릭하여 실행하면 실행되는 앤드포인트",
@@ -117,9 +126,12 @@ async def deactivate_scenario(
     db: AsyncSession = Depends(aget_supabase_session),
 ):
 
+    if not scenario_id:
+        raise BadRequestException("Scenario ID is required")
+
     await simulation_service.deactivate_simulation_scenario(
-        db,
-        scenario_id,
+        db=db,
+        id=scenario_id,
     )
 
 
@@ -145,7 +157,7 @@ async def deactivate_multiple_scenario(
 
 
 @simulation_router.post(
-    "/scenario/duplicate",
+    "/scenario/duplicate/{scenario_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="06_SI_001",
     description="06_SI_001에서 각 시나리오의 액션버튼을 눌러 나오는 duplicate를 클릭하여 실행하면 실행되는 앤드포인트",
@@ -154,20 +166,22 @@ async def deactivate_multiple_scenario(
 async def duplicate_scenario(
     request: Request,
     scenario_id: str,
-    editor: str,
+    editor: DuplicateScenarioBody,
     simulation_service: SimulationService = Depends(
         Provide[Container.simulation_service]
     ),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
+    if not scenario_id:
+        raise BadRequestException("Scenario ID is required")
 
     await simulation_service.duplicate_simulation_scenario(
-        db, request.state.user_id, scenario_id, editor
+        db, request.state.user_id, scenario_id, editor.editor
     )
 
 
 @simulation_router.patch(
-    "/scenario/master",
+    "/scenario/master/{group_id}/{scenario_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="06_SI_001",
     description="06_SI_001에서 각 시나리오의 액션버튼을 눌러 나오는 master(미정)를 클릭하여 실행하면 실행되는 앤드포인트",
@@ -182,6 +196,9 @@ async def update_master_scenario(
     db: AsyncSession = Depends(aget_supabase_session),
 ):
 
+    if not group_id or not scenario_id:
+        raise BadRequestException("Group ID and Scenario ID is required")
+
     return await simulation_service.update_master_scenario(db, group_id, scenario_id)
 
 
@@ -190,7 +207,7 @@ async def update_master_scenario(
 
 
 @simulation_router.get(
-    "/scenario/metadata",
+    "/scenario/metadata/{simulation_id}",
     status_code=status.HTTP_200_OK,
     summary="06_SI_001",
     description="06_SI_001에서 이미 존재하는 시나리오의 데이터를 불러오는 엔드포인트",
@@ -203,6 +220,10 @@ async def fetch_scenario_metadata(
     ),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
+
+    if not simulation_id:
+        raise BadRequestException("Simulation ID is required")
+
     return await simulation_service.fetch_scenario_metadata(db, simulation_id)
 
 
@@ -237,7 +258,7 @@ async def update_scenario_metadata(
 # ==============================
 # NOTE: 시뮬레이션 프로세스
 @simulation_router.post(
-    "/flight-schedule",
+    "/flight-schedule/{simulation_id}",
     status_code=status.HTTP_200_OK,
     summary="06_SI_003, 06_SI_006",
     description="06_SI_003에서 LOAD 버튼과 06_SI_006에서 Apply 버튼을 눌렀을 때 실행되는 엔드포인트 /// 만약 body값에 first_load: true로 설정이 되어있면, add_conditions에 필요한 데이터를 전달한다.",
@@ -252,6 +273,9 @@ async def fetch_flight_schedule(
     snowflake_db: Connection = Depends(get_snowflake_session),
     supabase_db: AsyncSession = Depends(aget_supabase_session),
 ):
+
+    if not simulation_id:
+        raise BadRequestException("Simulation ID is required")
 
     flight_sch = await simulation_service.generate_flight_schedule(
         snowflake_db,
@@ -331,7 +355,7 @@ async def generate_facility_conn(
 
 
 @simulation_router.post(
-    "/kpi-chart",
+    "/kpi-chart/{scenario_id}",
     status_code=status.HTTP_200_OK,
     summary="06_SI_020",
     description="06_SI_020에서 시뮬레이션 결과 그래프를 보고 특정 프로세스의 특정 노드를 선택할때 실행되는 엔드포인트",
@@ -348,6 +372,9 @@ async def generate_simulation_kpi_chart(
     session: boto3.Session = Depends(get_boto3_session),
 ):
 
+    if not scenario_id or not process or not node:
+        raise BadRequestException("Scenario ID and Process and Node is required")
+
     return await simulation_service.generate_simulation_kpi_chart(
         session=session,
         user_id=request.state.user_id,
@@ -359,7 +386,7 @@ async def generate_simulation_kpi_chart(
 
 
 @simulation_router.post(
-    "/total-chart",
+    "/total-chart/{scenario_id}",
     status_code=status.HTTP_200_OK,
     summary="06_SI_020",
     description="06_SI_020에서 시뮬레이션 결과 그래프를 보고 Total탭을 선택할때 실행되는 엔드포인트",
@@ -374,6 +401,9 @@ async def generate_simulation_total_chart(
     ),
     session: boto3.Session = Depends(get_boto3_session),
 ):
+
+    if not scenario_id:
+        raise BadRequestException("Scenario ID is required")
 
     return await simulation_service.generate_simulation_total_chart(
         session=session,
