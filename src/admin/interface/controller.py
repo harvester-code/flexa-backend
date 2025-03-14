@@ -7,6 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.containers import Container
 from src.database import aget_supabase_session, get_boto3_session
 from src.admin.application.service import AdminService
+from src.admin.interface.schema import (
+    CreateOperationSettingBody,
+    UpdateOperationSettingBody,
+)
 
 admin_router = APIRouter(prefix="/admins")
 
@@ -19,19 +23,80 @@ status 코드 정리
 """
 
 
+# @admin_router.get(
+#     "/sample",
+#     summary="샘플코드",
+# )
+# @inject
+# async def fetch_scenario(
+#     # process: str,
+#     admin_service: AdminService = Depends(Provide[Container.admin_service]),
+#     db: AsyncSession = Depends(aget_supabase_session),
+#     session: boto3.Session = Depends(get_boto3_session),
+# ):
+
+#     # await facility_service.test(session=session, process=process)
+#     # data = await admin_service.fetch_process_list(session=session)
+
+#     return "테스트 성공"
+
+
 @admin_router.get(
-    "/sample",
-    summary="샘플코드",
+    "/operation-setting",
+    status_code=status.HTTP_201_CREATED,
+    summary="운영세팅",
 )
 @inject
-async def fetch_scenario(
-    # process: str,
+async def create_operation_setting(
+    group_id: str,
     admin_service: AdminService = Depends(Provide[Container.admin_service]),
     db: AsyncSession = Depends(aget_supabase_session),
-    session: boto3.Session = Depends(get_boto3_session),
 ):
 
-    # await facility_service.test(session=session, process=process)
-    # data = await admin_service.fetch_process_list(session=session)
+    result = await admin_service.fetch_operation_setting(db=db, group_id=group_id)
 
-    return "테스트 성공"
+    return result
+
+
+@admin_router.post(
+    "/operation-setting",
+    status_code=status.HTTP_201_CREATED,
+    summary="운영세팅",
+)
+@inject
+async def fetch_operation_setting(
+    group_id: str,
+    operation_setting: CreateOperationSettingBody,
+    admin_service: AdminService = Depends(Provide[Container.admin_service]),
+    db: AsyncSession = Depends(aget_supabase_session),
+):
+
+    await admin_service.create_operation_setting(
+        db=db, group_id=group_id, terminal_name=operation_setting.terminal_name
+    )
+
+    return "success"
+
+
+@admin_router.patch(
+    "/operation-setting",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="운영세팅",
+)
+@inject
+async def update_operation_setting(
+    operation_setting_id: str,
+    operation_setting: UpdateOperationSettingBody,
+    admin_service: AdminService = Depends(Provide[Container.admin_service]),
+    db: AsyncSession = Depends(aget_supabase_session),
+):
+
+    await admin_service.update_operation_setting(
+        db=db,
+        id=operation_setting_id,
+        terminal_name=operation_setting.terminal_name,
+        terminal_process=operation_setting.terminal_process,
+        processing_procedure=operation_setting.processing_procedure,
+        terminal_layout=operation_setting.terminal_layout,
+        terminal_layout_image_url=operation_setting.terminal_layout_image_url,
+    )
