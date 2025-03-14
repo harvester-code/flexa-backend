@@ -1,6 +1,6 @@
 import boto3
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy import Connection
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,12 +10,12 @@ from src.simulation.application.service import SimulationService
 from src.simulation.interface.schema import (
     FacilityConnBody,
     FlightScheduleBody,
+    MultipleScenarioDeactivateBody,
     PassengerScheduleBody,
     ScenarioMetadataBody,
     ScenarioUpdateBody,
     SimulationScenarioBody,
     SimulationTotalChartBody,
-    MultipleScenarioDeactivateBody,
 )
 
 simulation_router = APIRouter(prefix="/simulations")
@@ -35,7 +35,7 @@ status 코드 정리
 
 @simulation_router.get(
     "/scenario",
-    status_code=200,
+    status_code=status.HTTP_200_OK,
     summary="06_SI_001",
     description="06_SI_001에서 각 유저가 가지고 있는 시나리오 리스트를 디비에서 불러오는 엔드포인트",
 )
@@ -55,7 +55,7 @@ async def fetch_scenario(
 
 @simulation_router.post(
     "/scenario",
-    status_code=201,
+    status_code=status.HTTP_201_CREATED,
     summary="06_SI_001",
     description="06_SI_001에서 new_scenario 버튼을 클릭해서 나오는 팝업창에서 빈칸을 작성한 후 create 버튼을 누르면 실행되는 엔드포인트",
 )
@@ -81,7 +81,7 @@ async def create_scenario(
 
 @simulation_router.patch(
     "/scenario",
-    status_code=204,
+    status_code=status.HTTP_204_NO_CONTENT,
     summary="06_SI_001",
     description="06_SI_001에서 각 시나리오의 액션버튼을 눌러 나오는 edit을 클릭하여 실행하면 실행되는 앤드포인트",
 )
@@ -94,7 +94,7 @@ async def update_scenario(
     db: AsyncSession = Depends(aget_supabase_session),
 ):
 
-    return await simulation_service.update_simulation_scenario(
+    await simulation_service.update_simulation_scenario(
         db,
         scenario.id,
         scenario.simulation_name,
@@ -104,7 +104,7 @@ async def update_scenario(
 
 @simulation_router.patch(
     "/scenario/deactivate",
-    status_code=204,
+    status_code=status.HTTP_204_NO_CONTENT,
     summary="06_SI_001",
     description="06_SI_001에서 각 시나리오의 액션버튼을 눌러 나오는 delete를 클릭하여 실행하면 실행되는 앤드포인트",
 )
@@ -117,7 +117,7 @@ async def deactivate_scenario(
     db: AsyncSession = Depends(aget_supabase_session),
 ):
 
-    return await simulation_service.deactivate_simulation_scenario(
+    await simulation_service.deactivate_simulation_scenario(
         db,
         scenario_id,
     )
@@ -125,7 +125,7 @@ async def deactivate_scenario(
 
 @simulation_router.patch(
     "/scenario/deactivate/multiple",
-    status_code=204,
+    status_code=status.HTTP_204_NO_CONTENT,
     summary="06_SI_001",
     description="06_SI_001에서 여러개 시나리오를 한번에 선택하여 삭제하는 엔드포인트",
 )
@@ -138,7 +138,7 @@ async def deactivate_multiple_scenario(
     db: AsyncSession = Depends(aget_supabase_session),
 ):
 
-    return await simulation_service.deactivate_simulation_scenario(
+    await simulation_service.deactivate_simulation_scenario(
         db,
         scenario_ids,
     )
@@ -146,7 +146,7 @@ async def deactivate_multiple_scenario(
 
 @simulation_router.post(
     "/scenario/duplicate",
-    status_code=204,
+    status_code=status.HTTP_204_NO_CONTENT,
     summary="06_SI_001",
     description="06_SI_001에서 각 시나리오의 액션버튼을 눌러 나오는 duplicate를 클릭하여 실행하면 실행되는 앤드포인트",
 )
@@ -161,14 +161,14 @@ async def duplicate_scenario(
     db: AsyncSession = Depends(aget_supabase_session),
 ):
 
-    return await simulation_service.duplicate_simulation_scenario(
+    await simulation_service.duplicate_simulation_scenario(
         db, request.state.user_id, scenario_id, editor
     )
 
 
 @simulation_router.patch(
     "/scenario/master",
-    status_code=204,
+    status_code=status.HTTP_204_NO_CONTENT,
     summary="06_SI_001",
     description="06_SI_001에서 각 시나리오의 액션버튼을 눌러 나오는 master(미정)를 클릭하여 실행하면 실행되는 앤드포인트",
 )
@@ -191,7 +191,7 @@ async def update_master_scenario(
 
 @simulation_router.get(
     "/scenario/metadata",
-    status_code=200,
+    status_code=status.HTTP_200_OK,
     summary="06_SI_001",
     description="06_SI_001에서 이미 존재하는 시나리오의 데이터를 불러오는 엔드포인트",
 )
@@ -208,7 +208,7 @@ async def fetch_scenario_metadata(
 
 @simulation_router.put(
     "/scenario/metadata",
-    status_code=204,
+    status_code=status.HTTP_204_NO_CONTENT,
     summary="06_SI_002 ~ 021",
     description="06_SI_002 ~ 021에서 우상단의 save버튼을 눌렀을때 각 항목의 필터값들을 저장하는 엔드포인트",
 )
@@ -238,7 +238,7 @@ async def update_scenario_metadata(
 # NOTE: 시뮬레이션 프로세스
 @simulation_router.post(
     "/flight-schedule",
-    status_code=200,
+    status_code=status.HTTP_200_OK,
     summary="06_SI_003, 06_SI_006",
     description="06_SI_003에서 LOAD 버튼과 06_SI_006에서 Apply 버튼을 눌렀을 때 실행되는 엔드포인트 /// 만약 body값에 first_load: true로 설정이 되어있면, add_conditions에 필요한 데이터를 전달한다.",
 )
@@ -270,7 +270,7 @@ async def fetch_flight_schedule(
 
 @simulation_router.post(
     "/passenger-schedule",
-    status_code=200,
+    status_code=status.HTTP_200_OK,
     summary="06_SI_009",
     description="06_SI_009에서 Apply 버튼을 눌렀을 때 실행되는 엔드포인트",
 )
@@ -292,9 +292,9 @@ async def generate_passenger_schedule(
 
 @simulation_router.post(
     "/processing-procedures",
-    status_code=200,
+    status_code=status.HTTP_200_OK,
     summary="06_SI_012",
-    description="06_SI_009에서 Apply 버튼을 눌렀을 때 실행되는 엔드포인트",
+    description="06_SI_012에서 설정한 운영세팅의 정보를 가져오는 엔드포인트",
 )
 @inject
 async def fetch_processing_procedures(
@@ -307,7 +307,12 @@ async def fetch_processing_procedures(
     return await simulation_service.fetch_processing_procedures()
 
 
-@simulation_router.post("/facility-conn", status_code=200)
+@simulation_router.post(
+    "/facility-conn",
+    status_code=status.HTTP_200_OK,
+    summary="06_SI_013",
+    description="06_SI_013에서 최종 Apply 버튼을 눌렀을 때 passenger flow 버튼이 나오도록 실행되는 엔드포인트",
+)
 @inject
 async def generate_facility_conn(
     facility_conn: FacilityConnBody,
@@ -322,6 +327,59 @@ async def generate_facility_conn(
         facility_conn.flight_schedule,
         facility_conn.destribution_conditions,
         facility_conn.processes,
+    )
+
+
+@simulation_router.post(
+    "/kpi-chart",
+    status_code=status.HTTP_200_OK,
+    summary="06_SI_020",
+    description="06_SI_020에서 시뮬레이션 결과 그래프를 보고 특정 프로세스의 특정 노드를 선택할때 실행되는 엔드포인트",
+)
+@inject
+async def generate_simulation_kpi_chart(
+    scenario_id: str,
+    process: str,
+    node: str,
+    request: Request,
+    simulation_service: SimulationService = Depends(
+        Provide[Container.simulation_service]
+    ),
+    session: boto3.Session = Depends(get_boto3_session),
+):
+
+    return await simulation_service.generate_simulation_kpi_chart(
+        session=session,
+        user_id=request.state.user_id,
+        scenario_id=scenario_id,
+        process=process,
+        node=node,
+        sim_df=None,
+    )
+
+
+@simulation_router.post(
+    "/total-chart",
+    status_code=status.HTTP_200_OK,
+    summary="06_SI_020",
+    description="06_SI_020에서 시뮬레이션 결과 그래프를 보고 Total탭을 선택할때 실행되는 엔드포인트",
+)
+@inject
+async def generate_simulation_total_chart(
+    scenario_id: str,
+    total: SimulationTotalChartBody,
+    request: Request,
+    simulation_service: SimulationService = Depends(
+        Provide[Container.simulation_service]
+    ),
+    session: boto3.Session = Depends(get_boto3_session),
+):
+
+    return await simulation_service.generate_simulation_total_chart(
+        session=session,
+        user_id=request.state.user_id,
+        scenario_id=scenario_id,
+        total=total.total,
     )
 
 
@@ -348,46 +406,3 @@ async def generate_facility_conn(
 #         run_simulation.processes,
 #         run_simulation.components,
 #     )
-
-
-@simulation_router.post("/kpi-chart", status_code=200)
-@inject
-async def generate_simulation_kpi_chart(
-    scenario_id: str,
-    process: str,
-    node: str,
-    request: Request,
-    simulation_service: SimulationService = Depends(
-        Provide[Container.simulation_service]
-    ),
-    session: boto3.Session = Depends(get_boto3_session),
-):
-
-    return await simulation_service.generate_simulation_kpi_chart(
-        session=session,
-        user_id=request.state.user_id,
-        scenario_id=scenario_id,
-        process=process,
-        node=node,
-        sim_df=None,
-    )
-
-
-@simulation_router.post("/total-chart", status_code=200)
-@inject
-async def generate_simulation_total_chart(
-    scenario_id: str,
-    total: SimulationTotalChartBody,
-    request: Request,
-    simulation_service: SimulationService = Depends(
-        Provide[Container.simulation_service]
-    ),
-    session: boto3.Session = Depends(get_boto3_session),
-):
-
-    return await simulation_service.generate_simulation_total_chart(
-        session=session,
-        user_id=request.state.user_id,
-        scenario_id=scenario_id,
-        total=total.total,
-    )
