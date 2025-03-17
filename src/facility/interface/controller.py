@@ -38,7 +38,7 @@ status 코드 정리
 
 
 @facility_router.get(
-    "/process",
+    "/processes",
     status_code=status.HTTP_200_OK,
     summary="최초 시나리오를 불러올 시 process list를 응답하는 엔드포인트",
 )
@@ -55,7 +55,7 @@ async def fetch_process_list(
 
 
 @facility_router.get(
-    "/kpi",
+    "/kpis",
     status_code=status.HTTP_200_OK,
     summary="kpi 테이블을 위한 데이터",
 )
@@ -75,7 +75,7 @@ async def fetch_kpi(
 
 
 @facility_router.get(
-    "/ks-chart",
+    "/ks-charts",
     status_code=status.HTTP_200_OK,
     summary="kpi-summary chart를 위한 데이터",
 )
@@ -92,7 +92,7 @@ async def fetch_chart(
 
 
 @facility_router.get(
-    "/heat-map",
+    "/heat-maps",
     status_code=status.HTTP_200_OK,
     summary="heat-map을 위한 데이터",
 )
@@ -109,7 +109,7 @@ async def fetch_heatmap(
 
 
 @facility_router.get(
-    "/pie-chart",
+    "/pie-charts",
     status_code=status.HTTP_200_OK,
     summary="pie-chart를 위한 데이터",
 )
@@ -126,7 +126,7 @@ async def fetch_pie_chart(
 
 
 @facility_router.get(
-    "/pa-chart",
+    "/pa-charts",
     status_code=status.HTTP_200_OK,
     summary="passenger-analysis chart를 위한 데이터",
 )

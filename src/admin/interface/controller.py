@@ -42,7 +42,7 @@ status 코드 정리
 
 
 @admin_router.get(
-    "/operation-setting/{group_id}",
+    "/operation-settings/group-id/{group_id}",
     status_code=status.HTTP_201_CREATED,
     summary="운영세팅",
 )
@@ -59,7 +59,7 @@ async def create_operation_setting(
 
 
 @admin_router.post(
-    "/operation-setting/{group_id}",
+    "/operation-settings/group-id/{group_id}",
     status_code=status.HTTP_201_CREATED,
     summary="운영세팅",
 )
@@ -79,7 +79,7 @@ async def fetch_operation_setting(
 
 
 @admin_router.patch(
-    "/operation-setting{operation_setting_id}",
+    "/operation-settings/operation-setting-id/{operation_setting_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="운영세팅",
 )
