@@ -225,8 +225,8 @@ class FacilityService:
         sim_df = pd.read_csv("samples/test_sample.csv")
         node_list: list = sim_df[f"{process}_pred"].unique().tolist()
 
-        kpi_result["header"]["columns"].append({"label": "KPI"})
-        kpi_result["header"]["columns"].append({"label": "AVERAGE"})
+        kpi_result["header"]["columns"].append({"label": "KPI", "rowSpan": 2})
+        kpi_result["header"]["columns"].append({"label": "AVERAGE", "rowSpan": 2})
         kpi_result["header"]["columns"].append(
             {"label": process, "colSpan": len(node_list)}
         )
@@ -318,7 +318,7 @@ class FacilityService:
         tp_x_list = tp.index.astype(str).tolist()
         tp_y_list = tp.astype(int).values.tolist()
 
-        chart_result["troughput"] = {"x": tp_x_list, "y": tp_y_list}
+        chart_result["throughput"] = {"x": tp_x_list, "y": tp_y_list}
 
         # QL
         ql_data = await self._create_queue_length(
@@ -382,7 +382,7 @@ class FacilityService:
             tp_y_list.append(column)
             tp_z_list.append(tp[column].astype(int).values.tolist())
 
-        heatmap_result["troughput"] = {"x": tp_x_list, "y": tp_y_list, "z": tp_z_list}
+        heatmap_result["throughput"] = {"x": tp_x_list, "y": tp_y_list, "z": tp_z_list}
 
         # QL
         ql = await self._create_queue_length(
@@ -581,7 +581,7 @@ class FacilityService:
                 sim_df=sim_df, process=process, group_column=group_column
             )
 
-            group_result = await self._create_top5_chart(tp, group_result, "troughput")
+            group_result = await self._create_top5_chart(tp, group_result, "throughput")
 
             # QL
             ql = await self._create_queue_length(
