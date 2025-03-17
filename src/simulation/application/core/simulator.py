@@ -101,19 +101,27 @@ class DsSimulator:
                 ]
 
             # ============================================================
-            heapq.heappush(
-                node.passenger_queues,
-                (self.showup_times[self.passenger_id], node.passenger_node_id),
-            )
+            if node.unoccupied_facilities.sum() == 0:
+                heapq.heappush(
+                    node.passenger_queues,
+                    (self.showup_times[self.passenger_id], node.passenger_node_id),
+                )
+                node.que_history[node.passenger_node_id] = len(node.passenger_queues)
+            else:
+                node.que_history[node.passenger_node_id] = len(node.passenger_queues)
+                heapq.heappush(
+                    node.passenger_queues,
+                    (self.showup_times[self.passenger_id], node.passenger_node_id),
+                )
+
             node.passenger_ids.append(self.passenger_id)
             node.on_time[node.passenger_node_id] = current_second
 
             # ============================================================
             self.passenger_id += 1
             node.passenger_node_id += 1
-            node.que_history[node.passenger_node_id] = len(node.passenger_queues)
 
-    async def run(self, websocket: WebSocket, start_time, end_time, unit=1):
+    async def run(self, websocket: WebSocket, start_time, end_time, unit=10):
         logger.info("시뮬레이션을 시작합니다.")
         start_at = time.time()
         previous_progress = 35

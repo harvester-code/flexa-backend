@@ -43,6 +43,7 @@ class DsNode:
         self.passenger_node_id = 0
         self.passenger_queues = []
         self.que_history = np.zeros(num_passengers, dtype=int) - 1
+        self.facility_numbers = np.zeros(num_passengers, dtype=int) - 1
         self.processing_time = np.zeros(num_passengers, dtype=int)
         self.unoccupied_facilities = np.ones(num_facilities, dtype=int)
         self.on_time = np.zeros(num_passengers, dtype=int)
@@ -94,16 +95,15 @@ class DsNode:
                 self.done_time[passenger_node_id] + movement_time
             )  # TODO: 검증과정이 필요함. 시그마를 0으로 두고 10분씩 뒤로 밀리는지 체크가 1번.
 
-            destination.que_history[_passenger_node_id] = len(
-                destination.passenger_queues
-            )
-
             minute_of_day = min(
                 1439, (destination.on_time[_passenger_node_id] % 86400) // 60
             )
 
             destination_facility_number = destination.select_facility(
                 minute=minute_of_day
+            )
+            destination.facility_numbers[_passenger_node_id] = (
+                destination_facility_number
             )
 
             # dod: destination of destination
@@ -162,11 +162,19 @@ class DsNode:
             )
             dod_nodes = priority_dod_nodes or destination.destinations
 
+            # ======================================================
+            # NOTE: 도착지의 가용가능한 기기가 없을 경우(= 줄이서있는 상황) que_history 넣기
+            if destination.unoccupied_facilities.sum() > 0:
+                destination.que_history[_passenger_node_id] = len(
+                    destination.passenger_queues
+                )
+            # ======================================================
             if destination_facility_number is None:
                 heapq.heappush(
                     destination.passenger_queues,
                     (destination.on_time[_passenger_node_id], _passenger_node_id),
                 )
+
             elif dod_nodes is not None and all(
                 [
                     ddst.max_capacity - len(ddst.passenger_queues) <= 0
@@ -177,6 +185,9 @@ class DsNode:
                 heapq.heappush(
                     destination.passenger_queues,
                     (destination.on_time[_passenger_node_id], _passenger_node_id),
+                )
+                destination.que_history[_passenger_node_id] = len(
+                    destination.passenger_queues
                 )
             else:
                 adjusted_processing_time = destination.adjust_processing_time(
@@ -195,6 +206,12 @@ class DsNode:
                 )
                 destination.processing_time[_passenger_node_id] = (
                     adjusted_processing_time
+                )
+
+            # ======================================================
+            if destination.unoccupied_facilities.sum() == 0:
+                destination.que_history[_passenger_node_id] = len(
+                    destination.passenger_queues
                 )
 
     def select_destination(self, nodes, df_pax, pax_idx):
@@ -300,6 +317,7 @@ class DsNode:
 
             passenger_node_id = self.passenger_queues[0][1]
             passenger_id = self.passenger_ids[passenger_node_id]
+            self.facility_numbers[passenger_id] = counter_num
 
             priority_destination_node_indices = None
             start_component = self.components[0]

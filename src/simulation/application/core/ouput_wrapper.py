@@ -44,7 +44,7 @@ class DsOutputWrapper:
                 passenger_ids, self.passengers.columns.get_loc(col_label)
             ] = node.node_label
 
-    def add_column_que(self, node, arr, col_label):
+    def add_column_info(self, node, arr, col_label):
         if col_label not in self.passengers.columns:
             self.passengers.loc[:, col_label] = pd.NaT
 
@@ -64,12 +64,14 @@ class DsOutputWrapper:
             new_col_done = "_".join(n.node_label.split("_")[:-1]) + "_done_pred"
             new_pt = "_".join(n.node_label.split("_")[:-1]) + "_pt"
             new_que = "_".join(n.node_label.split("_")[:-1]) + "_que"
+            new_fac = "_".join(n.node_label.split("_")[:-1]) + "_facility_number"
             new_col_fac = "_".join(n.node_label.split("_")[:-1]) + "_pred"
 
             self._add_column_dt(n, n.on_time, new_col_on, method="normal")
             self._add_column_dt(n, n.done_time, new_col_done, method="normal")
             self._add_column_dt(n, n.processing_time, new_pt, method="delta")
-            self.add_column_que(n, n.que_history, new_que)
+            self.add_column_info(n, n.que_history, new_que)
+            self.add_column_info(n, n.facility_numbers, new_fac)
             self._add_column_string(n, new_col_fac)
 
         for component in self.components:
