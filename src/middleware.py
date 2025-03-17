@@ -43,8 +43,9 @@ async def jwt_decoder(request: Request, call_next):
     # if request.url.path in EXCLUDED_PATHS:
     #     return await call_next(request)
 
-    if request.url.path not in JWT_DECODER_PATH:
-        return await call_next(request)
+    # FIXME: 나중에는 정리필요
+    # if request.url.path not in JWT_DECODER_PATH:
+    #     return await call_next(request)
 
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
