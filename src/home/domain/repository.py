@@ -1,5 +1,6 @@
 from abc import ABCMeta, abstractmethod
 from fastapi import Request
+import boto3
 
 
 class IHomeRepository(metaclass=ABCMeta):
@@ -8,17 +9,5 @@ class IHomeRepository(metaclass=ABCMeta):
     """
 
     @abstractmethod
-    async def login_supabase(self, email: str, password: str):
-        raise NotImplementedError
-
-    @abstractmethod
-    async def fetch_supabase_data(self):
-        raise NotImplementedError
-
-    @abstractmethod
-    async def fetch_simulation_files(self):
-        raise NotImplementedError
-
-    @abstractmethod
-    async def fetch_simulation_summary(self, file_id: str):
+    async def download_from_s3(self, session: boto3.Session, scenario_id: str):
         raise NotImplementedError

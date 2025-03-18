@@ -1,6 +1,7 @@
 from dependency_injector.wiring import inject
 from src.home.domain.repository import IHomeRepository
 from src.home.application.core.calculator import HomeCalculator
+import boto3
 
 
 class HomeService:
@@ -15,30 +16,40 @@ class HomeService:
         home_repo: IHomeRepository,
     ):
         self.home_repo = home_repo
-        self.calculator = HomeCalculator()
 
-    async def login_supabase(self, email: str, password: str):
-        return await self.home_repo.login_supabase(email, password)
-
-    async def fetch_supabase_data(self):
-        return await self.home_repo.fetch_supabase_data()
-
-    async def fetch_simulation_files(self):
-        return await self.home_repo.fetch_simulation_files()
-
-    # =====================================
-    # NOTE: Home 화면 요약 정보
-
-    async def fetch_simulation_summary(self, file_id: str):
-        df = await self.home_repo.fetch_simulation_summary(file_id)
+    async def fetch_summary(
+        self,
+        session: boto3.Session,
+        scenario_id: str | None,
+        calculate_type: str,
+        percentile: float | None,
+    ):
+        pax_df = await self.home_repo.download_from_s3(session, scenario_id)
+        calculator = HomeCalculator(pax_df, calculate_type, percentile)
         return {
             "status": "success",
             "data": {
-                "time_range": self.calculator.get_time_range(df),
+                "time_range": calculator.get_time_range(),
                 "summary": {
-                    "flights": self.calculator.get_flight_summary(df),
-                    "pax": self.calculator.get_pax_summary(df),
-                    "kpi": self.calculator.get_kpi(df),
+                    "flights": calculator.get_flight_summary(),
+                    "pax": calculator.get_pax_summary(),
+                    "kpi": calculator.get_kpi(),
                 },
+            },
+        }
+
+    async def fetch_alert_issues(
+        self,
+        session: boto3.Session,
+        scenario_id: str | None,
+        calculate_type: str,
+        percentile: float | None,
+    ):
+        pax_df = await self.home_repo.download_from_s3(session, scenario_id)
+        calculator = HomeCalculator(pax_df, calculate_type, percentile)
+        return {
+            "status": "success",
+            "data": {
+                "facility_times_with_peak": calculator.get_facility_times_with_peak(),
             },
         }

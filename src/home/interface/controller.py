@@ -1,15 +1,10 @@
 import boto3
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, Request, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from src.containers import Container
 from src.home.application.service import HomeService
+from src.database import get_boto3_session
 from pydantic import BaseModel
-
-
-class LoginRequest(BaseModel):
-    email: str = "yibyungha@gmail.com"
-    password: str = "yibyungha1"
-
 
 home_router = APIRouter(prefix="/homes")
 
@@ -22,54 +17,37 @@ status 코드 정리
 """
 
 
-@home_router.post(
-    "/login",
+@home_router.get(
+    "/summary",
     status_code=200,
-    summary="Supabase 로그인",
+    summary="최상단 Summary result list를 응답하는 엔드포인트",
 )
 @inject
-async def login_supabase(
-    login_data: LoginRequest,
+async def fetch_summary(
     home_service: HomeService = Depends(Provide[Container.home_service]),
+    session: boto3.Session = Depends(get_boto3_session),
+    scenario_id: str | None = None,
+    calculate_type: str = "mean",
+    percentile: int | None = None,
 ):
-    try:
-        return await home_service.login_supabase(login_data.email, login_data.password)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    return await home_service.fetch_summary(
+        session, scenario_id, calculate_type, percentile
+    )
 
 
 @home_router.get(
-    "/supabase-test",
+    "/alert_issues",
     status_code=200,
-    summary="Supabase 연결 테스트",
+    summary="alert_issues를 응답하는 엔드포인트",
 )
 @inject
-async def fetch_supabase_data(
+async def fetch_alert_issues(
     home_service: HomeService = Depends(Provide[Container.home_service]),
+    session: boto3.Session = Depends(get_boto3_session),
+    scenario_id: str | None = None,
+    calculate_type: str = "mean",
+    percentile: int | None = None,
 ):
-    return await home_service.fetch_supabase_data()
-
-
-@home_router.get(
-    "/simulation-files",
-    status_code=200,
-    summary="시뮬레이션 파일 목록 조회",
-)
-@inject
-async def fetch_simulation_files(
-    home_service: HomeService = Depends(Provide[Container.home_service]),
-):
-    return await home_service.fetch_simulation_files()
-
-
-@home_router.get(
-    "/simulation-files/{file_id}",
-    status_code=200,
-    summary="선택된 시뮬레이션 파일의 요약 정보 추출",
-)
-@inject
-async def fetch_simulation_summary(
-    file_id: str = "simulations/tommie/test.parquet",
-    home_service: HomeService = Depends(Provide[Container.home_service]),
-):
-    return await home_service.fetch_simulation_summary(file_id)
+    return await home_service.fetch_alert_issues(
+        session, scenario_id, calculate_type, percentile
+    )
