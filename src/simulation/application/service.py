@@ -937,7 +937,31 @@ class SimulationService:
 
         return result
 
-    async def generate_simulation_kpi_chart(
+    async def generate_simulation_metrics_kpi(
+        self,
+        session: boto3.Session,
+        user_id: str,
+        process: str,
+        node: str,
+        scenario_id: str | None = None,
+        sim_df: pd.DataFrame | None = None,
+    ):
+        # s3에서 시뮬레이션 데이터 프레임 가져오기
+        if scenario_id:
+            filename = f"{user_id}/{scenario_id}"
+
+            sim_df = await self.simulation_repo.download_from_s3(session, filename)
+
+        kpi = await self._create_simulation_kpi(sim_df, process, node)
+
+        result = {
+            "process": process,
+            "node": node,
+            "kpi": kpi,
+        }
+        return result
+
+    async def generate_simulation_charts_node(
         self,
         session: boto3.Session,
         user_id: str,
@@ -992,12 +1016,9 @@ class SimulationService:
                     outbound[CRITERIA_MAP[group_column]] = flow_data["traces"]
 
         # KPI 생성
-        kpi = await self._create_simulation_kpi(sim_df, process, node)
-
         result = {
             "process": process,
             "node": node,
-            "kpi": kpi,
             "inbound": {
                 "chart_x_data": flow_data["default_x"],
                 "chart_y_data": inbound,
@@ -1015,7 +1036,7 @@ class SimulationService:
 
         return result
 
-    async def generate_simulation_total_chart(
+    async def generate_simulation_charts_total(
         self,
         session: boto3.Session,
         user_id: str,
