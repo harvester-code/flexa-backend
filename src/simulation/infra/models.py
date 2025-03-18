@@ -28,7 +28,7 @@ class ScenarioMetadata(Base):
     __tablename__ = "scenario_metadata"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    simulation_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    scenario_id: Mapped[str] = mapped_column(String(36), nullable=False)
     overview: Mapped[dict] = mapped_column(JSONB, nullable=True)
     history: Mapped[dict] = mapped_column(JSONB, nullable=True)
     flight_sch: Mapped[dict] = mapped_column(JSONB, nullable=True)

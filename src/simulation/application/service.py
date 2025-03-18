@@ -89,7 +89,7 @@ class SimulationService:
         )
 
         scenario_metadata: ScenarioMetadata = ScenarioMetadata(
-            simulation_id=id,
+            scenario_id=id,
             overview=None,
             history=None,
             flight_sch=None,
@@ -104,7 +104,7 @@ class SimulationService:
         )
 
         return {
-            "simulation_id": id,
+            "scenario_id": id,
             "overview": {},
             "history": {},
             "flight_sch": {},
@@ -146,9 +146,9 @@ class SimulationService:
     # =====================================
     # NOTE: 시나리오 메타데이터
 
-    async def fetch_scenario_metadata(self, db: AsyncSession, simulation_id: str):
+    async def fetch_scenario_metadata(self, db: AsyncSession, scenario_id: str):
 
-        result = await self.simulation_repo.fetch_scenario_metadata(db, simulation_id)
+        result = await self.simulation_repo.fetch_scenario_metadata(db, scenario_id)
 
         checkpoint = self.timestamp.time_now()
         result["checkpoint"] = checkpoint
@@ -158,7 +158,7 @@ class SimulationService:
     async def update_scenario_metadata(
         self,
         db: AsyncSession,
-        simulation_id: str,
+        scenario_id: str,
         overview: dict | None,
         history: dict | None,
         flight_sch: dict | None,
@@ -172,7 +172,7 @@ class SimulationService:
             history["modification_date"] = self.timestamp.time_now()
 
         scenario_metadata: ScenarioMetadata = ScenarioMetadata(
-            simulation_id=simulation_id,
+            scenario_id=scenario_id,
             overview=overview,
             history=history,
             flight_sch=flight_sch,
@@ -231,13 +231,13 @@ class SimulationService:
         return data
 
     async def update_simulation_scenario_target_date(
-        self, db: AsyncSession, simulation_id: str, target_date: str
+        self, db: AsyncSession, scenario_id: str, target_date: str
     ):
 
         target_datetime = datetime.strptime(target_date, "%Y-%m-%d")
 
         await self.simulation_repo.update_simulation_scenario_target_date(
-            db, simulation_id, target_datetime
+            db, scenario_id, target_datetime
         )
 
     async def _create_flight_schedule_chart(
