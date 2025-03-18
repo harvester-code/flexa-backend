@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.containers import Container
 from src.database import aget_supabase_session, get_boto3_session
 from src.facility.application.service import FacilityService
+from src.exceptions import BadRequestException
 
 facility_router = APIRouter(prefix="/facilities")
 
@@ -38,105 +39,155 @@ status 코드 정리
 
 
 @facility_router.get(
-    "/processes",
+    "/processes/scenario-id/{scenario_id}",
     status_code=status.HTTP_200_OK,
     summary="최초 시나리오를 불러올 시 process list를 응답하는 엔드포인트",
 )
 @inject
 async def fetch_process_list(
-    scenario_id: str | None = None,
+    request: Request,
+    scenario_id: str,
     facility_service: FacilityService = Depends(Provide[Container.facility_service]),
     session: boto3.Session = Depends(get_boto3_session),
 ):
+    if not scenario_id:
+        raise BadRequestException("Scenario ID is required")
 
-    result = await facility_service.fetch_process_list(session=session)
-
-    return result
-
-
-@facility_router.get(
-    "/kpis",
-    status_code=status.HTTP_200_OK,
-    summary="kpi 테이블을 위한 데이터",
-)
-@inject
-async def fetch_kpi(
-    process: str,
-    func: str | None = "mean",
-    facility_service: FacilityService = Depends(Provide[Container.facility_service]),
-    session: boto3.Session = Depends(get_boto3_session),
-):
-
-    result = await facility_service.generate_kpi(
-        session=session, process=process, func=func
+    result = await facility_service.fetch_process_list(
+        session=session, user_id=request.state.user_id, scenario_id=scenario_id
     )
 
     return result
 
 
 @facility_router.get(
-    "/ks-charts",
+    "/kpi-summaries/tables/kpi/scenario-id/{scenario_id}",
+    status_code=status.HTTP_200_OK,
+    summary="kpi 테이블을 위한 데이터",
+)
+@inject
+async def fetch_kpi(
+    request: Request,
+    scenario_id: str,
+    process: str,
+    func: str | None = "mean",
+    facility_service: FacilityService = Depends(Provide[Container.facility_service]),
+    session: boto3.Session = Depends(get_boto3_session),
+):
+
+    if not scenario_id or not process:
+        raise BadRequestException("Scenario ID and Process is required")
+
+    result = await facility_service.generate_kpi(
+        session=session,
+        process=process,
+        func=func,
+        user_id=request.state.user_id,
+        scenario_id=scenario_id,
+    )
+
+    return result
+
+
+@facility_router.get(
+    "/kpi-summaries/charts/line/scenario-id/{scenario_id}",
     status_code=status.HTTP_200_OK,
     summary="kpi-summary chart를 위한 데이터",
 )
 @inject
 async def fetch_chart(
+    request: Request,
+    scenario_id: str,
     process: str,
     facility_service: FacilityService = Depends(Provide[Container.facility_service]),
     session: boto3.Session = Depends(get_boto3_session),
 ):
+    if not scenario_id or not process:
+        raise BadRequestException("Scenario ID and Process is required")
 
-    result = await facility_service.generate_ks_chart(session=session, process=process)
+    result = await facility_service.generate_ks_chart(
+        session=session,
+        process=process,
+        user_id=request.state.user_id,
+        scenario_id=scenario_id,
+    )
 
     return result
 
 
 @facility_router.get(
-    "/heat-maps",
+    "/kpi-summaries/charts/heat-map/scenario-id/{scenario_id}",
     status_code=status.HTTP_200_OK,
     summary="heat-map을 위한 데이터",
 )
 @inject
 async def fetch_heatmap(
+    request: Request,
+    scenario_id: str,
     process: str,
     facility_service: FacilityService = Depends(Provide[Container.facility_service]),
     session: boto3.Session = Depends(get_boto3_session),
 ):
+    if not scenario_id or not process:
+        raise BadRequestException("Scenario ID and Process is required")
 
-    result = await facility_service.generate_heatmap(session=session, process=process)
+    result = await facility_service.generate_heatmap(
+        session=session,
+        process=process,
+        user_id=request.state.user_id,
+        scenario_id=scenario_id,
+    )
 
     return result
 
 
 @facility_router.get(
-    "/pie-charts",
+    "/passenger-analyses/charts/pie/scenario-id/{scenario_id}",
     status_code=status.HTTP_200_OK,
     summary="pie-chart를 위한 데이터",
 )
 @inject
 async def fetch_pie_chart(
+    request: Request,
+    scenario_id: str,
     process: str,
     facility_service: FacilityService = Depends(Provide[Container.facility_service]),
     session: boto3.Session = Depends(get_boto3_session),
 ):
+    if not scenario_id or not process:
+        raise BadRequestException("Scenario ID and Process is required")
 
-    result = await facility_service.generate_pie_chart(session=session, process=process)
+    result = await facility_service.generate_pie_chart(
+        session=session,
+        process=process,
+        user_id=request.state.user_id,
+        scenario_id=scenario_id,
+    )
 
     return result
 
 
 @facility_router.get(
-    "/pa-charts",
+    "/passenger-analyses/charts/bar/scenario-id/{scenario_id}",
     status_code=status.HTTP_200_OK,
     summary="passenger-analysis chart를 위한 데이터",
 )
 @inject
 async def fetch_pa_chart(
+    request: Request,
+    scenario_id: str,
     process: str,
     facility_service: FacilityService = Depends(Provide[Container.facility_service]),
     session: boto3.Session = Depends(get_boto3_session),
 ):
+    if not scenario_id or not process:
+        raise BadRequestException("Scenario ID and Process is required")
 
-    result = await facility_service.generate_pa_chart(session=session, process=process)
+    result = await facility_service.generate_pa_chart(
+        session=session,
+        process=process,
+        user_id=request.state.user_id,
+        scenario_id=scenario_id,
+    )
 
     return result

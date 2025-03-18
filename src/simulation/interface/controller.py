@@ -351,7 +351,7 @@ async def generate_facility_conn(
 
 
 @simulation_router.post(
-    "/metrics/kpis/scenario-id/{scenario_id}",
+    "/metrics/kpi/scenario-id/{scenario_id}",
     status_code=status.HTTP_200_OK,
     summary="06_SI_020",
     description="06_SI_020에서 시뮬레이션 결과 그래프를 보고 특정 프로세스의 특정 노드를 선택할때 실행되는 엔드포인트",
@@ -382,7 +382,7 @@ async def generate_simulation_metrics_kpi(
 
 
 @simulation_router.post(
-    "/charts/bars/nodes/scenario-id/{scenario_id}",
+    "/charts/bar/node/scenario-id/{scenario_id}",
     status_code=status.HTTP_200_OK,
     summary="06_SI_020",
     description="06_SI_020에서 시뮬레이션 결과 그래프를 보고 특정 프로세스의 특정 노드를 선택할때 실행되는 엔드포인트",
@@ -413,7 +413,7 @@ async def generate_simulation_kpi_chart(
 
 
 @simulation_router.post(
-    "/charts/bars/totals/scenario-id/{scenario_id}",
+    "/charts/bar/total/scenario-id/{scenario_id}",
     status_code=status.HTTP_200_OK,
     summary="06_SI_020",
     description="06_SI_020에서 시뮬레이션 결과 그래프를 보고 Total탭을 선택할때 실행되는 엔드포인트",
