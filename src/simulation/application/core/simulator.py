@@ -94,7 +94,10 @@ class DsSimulator:
 
             if greedy:
                 destination_nodes = [self.ds_graph.nodes[d] for d in destinations]
-                node = min(destination_nodes, key=lambda node: node.passenger_queues)
+                node = min(
+                    destination_nodes, key=lambda node: len(node.passenger_queues)
+                )
+
             else:
                 node = self.ds_graph.nodes[
                     destinations[np.random.choice(len(probabilities), p=probabilities)]
@@ -150,6 +153,28 @@ class DsSimulator:
                 await websocket.send_json({"progress": f"{progress}%"})
                 await asyncio.sleep(0.001)
                 previous_progress = progress
+
+        logger.info(
+            f"시뮬레이션을 종료합니다. (소요 시간: {round(time.time() - start_at)}초)"
+        )
+
+    async def run_test(self, start_time, end_time, unit=10):
+        logger.info("시뮬레이션을 시작합니다.")
+        start_at = time.time()
+
+        # 매 초마다 소스 데이터를 시작으로 마지막 컴포넌트까지 돌고 오는 방식이다.
+        for current_second in range(start_time, end_time + 1, unit):
+            minute_of_day = (current_second % 86400) // 60
+
+            # 1. 소스 데이터에서 첫번째 컴포넌트까지
+            self.add_flow(current_second=current_second)
+
+            # 2. 첫번째 컴포넌트부터 마지막 컴포넌트까지
+            self.ds_graph.prod(
+                second=current_second,
+                minute=minute_of_day,
+                passengers=self.passengers,
+            )
 
         logger.info(
             f"시뮬레이션을 종료합니다. (소요 시간: {round(time.time() - start_at)}초)"

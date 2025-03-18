@@ -98,10 +98,11 @@ class DsNode:
             minute_of_day = min(
                 1439, (destination.on_time[_passenger_node_id] % 86400) // 60
             )
-
+            destination_passenger_id = destination.passenger_ids[_passenger_node_id]
             destination_facility_number = destination.select_facility(
                 minute=minute_of_day
             )
+
             destination.facility_numbers[_passenger_node_id] = (
                 destination_facility_number
             )
@@ -113,7 +114,7 @@ class DsNode:
 
             priority_dod_node_indices = None
             if dod_component:
-                passenger = passengers.loc[_passenger_node_id]
+                passenger = passengers.loc[destination_passenger_id]
                 # 기존 코드와 동일
                 for process in self.processes.values():
                     if process.name == dod_component:
@@ -169,7 +170,7 @@ class DsNode:
                     destination.passenger_queues
                 )
             # ======================================================
-            if destination_facility_number is None:
+            if destination_facility_number == 0:
                 heapq.heappush(
                     destination.passenger_queues,
                     (destination.on_time[_passenger_node_id], _passenger_node_id),
@@ -312,12 +313,12 @@ class DsNode:
         while self.passenger_queues and self.passenger_queues[0][0] <= second:
             counter_num = self.select_facility(minute)
 
-            if counter_num is None:
+            if counter_num == 0:
                 break
 
             passenger_node_id = self.passenger_queues[0][1]
             passenger_id = self.passenger_ids[passenger_node_id]
-            self.facility_numbers[passenger_id] = counter_num
+            self.facility_numbers[passenger_node_id] = counter_num
 
             priority_destination_node_indices = None
             start_component = self.components[0]
@@ -402,8 +403,8 @@ class DsNode:
             np.multiply(current_selection, self.unoccupied_facilities) > 0
         )[0]
 
-        if len(available_facility_indices) < 1:
-            return None
+        if len(available_facility_indices) == 0:
+            return 0
 
         if self.is_deterministic:
             index = 0
