@@ -85,7 +85,7 @@ class SimulationRepository(ISimulationRepository):
         await db.flush()
 
         new_metadata = ScenarioMetadata(
-            simulation_id=new_scenario.id,
+            scenario_id=new_scenario.id,
             overview=scenario_metadata.overview,
             history=scenario_metadata.history,
             flight_sch=scenario_metadata.flight_sch,
@@ -168,7 +168,7 @@ class SimulationRepository(ISimulationRepository):
         await db.flush()
 
         metadata_result = await db.execute(
-            select(ScenarioMetadata).where(ScenarioMetadata.simulation_id == old_id)
+            select(ScenarioMetadata).where(ScenarioMetadata.scenario_id == old_id)
         )
 
         origin_metadata = metadata_result.scalar_one()
@@ -178,12 +178,12 @@ class SimulationRepository(ISimulationRepository):
         metadata_data = {
             attr.key: getattr(origin_metadata, attr.key)
             for attr in metadata_state.mapper.column_attrs
-            if attr.key not in ("simulation_id")
+            if attr.key not in ("scenario_id")
         }
 
         cloned_metadata = origin_metadata.__class__(**metadata_data)
 
-        cloned_metadata.simulation_id = cloned_scenario.id
+        cloned_metadata.scenario_id = cloned_scenario.id
         db.add(cloned_metadata)
         await db.commit()
 
@@ -201,7 +201,7 @@ class SimulationRepository(ISimulationRepository):
     # ===================================
     # NOTE: 시나리오 메타데이터
 
-    async def fetch_scenario_metadata(self, db: AsyncSession, simulation_id: str):
+    async def fetch_scenario_metadata(self, db: AsyncSession, scenario_id: str):
         async with db.begin():
 
             result = await db.execute(
@@ -210,14 +210,14 @@ class SimulationRepository(ISimulationRepository):
                     SimulationScenario.memo,
                     SimulationScenario.editor,
                     SimulationScenario.terminal,
-                ).where(SimulationScenario.id == simulation_id)
+                ).where(SimulationScenario.id == scenario_id)
             )
 
             scenario_info = result.mappings().first()
 
             result = await db.execute(
                 select(ScenarioMetadata).where(
-                    ScenarioMetadata.simulation_id == simulation_id
+                    ScenarioMetadata.scenario_id == scenario_id
                 )
             )
 
@@ -231,7 +231,7 @@ class SimulationRepository(ISimulationRepository):
 
         result = await db.execute(
             select(ScenarioMetadata).where(
-                ScenarioMetadata.simulation_id == scenario_metadata.simulation_id
+                ScenarioMetadata.scenario_id == scenario_metadata.scenario_id
             )
         )
 
@@ -270,13 +270,13 @@ class SimulationRepository(ISimulationRepository):
     async def update_simulation_scenario_target_date(
         self,
         db: AsyncSession,
-        simulation_id: str,
+        scenario_id: str,
         target_datetime,
     ):
 
         await db.execute(
             update(SimulationScenario)
-            .where(SimulationScenario.id == simulation_id)
+            .where(SimulationScenario.id == scenario_id)
             .values({SimulationScenario.simulation_date: target_datetime})
         )
         await db.commit()
