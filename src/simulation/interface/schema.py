@@ -26,6 +26,7 @@ class Processes(BaseModel):
     nodes: List[str]
     source: str | None
     destination: str | None
+    wait_time: int | None
     default_matrix: Dict[str, Dict[str, float]] | None
     priority_matrix: list[PriorityMatrix] | None
 

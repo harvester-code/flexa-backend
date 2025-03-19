@@ -89,8 +89,9 @@ class DsNode:
             # TODO: 아래 코드 위치를 수정해보기
             destination.passenger_node_id += 1
 
-            # movement_time = destination.test_pt(3600)
-            movement_time = 0
+            movement_time = destination.get_movement_time(
+                self.processes, destination.components[0]
+            )
             destination.on_time[_passenger_node_id] = (
                 self.done_time[passenger_node_id] + movement_time
             )  # TODO: 검증과정이 필요함. 시그마를 0으로 두고 10분씩 뒤로 밀리는지 체크가 1번.
@@ -435,8 +436,12 @@ class DsNode:
         # return max(adjusted_processing_time, processing_time // 2)
         return processing_time
 
-    def test_pt(self, pt_orig, sigma_multiple=0):
-        sigma = np.sqrt(pt_orig)
-        pt = int(round(np.random.normal(pt_orig, sigma * sigma_multiple)))
-        pt = max(pt, pt_orig // 2)
-        return pt
+    def get_movement_time(self, processes: dict, destination_component):
+
+        for process in processes.values():
+            if process.name == destination_component:
+
+                movement_time = int(process.wait_time) * 60
+                movement_time = self.adjust_processing_time(movement_time)
+
+        return movement_time
