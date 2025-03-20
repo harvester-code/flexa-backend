@@ -33,7 +33,7 @@ class FacilityService:
         #     )
 
         # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
-        sim_df = pd.read_csv("samples/test_sample.csv")
+        sim_df = pd.read_parquet("samples/v1_sim_pax.parquet")
 
         process_columns = sim_df.columns[
             sim_df.columns.str.contains("pt_pred", case=False)
@@ -222,7 +222,7 @@ class FacilityService:
 
         kpi_result = {"header": {"columns": [], "subColumns": []}, "body": []}
         # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
-        sim_df = pd.read_csv("samples/test_sample.csv")
+        sim_df = pd.read_parquet("samples/v1_sim_pax.parquet")
         node_list: list = sim_df[f"{process}_pred"].unique().tolist()
 
         kpi_result["header"]["columns"].append({"label": "KPI", "rowSpan": 2})
@@ -308,7 +308,7 @@ class FacilityService:
         chart_result = {}
 
         # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
-        sim_df = pd.read_csv("samples/test_sample.csv")
+        sim_df = pd.read_parquet("samples/v1_sim_pax.parquet")
 
         # TP
         tp_data = await self._create_throughput(
@@ -368,7 +368,7 @@ class FacilityService:
         heatmap_result = {}
 
         # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
-        sim_df = pd.read_csv("samples/test_sample.csv")
+        sim_df = pd.read_parquet("samples/v1_sim_pax.parquet")
 
         # TP
         tp = await self._create_throughput(
@@ -436,7 +436,7 @@ class FacilityService:
         #     )
 
         # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
-        sim_df = pd.read_csv("samples/test_sample.csv")
+        sim_df = pd.read_parquet("samples/v1_sim_pax.parquet")
 
         group_mapping = {
             "Airline": "operating_carrier_name",
@@ -564,7 +564,7 @@ class FacilityService:
         #     )
 
         # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
-        sim_df = pd.read_csv("samples/test_sample.csv")
+        sim_df = pd.read_parquet("samples/v1_sim_pax.parquet")
 
         group_mapping = {
             "Airline": "operating_carrier_name",
@@ -607,6 +607,6 @@ class FacilityService:
     # ============================================================
     async def test(self, session: boto3.Session, process):
 
-        data = pd.read_csv("samples/test_sample.csv")
+        data = pd.read_parquet("samples/v1_sim_pax.parquet")
 
         await self.create_pie_chart(data, process)
