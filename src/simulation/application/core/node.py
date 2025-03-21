@@ -1,6 +1,7 @@
 import heapq
 import pandas as pd
 import numpy as np
+from datetime import datetime, timedelta
 from numpy import ndarray
 from src.constants import COL_FILTER_MAP
 
@@ -79,8 +80,9 @@ class DsNode:
 
             # 전체 프로세스에서의 승객 ID
             passenger_id = self.passenger_ids[passenger_node_id]
-
-            destination = self.select_destination(nodes, passengers, passenger_id)
+            destination = self.select_destination(
+                nodes, passengers, passenger_id, second
+            )
             destination.passenger_ids.append(passenger_id)
 
             # NOTE: destination의 승객 노드 ID
@@ -89,12 +91,7 @@ class DsNode:
             # TODO: 아래 코드 위치를 수정해보기
             destination.passenger_node_id += 1
 
-            movement_time = destination.get_movement_time(
-                self.processes, destination.components[0]
-            )
-            destination.on_time[_passenger_node_id] = (
-                self.done_time[passenger_node_id] + movement_time
-            )  # TODO: 검증과정이 필요함. 시그마를 0으로 두고 10분씩 뒤로 밀리는지 체크가 1번.
+            destination.on_time[_passenger_node_id] = self.done_time[passenger_node_id]
 
             minute_of_day = min(
                 1439, (destination.on_time[_passenger_node_id] % 86400) // 60
@@ -112,7 +109,6 @@ class DsNode:
             dod_component = destination.components[1]
             # 기존 도착 컴포넌트
             destination_component = destination.components[0]
-
             priority_dod_node_indices = None
             if dod_component:
                 passenger = passengers.loc[destination_passenger_id]
@@ -123,25 +119,21 @@ class DsNode:
                         break
 
                 edited_df = None
+                # NOTE: 상위 매트릭스부터 확인하면서 모든 condition을 만족할 시 해당 매트릭스의 값을 가져옴.
                 if priority_matrix:
                     for priority in priority_matrix:
 
                         conditions = priority.condition
+                        check = all(
+                            self.check_condition(
+                                passenger, condition, destination_component, second
+                            )
+                            for condition in conditions
+                        )
 
-                        for condition in conditions:
-                            criteria = condition.criteria
-                            criteria = COL_FILTER_MAP[criteria]
-                            value = condition.value
-
-                            check = passenger[criteria] in value
-                            if not check:
-                                break  # check = False로 내보낸다.
-
-                        # check가 false이면 이건 돌지 않기 때문에 다음 컨디션을 확인해야함.
                         if check:
                             edited_df = priority.matrix
                             break
-
                 # 기존 코드와 동일
                 if edited_df:
                     priority_dod_node_indices = (
@@ -216,7 +208,7 @@ class DsNode:
                     destination.passenger_queues
                 )
 
-    def select_destination(self, nodes, df_pax, pax_idx):
+    def select_destination(self, nodes, df_pax, pax_idx, second):
 
         # edited_df가 컬럼에 없기때문에 시작 컴포넌트가 필요
         start_component = self.components[0]
@@ -232,21 +224,18 @@ class DsNode:
                     break
 
             edited_df = None
+            # NOTE: 상위 매트릭스부터 확인하면서 모든 condition을 만족할 시 해당 매트릭스의 값을 가져옴.
             if priority_matrix:
                 for priority in priority_matrix:
 
                     conditions = priority.condition
+                    check = all(
+                        self.check_condition(
+                            passenger, condition, start_component, second
+                        )
+                        for condition in conditions
+                    )
 
-                    for condition in conditions:
-                        criteria = condition.criteria
-                        criteria = COL_FILTER_MAP[criteria]
-                        value = condition.value
-
-                        check = passenger[criteria] in value
-                        if not check:
-                            break  # check = False로 내보낸다.
-
-                    # check가 false이면 이건 돌지 않기 때문에 다음 컨디션을 확인해야함.
                     if check:
                         edited_df = priority.matrix
                         break
@@ -320,7 +309,6 @@ class DsNode:
             passenger_node_id = self.passenger_queues[0][1]
             passenger_id = self.passenger_ids[passenger_node_id]
             self.facility_numbers[passenger_node_id] = counter_num
-
             priority_destination_node_indices = None
             start_component = self.components[0]
             destination_component = self.components[1]
@@ -334,21 +322,22 @@ class DsNode:
                         break
 
                 edited_df = None
+                # NOTE: 상위 매트릭스부터 확인하면서 모든 condition을 만족할 시 해당 매트릭스의 값을 가져옴.
                 if priority_matrix:
                     for priority in priority_matrix:
 
                         conditions = priority.condition
 
-                        for condition in conditions:
-                            criteria = condition.criteria
-                            criteria = COL_FILTER_MAP[criteria]
-                            value = condition.value
+                        check = all(
+                            self.check_condition(
+                                passenger,
+                                condition,
+                                start_component,
+                                second,
+                            )
+                            for condition in conditions
+                        )
 
-                            check = passenger[criteria] in value
-                            if not check:
-                                break  # check = False로 내보낸다.
-
-                        # check가 false이면 이건 돌지 않기 때문에 다음 컨디션을 확인해야함.
                         if check:
                             edited_df = priority.matrix
                             break
@@ -445,3 +434,26 @@ class DsNode:
                 movement_time = self.adjust_processing_time(movement_time)
 
         return movement_time
+
+    def check_condition(self, passenger, condition, component, on_time):
+        criteria = condition.criteria
+
+        if criteria == component:
+            return True
+
+        elif criteria == "Time":
+            on_time = (datetime.min + timedelta(seconds=int(on_time))).time()
+            operator = condition.operator
+            condition_time = datetime.strptime(condition.value, "%H:%M")
+
+            if operator == "start":
+                return on_time >= condition_time.time()
+            if operator == "end":
+                return on_time <= condition_time.time()
+
+        else:
+            criteria_col = COL_FILTER_MAP.get(criteria, None)
+            if not criteria_col:
+                return False
+
+            return passenger[criteria_col] in condition.value

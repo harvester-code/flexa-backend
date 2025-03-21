@@ -2,6 +2,7 @@ import asyncio
 import heapq
 import math
 import time
+from datetime import datetime
 
 import numpy as np
 from fastapi import WebSocket
@@ -36,6 +37,25 @@ class DsSimulator:
         self.processes = ds_graph.processes
         self.comp_to_idx = ds_graph.comp_to_idx
 
+    def check_condition(self, passenger, condition):
+        criteria = condition.criteria
+
+        if criteria == "Time":
+            criteria_col = "show_up_time"
+            operator = condition.operator
+            condition_time = datetime.strptime(condition.value, "%H:%M")
+            if operator == "start":
+                return passenger[criteria_col].time() >= condition_time.time()
+            if operator == "end":
+                return passenger[criteria_col].time() <= condition_time.time()
+
+        else:
+            criteria_col = COL_FILTER_MAP.get(criteria, None)
+            if not criteria_col:
+                return False
+
+            return passenger[criteria_col] in condition.value
+
     # FIXME: 해당 메서드는 DsSimulator에 위치하는게 아니라 DsGraph에 있어야하는게 아닐까?
     def add_flow(self, current_second: int, greedy: bool = True):
         first_component = self.components[0]
@@ -56,24 +76,19 @@ class DsSimulator:
             passenger = self.passengers.loc[self.passenger_id]
 
             edited_df = None
+            # NOTE: 상위 매트릭스부터 확인하면서 모든 condition을 만족할 시 해당 매트릭스의 값을 가져옴.
             if priority_matrix:
                 for priority in priority_matrix:
 
                     conditions = priority.condition
 
-                    # 컨디션을 돌면서 현재 승객이 필터에 걸리는지 확인
-                    for condition in conditions:
-                        criteria = condition.criteria
-                        criteria = COL_FILTER_MAP[criteria]
-                        value = condition.value
-                        check = passenger[criteria] in value
-                        if not check:
-                            break  # check = False로 내보낸다.
+                    check = all(
+                        self.check_condition(passenger, condition)
+                        for condition in conditions
+                    )
 
-                    # check가 false이면 이건 돌지 않기 때문에 다음 컨디션을 확인해야함.
                     if check:
                         edited_df = priority.matrix
-                        # 필터에 걸린다면 해당 매트릭을 가져온다. = edited_df
                         break
 
             if not edited_df:
