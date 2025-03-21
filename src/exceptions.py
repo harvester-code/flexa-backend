@@ -9,7 +9,10 @@ from starlette.responses import JSONResponse
 async def db_exception_handler(request: Request, exc: SQLAlchemyError):
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": "Database error. Please try again later."},
+        content={
+            "detail": "Database error. Please try again later.",
+            "error": f"{exc}",
+        },
     )
 
 
