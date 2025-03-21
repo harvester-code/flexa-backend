@@ -116,18 +116,12 @@ class SimulationRepository(ISimulationRepository):
         await db.commit()
 
     async def deactivate_simulation_scenario(
-        self, db: AsyncSession, id: Union[str, List[str]]
+        self, db: AsyncSession, ids: Union[str, List[str]]
     ):
-
-        if isinstance(id, str):
-            id_list = [id]
-
-        else:
-            id_list = id
 
         await db.execute(
             update(SimulationScenario)
-            .where(SimulationScenario.id.in_(id_list))
+            .where(SimulationScenario.id.in_(ids))
             .values({SimulationScenario.is_active: False})
         )
         await db.commit()

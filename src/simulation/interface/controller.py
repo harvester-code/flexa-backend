@@ -12,7 +12,7 @@ from src.simulation.interface.schema import (
     DuplicateScenarioBody,
     FacilityConnBody,
     FlightScheduleBody,
-    MultipleScenarioDeactivateBody,
+    ScenarioDeactivateBody,
     PassengerScheduleBody,
     ScenarioMetadataBody,
     ScenarioUpdateBody,
@@ -112,33 +112,23 @@ async def update_scenario(
 
 
 @simulation_router.patch(
-    "/scenarios/scenario-id/{scenario_id}/deactivate",
+    "/scenarios/deactivate",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="06_SI_001",
     description="06_SI_001에서 각 시나리오의 액션버튼을 눌러 나오는 delete를 클릭하여 실행하면 실행되는 앤드포인트",
 )
 @inject
 async def deactivate_scenario(
-    scenario_id: str | None,
-    scenario_ids: MultipleScenarioDeactivateBody | None,
+    scenario_ids: ScenarioDeactivateBody,
     simulation_service: SimulationService = Depends(
         Provide[Container.simulation_service]
     ),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
 
-    if not scenario_id and ((not scenario_ids) or (len(scenario_ids) == 0)):
-        raise BadRequestException("Scenario ID is required")
-
-    if scenario_id:
-        scenario_id_value = scenario_id
-
-    if scenario_ids and (len(scenario_ids) > 0):
-        scenario_id_value = scenario_ids
-
     await simulation_service.deactivate_simulation_scenario(
         db=db,
-        id=scenario_id_value,
+        ids=scenario_ids,
     )
 
 
@@ -440,26 +430,32 @@ async def generate_simulation_total_chart(
     )
 
 
-# @simulation_router.post("/run-simulation", status_code=200)
-# @inject
-# async def run_simulation(
-#     run_simulation: RunSimulationBody,
-#     request: Request,
-#     simulation_service: SimulationService = Depends(
-#         Provide[Container.simulation_service]
-#     ),
-#     db: Connection = Depends(get_snowflake_session),
-#     session: boto3.Session = Depends(get_boto3_session),
-# ):
+from src.simulation.interface.schema import RunSimulationBody
 
-#     return await simulation_service.run_simulation(
-#         None,
-#         db,
-#         session,
-#         "6c377bfd-6679-48e5-ab27-49ed3ca4611c",
-#         run_simulation.scenario_id,
-#         run_simulation.flight_schedule,
-#         run_simulation.destribution_conditions,
-#         run_simulation.processes,
-#         run_simulation.components,
-#     )
+
+@simulation_router.post(
+    "/run-simulation/only-algorithm",
+    status_code=200,
+    summary="알고리즘 테스트용. 프론트는 웹소켓을 통해 실행.",
+)
+@inject
+async def run_simulation(
+    run_simulation: RunSimulationBody,
+    request: Request,
+    simulation_service: SimulationService = Depends(
+        Provide[Container.simulation_service]
+    ),
+    db: Connection = Depends(get_snowflake_session),
+    session: boto3.Session = Depends(get_boto3_session),
+):
+
+    return await simulation_service.run_simulation_test(
+        db,
+        session,
+        "6c377bfd-6679-48e5-ab27-49ed3ca4611c",
+        run_simulation.scenario_id,
+        run_simulation.flight_schedule,
+        run_simulation.destribution_conditions,
+        run_simulation.processes,
+        run_simulation.components,
+    )

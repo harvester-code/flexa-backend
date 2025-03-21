@@ -6,7 +6,7 @@ from pydantic import BaseModel
 class Condition(BaseModel):
     criteria: str
     operator: str
-    value: List[str]
+    value: List[str] | str
 
 
 class destribution_conditions(BaseModel):
@@ -109,7 +109,7 @@ class SimulationTotalChartBody(BaseModel):
     total: List[TotalChartDict]
 
 
-class MultipleScenarioDeactivateBody(BaseModel):
+class ScenarioDeactivateBody(BaseModel):
     scenario_ids: List[str]
 
 
