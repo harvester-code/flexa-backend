@@ -64,6 +64,7 @@ async def fetch_process_list(
     "/kpi-summaries/tables/kpi/scenario-id/{scenario_id}",
     status_code=status.HTTP_200_OK,
     summary="kpi 테이블을 위한 데이터",
+    description="func에 들어갈 수 있는 값: max, min, median, mean, sum, top5, bottom5",
 )
 @inject
 async def fetch_kpi(
