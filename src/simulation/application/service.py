@@ -792,7 +792,7 @@ class SimulationService:
 
         _end = datetime.now()
         elapsed_time = (_end - _start).total_seconds()
-        print(f"{process}_{node}_{group_column}의 소요시간 : {elapsed_time:.2f}초")
+        # print(f"{process}_{node}_{group_column}의 소요시간 : {elapsed_time:.2f}초")
         return {"traces": traces, "default_x": default_x}
 
     async def _create_simulation_queue_chart_optimized(
@@ -949,7 +949,7 @@ class SimulationService:
 
         _end = datetime.now()
         elapsed_time = (_end - _start).total_seconds()
-        print(f"{process}_{group_column}의 소요시간 : {elapsed_time:.2f}초")
+        # print(f"{process}_{group_column}의 소요시간 : {elapsed_time:.2f}초")
 
         return {"traces": traces, "default_x": default_x}
 
@@ -1024,7 +1024,7 @@ class SimulationService:
 
             _end_ = datetime.now()
             elapsed_time_ = (_end_ - _start).total_seconds()
-            print(f"S3에서 데이터를 불러오는 소요시간 : {elapsed_time_:.2f}초")
+            # print(f"S3에서 데이터를 불러오는 소요시간 : {elapsed_time_:.2f}초")
 
         # 해당 데이터프레임을 선택한 process와 node에 따라 차트 생성
         inbound = {}
@@ -1076,7 +1076,7 @@ class SimulationService:
 
         _end = datetime.now()
         elapsed_time = (_end - _start).total_seconds()
-        print(f"전체 소요시간 : {elapsed_time:.2f}초")
+        # print(f"전체 소요시간 : {elapsed_time:.2f}초")
 
         return result
 
@@ -1484,7 +1484,6 @@ class SimulationService:
         dist_map = {}
 
         for airline, nodes in process_1.default_matrix.items():
-            print(nodes)
             indices = np.array(
                 [i for i, node in enumerate(process_1.nodes) if nodes[node] > 0]
             )
