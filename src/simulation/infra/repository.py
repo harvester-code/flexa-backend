@@ -115,15 +115,14 @@ class SimulationRepository(ISimulationRepository):
         )
         await db.commit()
 
-    async def deactivate_simulation_scenario(
-        self, db: AsyncSession, ids: Union[str, List[str]]
-    ):
+    async def deactivate_simulation_scenario(self, db: AsyncSession, ids: List[str]):
 
-        await db.execute(
+        stmt = (
             update(SimulationScenario)
-            .where(SimulationScenario.id.in_(ids))
-            .values({SimulationScenario.is_active: False})
+            .where(SimulationScenario.id.in_(bindparam("ids", expanding=True)))
+            .values(is_active=False)
         )
+        await db.execute(stmt, {"ids": ids.scenario_ids})
         await db.commit()
 
     async def duplicate_simulation_scenario(
