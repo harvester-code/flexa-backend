@@ -36,6 +36,29 @@ class HomeCalculator:
             "returned_flights": returned_flights,
         }
 
+    def get_flight_summary(self):
+        departure_flights = self.pax_df["flight_number"].nunique()
+        arrival_flights = 0
+        delayed_flights = self.pax_df[self.pax_df["gate_departure_delay"] > 15][
+            "flight_number"
+        ].nunique()
+        # is_cancelled 열을 불리언으로 변환하고 합계를 구함
+        cancelled_values = pd.to_numeric(
+            self.pax_df["is_cancelled"]
+            .astype(str)
+            .str.strip()
+            .map({"True": 1, "False": 0}),
+            errors="coerce",
+        )
+        returned_flights = int(cancelled_values.sum())
+
+        return {
+            "departure_flights": departure_flights,
+            "arrival_flights": arrival_flights,
+            "delayed_flights": delayed_flights,
+            "returned_flights": returned_flights,
+        }
+
     def get_pax_summary(self):
         return {
             "departure_pax": len(self.pax_df),
@@ -74,7 +97,7 @@ class HomeCalculator:
             top_means = row_means[row_means >= threshold]
             return top_means.mean()
 
-    def get_facility_times_with_peak(self) -> dict:
+    def get_alert_issues(self) -> dict:
         if self.percentile is not None and not 0 <= self.percentile <= 100:
             raise ValueError("percentile은 0에서 100 사이의 값이어야 합니다")
 
@@ -158,7 +181,7 @@ class HomeCalculator:
         stats["peak_time"] = peak_time.strftime("%H:%M")
         return stats
 
-    def _analyze_all_processes(self, percentile: int) -> pd.DataFrame:
+    def _analyze_all_processes(self, percentile: int = 5) -> pd.DataFrame:
         process_cols = [
             col.replace("_on_pred", "")
             for col in self.pax_df.columns
@@ -172,3 +195,126 @@ class HomeCalculator:
             ignore_index=True,
         )
         return results
+
+    def get_facility_details(self):
+        """시설별 세부 데이터를 계산하고 반환합니다."""
+        # 빈 데이터 구조 초기화
+        result = {"details": []}
+
+        # 프로세스 컬럼 추출
+        process_cols = [
+            col.replace("_on_pred", "")
+            for col in self.pax_df.columns
+            if "on_pred" in col
+        ]
+
+        # 각 프로세스별로 처리
+        for process in process_cols:
+            # 필요한 컬럼만 선택하여 데이터 처리 효율성 향상
+            cols_needed = [
+                f"{process}_pred",
+                f"{process}_que",
+                f"{process}_pt",
+                f"{process}_on_pred",
+                f"{process}_pt_pred",
+            ]
+
+            process_df = self.pax_df[cols_needed].copy()
+
+            # 대기 시간 미리 계산 (한 번만 계산)
+            process_df["wait_diff"] = (
+                process_df[f"{process}_pt_pred"] - process_df[f"{process}_on_pred"]
+            )
+
+            # 전체 개요 계산
+            overview = self._calculate_overview_metrics(process_df, process)
+
+            # 카테고리 객체 초기화
+            category_obj = {"category": process, "overview": overview, "components": []}
+
+            # 시설별 컴포넌트 추가
+            self._add_facility_components(process_df, process, category_obj)
+
+            # result에 카테고리 추가
+            result["details"].append(category_obj)
+
+        return result
+
+    def _calculate_overview_metrics(self, df, process):
+        """프로세스 전체 개요 지표를 계산합니다."""
+        opened_count = df[f"{process}_pred"].nunique()
+
+        return {
+            "opened": [opened_count, opened_count],
+            "isOpened": opened_count > 0,
+            "throughput": len(df),
+            "maxQueue": int(
+                df[f"{process}_que"].max() if not df[f"{process}_que"].empty else 0
+            ),
+            "queueLength": int(
+                df[f"{process}_que"].mean() if not df[f"{process}_que"].empty else 0
+            ),
+            "procTime": self._format_seconds_to_time(
+                df[f"{process}_pt"].quantile(0.95)
+                if not df[f"{process}_pt"].empty
+                else 0
+            ),
+            "waitTime": self._format_timedelta(
+                df["wait_diff"].quantile(0.95)
+                if not df["wait_diff"].empty
+                else pd.Timedelta(0)
+            ),
+        }
+
+    def _add_facility_components(self, df, process, category_obj):
+        """각 시설별 컴포넌트를 계산하고 category_obj에 추가합니다."""
+        facilities = df[f"{process}_pred"].unique()
+
+        for facility in facilities:
+            facility_df = df[df[f"{process}_pred"] == facility]
+
+            component = {
+                "title": facility,
+                "opened": [1, 1] if not facility_df.empty else [0, 0],
+                "isOpened": not facility_df.empty,
+                "throughput": len(facility_df),
+                "maxQueue": int(
+                    facility_df[f"{process}_que"].max()
+                    if not facility_df[f"{process}_que"].empty
+                    else 0
+                ),
+                "queueLength": int(
+                    facility_df[f"{process}_que"].mean()
+                    if not facility_df[f"{process}_que"].empty
+                    else 0
+                ),
+                "procTime": self._format_seconds_to_time(
+                    facility_df[f"{process}_pt"].quantile(0.95)
+                    if not facility_df[f"{process}_pt"].empty
+                    else 0
+                ),
+                "waitTime": self._format_timedelta(
+                    facility_df["wait_diff"].quantile(0.95)
+                    if not facility_df["wait_diff"].empty
+                    else pd.Timedelta(0)
+                ),
+            }
+
+            category_obj["components"].append(component)
+
+    def _format_seconds_to_time(self, seconds):
+        """초 단위 값을 HH:MM:SS 형식으로 변환합니다."""
+        if pd.isna(seconds):
+            return "00:00:00"
+        hours, remainder = divmod(int(seconds), 3600)
+        minutes, seconds = divmod(remainder, 60)
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+    def _format_timedelta(self, td):
+        """Timedelta를 HH:MM:SS 형식으로 변환합니다."""
+        if pd.isna(td):
+            return "00:00:00"
+        try:
+            return str(td).split()[-1].split(".")[0]
+        except:
+            return "00:00:00"

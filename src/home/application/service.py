@@ -50,6 +50,17 @@ class HomeService:
         return {
             "status": "success",
             "data": {
-                "facility_times_with_peak": calculator.get_facility_times_with_peak(),
+                "alert_issues": calculator.get_alert_issues(),
             },
         }
+
+    async def fetch_facility_details(
+        self,
+        session: boto3.Session,
+        scenario_id: str | None,
+        calculate_type: str,
+        percentile: int | None,
+    ):
+        pax_df = await self.home_repo.download_from_s3(session, scenario_id)
+        calculator = HomeCalculator(pax_df, calculate_type, percentile)
+        return calculator.get_facility_details()

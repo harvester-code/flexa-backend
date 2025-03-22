@@ -51,3 +51,21 @@ async def fetch_alert_issues(
     return await home_service.fetch_alert_issues(
         session, scenario_id, calculate_type, percentile
     )
+
+
+@home_router.get(
+    "/facility_details",
+    status_code=200,
+    summary="facility_details를 응답하는 엔드포인트",
+)
+@inject
+async def fetch_facility_details(
+    home_service: HomeService = Depends(Provide[Container.home_service]),
+    session: boto3.Session = Depends(get_boto3_session),
+    scenario_id: str | None = None,
+    calculate_type: str = "mean",
+    percentile: int | None = None,
+):
+    return await home_service.fetch_facility_details(
+        session, scenario_id, calculate_type, percentile
+    )
