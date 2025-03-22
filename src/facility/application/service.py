@@ -426,7 +426,13 @@ class FacilityService:
     # NOTE: Passenger Analysis
 
     # NOTE: Pie Chart
-    async def generate_pie_chart(self, session, process):
+    async def generate_pie_chart(
+        self,
+        session: boto3.Session,
+        process: str,
+        user_id: str | None = None,
+        scenario_id: str | None = None,
+    ):
 
         # s3에서 시뮬레이션 데이터 프레임 가져오기
         # if scenario_id:
@@ -555,7 +561,13 @@ class FacilityService:
         return group_result
 
     # NOTE: Passenger Analysis Chart
-    async def generate_pa_chart(self, session, process):
+    async def generate_pa_chart(
+        self,
+        session: boto3.Session,
+        process: str,
+        user_id: str | None = None,
+        scenario_id: str | None = None,
+    ):
         # s3에서 시뮬레이션 데이터 프레임 가져오기
         # if scenario_id:
         #     filename = f"{user_id}/{scenario_id}"
