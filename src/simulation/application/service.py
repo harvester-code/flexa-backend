@@ -546,7 +546,7 @@ class SimulationService:
         import os
 
         sample_data = os.path.join(
-            os.getcwd(), "samples/sample_processing_procedures.json"
+            os.getcwd(), "/code/samples/sample_processing_procedures.json"
         )
 
         with open(
