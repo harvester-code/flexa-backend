@@ -3,6 +3,7 @@ from datetime import datetime
 from sqlalchemy import Boolean, DateTime, Integer, String
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
+from typing import List
 
 from src.database import Base
 
@@ -30,7 +31,7 @@ class ScenarioMetadata(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     scenario_id: Mapped[str] = mapped_column(String(36), nullable=False)
     overview: Mapped[dict] = mapped_column(JSONB, nullable=True)
-    history: Mapped[dict] = mapped_column(JSONB, nullable=True)
+    history: Mapped[List[dict]] = mapped_column(JSONB, nullable=True)
     flight_sch: Mapped[dict] = mapped_column(JSONB, nullable=True)
     passenger_sch: Mapped[dict] = mapped_column(JSONB, nullable=True)
     passenger_attr: Mapped[dict] = mapped_column(JSONB, nullable=True)

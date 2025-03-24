@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
+from typing import List
 
 
 @dataclass
@@ -22,7 +23,7 @@ class ScenarioMetadata:
     scenario_id: str
     # 여기서 dict는 jsonb 형태로 supabase에 저장될 예정
     overview: dict | None
-    history: dict | None
+    history: List[dict] | None
     flight_sch: dict | None
     passenger_sch: dict | None
     passenger_attr: dict | None

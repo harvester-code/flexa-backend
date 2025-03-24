@@ -35,7 +35,7 @@ class Node(BaseModel):
     name: str
     facility_count: int
     max_queue_length: int
-    facility_schedules: List[List[int]]
+    facility_schedules: List[List[float]]
 
 
 class Component(BaseModel):
@@ -86,7 +86,7 @@ class SimulationScenarioBody(BaseModel):
 class ScenarioMetadataBody(BaseModel):
     # 여기서 dict는 jsonb 형태로 supabase에 저장될 예정
     overview: dict | None
-    history: dict | None
+    history: List[dict] | None
     flight_sch: dict | None
     passenger_sch: dict | None
     passenger_attr: dict | None
