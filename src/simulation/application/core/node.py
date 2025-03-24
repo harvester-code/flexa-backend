@@ -312,6 +312,9 @@ class DsNode:
             priority_destination_node_indices = None
             start_component = self.components[0]
             destination_component = self.components[1]
+            adjusted_processing_time = self.adjust_processing_time(
+                processing_time=self.processing_config[minute][counter_num - 1]
+            )
 
             # 기존 코드와 동일
             if destination_component:
@@ -333,7 +336,7 @@ class DsNode:
                                 passenger,
                                 condition,
                                 start_component,
-                                second,
+                                second + adjusted_processing_time,
                             )
                             for condition in conditions
                         )
@@ -376,9 +379,6 @@ class DsNode:
             heapq.heappop(self.passenger_queues)
 
             # ==================================================
-            adjusted_processing_time = self.adjust_processing_time(
-                processing_time=self.processing_config[minute][counter_num - 1]
-            )
             self.processing_time[passenger_node_id] = adjusted_processing_time
 
             heapq.heappush(
@@ -435,21 +435,21 @@ class DsNode:
 
         return movement_time
 
-    def check_condition(self, passenger, condition, component, on_time):
+    def check_condition(self, passenger, condition, component, check_time):
         criteria = condition.criteria
 
         if criteria == component:
             return True
 
         elif criteria == "Time":
-            on_time = (datetime.min + timedelta(seconds=int(on_time))).time()
+            check_time = (datetime.min + timedelta(seconds=int(check_time))).time()
             operator = condition.operator
             condition_time = datetime.strptime(condition.value, "%H:%M")
 
             if operator == "start":
-                return on_time >= condition_time.time()
+                return check_time >= condition_time.time()
             if operator == "end":
-                return on_time <= condition_time.time()
+                return check_time <= condition_time.time()
 
         else:
             criteria_col = COL_FILTER_MAP.get(criteria, None)
