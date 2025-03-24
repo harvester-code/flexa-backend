@@ -18,7 +18,7 @@ status 코드 정리
 
 
 @home_router.get(
-    "/summary",
+    "/summaries/{scenario_id}",
     status_code=200,
     summary="최상단 Summary result list를 응답하는 엔드포인트",
 )
@@ -36,9 +36,9 @@ async def fetch_summary(
 
 
 @home_router.get(
-    "/alert_issues",
+    "/alert-issues/{scenario_id}",
     status_code=200,
-    summary="alert_issues를 응답하는 엔드포인트",
+    summary="alert-issues를 응답하는 엔드포인트",
 )
 @inject
 async def fetch_alert_issues(
@@ -54,9 +54,9 @@ async def fetch_alert_issues(
 
 
 @home_router.get(
-    "/facility_details",
+    "/facility-details/{scenario_id}",
     status_code=200,
-    summary="facility_details를 응답하는 엔드포인트",
+    summary="facility-details를 응답하는 엔드포인트",
 )
 @inject
 async def fetch_facility_details(
@@ -69,3 +69,31 @@ async def fetch_facility_details(
     return await home_service.fetch_facility_details(
         session, scenario_id, calculate_type, percentile
     )
+
+
+@home_router.get(
+    "/charts/flow-chart/{scenario_id}",
+    status_code=200,
+    summary="flow-chart를 응답하는 엔드포인트",
+)
+@inject
+async def fetch_flow_chart(
+    home_service: HomeService = Depends(Provide[Container.home_service]),
+    session: boto3.Session = Depends(get_boto3_session),
+    scenario_id: str | None = None,
+):
+    return await home_service.fetch_flow_chart(session, scenario_id)
+
+
+@home_router.get(
+    "/charts/sankey-diagram/{scenario_id}",
+    status_code=200,
+    summary="sankey-diagram를 응답하는 엔드포인트",
+)
+@inject
+async def fetch_sankey_diagram(
+    home_service: HomeService = Depends(Provide[Container.home_service]),
+    session: boto3.Session = Depends(get_boto3_session),
+    scenario_id: str | None = None,
+):
+    return await home_service.fetch_sankey_diagram(session, scenario_id)

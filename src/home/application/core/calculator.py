@@ -4,12 +4,17 @@ import numpy as np
 
 class HomeCalculator:
     def __init__(
-        self, pax_df: pd.DataFrame, calculate_type: str, percentile: int | None = None
+        self,
+        pax_df: pd.DataFrame,
+        calculate_type: str = "mean",
+        percentile: int | None = None,
     ):
         self.pax_df = pax_df
         self.calculate_type = calculate_type
         self.percentile = percentile
+        self.time_unit = "10min"
 
+    # Summary
     def get_time_range(self):
         start_time = pd.to_datetime(self.pax_df["show_up_time"].min()).strftime(
             "%Y-%m-%d %H:%M:%S"
@@ -19,21 +24,6 @@ class HomeCalculator:
         )
         return {
             "time_range": {"start": start_time, "end": end_time},
-        }
-
-    def get_flight_summary(self):
-        departure_flights = self.pax_df["flight_number"].nunique()
-        arrival_flights = 0
-        delayed_flights = self.pax_df[self.pax_df["gate_departure_delay"] > 15][
-            "flight_number"
-        ].nunique()
-        returned_flights = int(self.pax_df["is_cancelled"].sum())
-
-        return {
-            "departure_flights": departure_flights,
-            "arrival_flights": arrival_flights,
-            "delayed_flights": delayed_flights,
-            "returned_flights": returned_flights,
         }
 
     def get_flight_summary(self):
@@ -97,6 +87,7 @@ class HomeCalculator:
             top_means = row_means[row_means >= threshold]
             return top_means.mean()
 
+    # Alert Issues
     def get_alert_issues(self) -> dict:
         if self.percentile is not None and not 0 <= self.percentile <= 100:
             raise ValueError("percentile은 0에서 100 사이의 값이어야 합니다")
@@ -196,6 +187,7 @@ class HomeCalculator:
         )
         return results
 
+    # Details
     def get_facility_details(self):
         """시설별 세부 데이터를 계산하고 반환합니다."""
         # 빈 데이터 구조 초기화
@@ -318,3 +310,200 @@ class HomeCalculator:
             return str(td).split()[-1].split(".")[0]
         except:
             return "00:00:00"
+
+    # Flow Chart
+    def get_flow_chart_data(self):
+        """
+        시간별 대기열 및 대기 시간 데이터를 프론트엔드용 형식으로 반환합니다.
+
+        Args:
+            time_unit: 시간 간격 (기본값: "10min")
+
+        Returns:
+            프론트엔드에서 사용할 수 있는 데이터 구조
+        """
+        # 시간별 데이터프레임 생성
+        time_df = self._create_time_dataframe()
+
+        # 대기열 및 대기 시간 데이터 추가
+        time_df = self._add_queue_data(time_df, self.time_unit)
+
+        # 프론트엔드 형식으로 변환
+        return self._convert_to_frontend_format(time_df)
+
+    def _create_time_dataframe(self):
+        """
+        시간별 데이터프레임 생성 함수
+
+        Args:
+            time_unit: 시간 간격 (기본값: "10min")
+
+        Returns:
+            시간 인덱스가 있는 빈 데이터프레임
+        """
+        # 고유 날짜 추출
+        days = self.pax_df["show_up_time"].dt.date.unique()
+
+        # 날짜별 시간범위 생성
+        time_ranges = [
+            pd.date_range(
+                start=f"{date} 00:00:00", end=f"{date} 23:50:00", freq=self.time_unit
+            )
+            for date in days
+        ]
+
+        # 모든 시간대를 하나의 리스트로 통합
+        all_times = pd.DatetimeIndex(
+            [dt for time_range in time_ranges for dt in time_range]
+        )
+
+        # 빈 DataFrame 생성 및 정렬
+        time_df = pd.DataFrame(index=all_times).sort_index()
+        # time_df.index.name = "timestamp"
+
+        return time_df
+
+    def _add_queue_data(self, time_df):
+        """
+        대기열 및 대기 시간 데이터를 데이터프레임에 추가하는 함수
+
+        Args:
+            time_df: 시간 인덱스가 있는 데이터프레임
+            time_unit: 시간 간격 (기본값: "10min")
+
+        Returns:
+            대기열 및 대기 시간 데이터가 추가된 데이터프레임
+        """
+        # 임시 데이터프레임 생성
+        temp = self.pax_df.copy()
+
+        # 프로세스 컬럼 추출
+        process_cols = [
+            col.replace("_on_pred", "") for col in temp.columns if "on_pred" in col
+        ]
+
+        # 각 프로세스에 대한 데이터 추가
+        for process in process_cols:
+            # 큐 데이터를 시간 단위로 그룹화하고 평균 계산
+            queue = temp.groupby(temp[f"{process}_on_pred"].dt.floor(self.time_unit))[
+                f"{process}_que"
+            ].mean()
+
+            # 대기열 데이터 추가
+            time_df[f"{process}_que"] = round(queue, 2)
+            time_df[f"{process}_que"] = time_df[f"{process}_que"].fillna(0)
+
+            # 대기 시간 계산
+            temp[f"{process}_wait_time"] = (
+                temp[f"{process}_pt_pred"] - temp[f"{process}_on_pred"]
+            )
+
+            # 대기 시간을 시간 단위로 그룹화하고 평균 계산
+            wait_time = temp.groupby(
+                temp[f"{process}_on_pred"].dt.floor(self.time_unit)
+            )[f"{process}_wait_time"].mean()
+
+            # 대기 시간을 분 단위로 변환 (소수점 1자리)
+            wait_time_in_minutes = wait_time.apply(lambda td: td.total_seconds() / 60)
+
+            # 대기 시간 데이터 추가
+            time_df[f"{process}_wait_time"] = wait_time_in_minutes.round(1)
+            time_df[f"{process}_wait_time"] = time_df[f"{process}_wait_time"].fillna(
+                0.0
+            )
+
+            # 처리량(throughput) 계산
+            # 각 시간 간격 내에 처리를 완료한 승객 수 계산
+            done_counts = (
+                temp[f"{process}_done_pred"]
+                .dropna()
+                .dt.floor(self.time_unit)
+                .value_counts()
+                .sort_index()
+            )
+
+            # 시간대별 처리 완료 승객 수를 데이터프레임에 추가
+            time_df[f"{process}_throughput"] = 0  # 기본값 0으로 초기화
+
+            # 각 시간대에 처리 완료된 승객 수 추가
+            for time_idx, count in done_counts.items():
+                if time_idx in time_df.index:
+                    time_df.loc[time_idx, f"{process}_throughput"] = count
+
+        return time_df
+
+    def _convert_to_frontend_format(self, df):
+        """
+        데이터프레임을 프론트엔드 형식으로 변환하는 함수
+
+        Args:
+            df: 대기열 및 대기 시간 데이터가 있는 데이터프레임
+
+        Returns:
+            프론트엔드에서 사용할 수 있는 데이터 구조
+        """
+        # 시간 리스트 생성
+        times = df.index.strftime("%Y-%m-%d %H:%M:%S").tolist()
+
+        # 컴포넌트 리스트 생성
+        components = []
+
+        # 모든 열에 대해 컴포넌트 생성
+        for column in df.columns:
+            # 값 추출 및 타입 변환
+            if df[column].dtype.kind in "ifc":  # 숫자 데이터일 경우
+                values = df[column].astype(float).tolist()
+            else:
+                values = df[column].tolist()
+
+            # 컴포넌트 생성
+            component = {"column": column, "values": values}
+            components.append(component)
+
+        # 최종 구조 생성
+        result = {"flow_chart": {"x_values": times, "y_values": components}}
+
+        return result
+
+    def get_sankey_diagram_data(self):
+        """시설 이용 흐름을 분석하여 Sankey 다이어그램 데이터를 생성합니다."""
+
+        # 예측 컬럼 필터링
+        target_columns = [
+            col
+            for col in self.pax_df.columns
+            if col.endswith("_pred") and not any(x in col for x in ["on", "done", "pt"])
+        ]
+
+        # 시설 이용 흐름 계산
+        flow_df = self.pax_df.groupby(target_columns).size().reset_index(name="count")
+
+        # 각 컬럼의 고유 값에 대한 인덱스 매핑 생성
+        unique_values = {}
+        current_index = 0
+        for col in target_columns:
+            unique_values[col] = {
+                val: i + current_index for i, val in enumerate(flow_df[col].unique())
+            }
+            current_index += len(flow_df[col].unique())
+
+        # Sankey 다이어그램 링크 데이터 생성
+        sources, targets, values = [], [], []
+        for i in range(len(target_columns) - 1):
+            col1, col2 = target_columns[i], target_columns[i + 1]
+            grouped = flow_df.groupby([col1, col2])["count"].sum().reset_index()
+
+            for _, row in grouped.iterrows():
+                sources.append(unique_values[col1][row[col1]])
+                targets.append(unique_values[col2][row[col2]])
+                values.append(int(row["count"]))
+
+        # 라벨 생성
+        labels = []
+        for col in target_columns:
+            labels.extend(list(flow_df[col].unique()))
+
+        return {
+            "label": labels,
+            "link": {"source": sources, "target": targets, "value": values},
+        }
