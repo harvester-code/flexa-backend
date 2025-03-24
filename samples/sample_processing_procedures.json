@@ -1,7 +1,7 @@
 {
     "process": [
         {
-            "name": "check_in",
+            "name": "Check-In",
             "nodes": [
                 "A",
                 "B",
@@ -16,7 +16,7 @@
             ]
         },
         {
-            "name": "boarding_pass",
+            "name": "Boarding Pass",
             "nodes": [
                 "DG1",
                 "DG2",
@@ -25,7 +25,7 @@
             ]
         },
         {
-            "name": "security",
+            "name": "Security",
             "nodes": [
                 "SC1",
                 "SC2",
@@ -34,7 +34,7 @@
             ]
         },
         {
-            "name": "passport",
+            "name": "Passport",
             "nodes": [
                 "PC1",
                 "PC2",
