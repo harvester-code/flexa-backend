@@ -54,11 +54,16 @@ class SimulationService:
     # NOTE: 시뮬레이션 시나리오
 
     async def fetch_simulation_scenario(
-        self, db: AsyncSession, user_id: str, group_id: str
+        self,
+        db: AsyncSession,
+        user_id: str,
+        group_id: str,
+        page: int,
+        items_per_page: int,
     ):
 
         scenario = await self.simulation_repo.fetch_simulation_scenario(
-            db, user_id, group_id
+            db, user_id, group_id, page, items_per_page
         )
 
         return scenario
@@ -515,6 +520,9 @@ class SimulationService:
             flight_sch.airport,
             flight_sch.condition,
         )
+        df = pd.DataFrame(data)
+        total_flights = len(df)
+        average_seats = df["total_seat_count"].mean()
 
         pax_df = await self._calculate_show_up_pattern(data, destribution_conditions)
 
@@ -534,6 +542,7 @@ class SimulationService:
 
         return {
             "total": pax_df.shape[0],
+            "total_sub": f"Flight({total_flights}) x Average_seats({average_seats}) x Load_factor(85.0%)",
             "dst_chart": distribution_xy_coords,
             "bar_chart_x_data": chart_data["default_x"],
             "bar_chart_y_data": chart_result,
@@ -679,31 +688,34 @@ class SimulationService:
                     self._calculate_sample_node, args=(default_matrix_df.fillna(0),)
                 )
 
-            for priority_matrix in facility_detail[facility].priority_matrix:
-                priority_matrix_df = pd.DataFrame.from_dict(
-                    priority_matrix.matrix, orient="index"
-                )
-
-                condition = pd.Series(True, index=df_pax.index)
-                for con in priority_matrix.condition:
-                    condition = condition & (
-                        df_pax[COL_FILTER_MAP[con.criteria]].isin(con.value)
+            if facility_detail[facility].priority_matrix:
+                for priority_matrix in facility_detail[facility].priority_matrix:
+                    priority_matrix_df = pd.DataFrame.from_dict(
+                        priority_matrix.matrix, orient="index"
                     )
 
-                if facility == "1":  # is root
-                    df_pax.loc[
-                        condition, f"{horizontal_process}_component"
-                    ] = df_pax.loc[condition, vertical_process].apply(
-                        self._calculate_sample_node,
-                        args=(priority_matrix_df.fillna(0),),
-                    )
-                else:
-                    df_pax.loc[
-                        condition, f"{horizontal_process}_component"
-                    ] = df_pax.loc[condition, f"{vertical_process}_component"].apply(
-                        self._calculate_sample_node,
-                        args=(priority_matrix_df.fillna(0),),
-                    )
+                    condition = pd.Series(True, index=df_pax.index)
+                    for con in priority_matrix.condition:
+                        condition = condition & (
+                            df_pax[COL_FILTER_MAP[con.criteria]].isin(con.value)
+                        )
+
+                    if facility == "1":  # is root
+                        df_pax.loc[
+                            condition, f"{horizontal_process}_component"
+                        ] = df_pax.loc[condition, vertical_process].apply(
+                            self._calculate_sample_node,
+                            args=(priority_matrix_df.fillna(0),),
+                        )
+                    else:
+                        df_pax.loc[
+                            condition, f"{horizontal_process}_component"
+                        ] = df_pax.loc[
+                            condition, f"{vertical_process}_component"
+                        ].apply(
+                            self._calculate_sample_node,
+                            args=(priority_matrix_df.fillna(0),),
+                        )
 
         return df_pax
 
@@ -726,7 +738,56 @@ class SimulationService:
             pax_df, node_list=processes["1"].nodes
         )
 
-        return {"sanky": sanky, "capacity": capacity}
+        pax_df["passenger_pattern"] = (
+            pax_df["scheduled_gate_departure_local"] - pax_df["show_up_time"]
+        ).dt.total_seconds() / 60
+        passenger_pattern = pax_df["passenger_pattern"].mean()
+
+        standard_deviations = []
+        for condition in destribution_conditions:
+            standard_deviations.append(condition.standard_deviation)
+        standard_deviation = sum(standard_deviations) / len(standard_deviations)
+
+        matric = [
+            {"name": "Date", "value": flight_sch.date},
+            {
+                "name": "Terminal",
+                "value": None,
+            },
+            {
+                "name": "Analysis Type",
+                "value": "Departure Passengers",
+            },
+            {
+                "name": "Data Source",
+                "value": "Cirium",
+            },
+            {
+                "name": "Flights",
+                "value": f"{len(data)} flights",
+            },
+            {
+                "name": "Passengers",
+                "value": f"{len(pax_df)} pax",
+            },
+            {
+                "name": "Passengers Pattern",
+                "value": f"AVG {round(passenger_pattern)}mins Dist {round(standard_deviation)}mins",
+            },
+            {
+                "name": "Generation Method",
+                "value": "Normal Distribution",
+            },
+        ]
+
+        for key in list(processes.keys())[1:]:
+            name: str = processes[key].name
+            name = name.replace("_", " ").title().replace("Check In", "Check-In")
+            value = len(processes[key].nodes)
+
+            matric.append({"name": name, "value": f"{value} Nodes"})
+
+        return {"matric": matric, "sanky": sanky, "capacity": capacity}
 
     # =====================================
     async def _create_simulation_flow_chart(
