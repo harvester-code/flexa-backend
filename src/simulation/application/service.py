@@ -1052,7 +1052,6 @@ class SimulationService:
         df_grouped = df_grouped.reindex(all_hours, fill_value=0)
 
         df_grouped = df_grouped.mean(axis=1)
-        print(df_grouped)
         wt_x_list = df_grouped.index.astype(str).tolist()
         wt_y_list = df_grouped.astype(int).values.tolist()
 
