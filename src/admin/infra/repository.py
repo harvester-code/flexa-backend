@@ -76,3 +76,15 @@ class AdminRepository(IAdminRepository):
             .values(values_to_update)
         )
         await db.commit()
+
+    async def deactivate_operation_setting(
+        self,
+        db: AsyncSession,
+    ):
+
+        await db.execute(
+            update(OperationSetting)
+            .where(OperationSetting.id == id)
+            .values(is_active=False)
+        )
+        await db.commit()

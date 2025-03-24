@@ -44,10 +44,10 @@ status 코드 정리
 @admin_router.get(
     "/operation-settings/group-id/{group_id}",
     status_code=status.HTTP_201_CREATED,
-    summary="운영세팅",
+    summary="운영세팅 get",
 )
 @inject
-async def create_operation_setting(
+async def fetch_operation_setting(
     group_id: str,
     admin_service: AdminService = Depends(Provide[Container.admin_service]),
     db: AsyncSession = Depends(aget_supabase_session),
@@ -61,10 +61,10 @@ async def create_operation_setting(
 @admin_router.post(
     "/operation-settings/group-id/{group_id}",
     status_code=status.HTTP_201_CREATED,
-    summary="운영세팅",
+    summary="운영세팅 create",
 )
 @inject
-async def fetch_operation_setting(
+async def create_operation_setting(
     group_id: str,
     operation_setting: CreateOperationSettingBody,
     admin_service: AdminService = Depends(Provide[Container.admin_service]),
@@ -81,7 +81,7 @@ async def fetch_operation_setting(
 @admin_router.patch(
     "/operation-settings/operation-setting-id/{operation_setting_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="운영세팅",
+    summary="운영세팅 update",
 )
 @inject
 async def update_operation_setting(
@@ -99,4 +99,22 @@ async def update_operation_setting(
         processing_procedure=operation_setting.processing_procedure,
         terminal_layout=operation_setting.terminal_layout,
         terminal_layout_image_url=operation_setting.terminal_layout_image_url,
+    )
+
+
+@admin_router.patch(
+    "/operation-settings/operation-setting-id/{operation_setting_id}/deactivate",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="운영세팅 delete",
+)
+@inject
+async def deactivate_operation_setting(
+    operation_setting_id: str,
+    admin_service: AdminService = Depends(Provide[Container.admin_service]),
+    db: AsyncSession = Depends(aget_supabase_session),
+):
+
+    await admin_service.update_operation_setting(
+        db=db,
+        id=operation_setting_id,
     )

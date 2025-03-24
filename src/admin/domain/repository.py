@@ -17,3 +17,7 @@ class IAdminRepository(metaclass=ABCMeta):
     @abstractmethod
     def update_operation_setting(self):
         raise NotImplementedError
+
+    @abstractmethod
+    def deactivate_operation_setting(self):
+        raise NotImplementedError

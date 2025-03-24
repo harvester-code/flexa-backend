@@ -68,6 +68,13 @@ class AdminService:
             terminal_layout_image_url,
         )
 
+    async def deactivate_operation_setting(
+        self,
+        db: AsyncSession,
+        id: str,
+    ):
+        await self.admin_repo.deactivate_operation_setting(db, id)
+
     # ======================================
     async def test(self):
         """"""
