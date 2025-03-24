@@ -45,6 +45,7 @@ status 코드 정리
 async def fetch_scenario(
     request: Request,
     group_id: str,
+    page: int,
     simulation_service: SimulationService = Depends(
         Provide[Container.simulation_service]
     ),
@@ -55,7 +56,11 @@ async def fetch_scenario(
         raise BadRequestException("Group ID is required")
 
     return await simulation_service.fetch_simulation_scenario(
-        db=db, user_id=request.state.user_id, group_id=group_id
+        db=db,
+        user_id=request.state.user_id,
+        group_id=group_id,
+        page=page,
+        items_per_page=11,
     )
 
 

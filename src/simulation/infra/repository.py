@@ -3,7 +3,7 @@ import boto3
 import pandas as pd
 
 from typing import Union, List
-from sqlalchemy import Connection, update, true, desc, bindparam
+from sqlalchemy import Connection, update, true, desc, bindparam, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.inspection import inspect
@@ -29,7 +29,12 @@ class SimulationRepository(ISimulationRepository):
     # NOTE: 시뮬레이션 시나리오
 
     async def fetch_simulation_scenario(
-        self, db: AsyncSession, user_id: str, group_id: str
+        self,
+        db: AsyncSession,
+        user_id: str,
+        group_id: str,
+        page: int,
+        items_per_page: int,
     ):
 
         async with db.begin():
@@ -50,15 +55,32 @@ class SimulationRepository(ISimulationRepository):
                 master_scenario = result.scalar_one_or_none()
 
             result = await db.execute(
+                select(func.count())
+                .select_from(SimulationScenario)
+                .where(SimulationScenario.user_id == user_id)
+                .where(SimulationScenario.is_active.is_(true()))
+            )
+            total_count = result.scalar()
+
+            offset = (page - 1) * items_per_page
+
+            result = await db.execute(
                 select(SimulationScenario)
                 .where(SimulationScenario.user_id == user_id)
                 .where(SimulationScenario.is_active.is_(true()))
                 .order_by(desc(SimulationScenario.updated_at))
+                .offset(offset)
+                .limit(items_per_page)
             )
 
             user_scenario = result.scalars().all()
 
-        return {"master_scenario": [master_scenario], "user_scenario": user_scenario}
+        return {
+            "total_count": total_count,
+            "page": page,
+            "master_scenario": [master_scenario],
+            "user_scenario": user_scenario,
+        }
 
     async def create_simulation_scenario(
         self,
