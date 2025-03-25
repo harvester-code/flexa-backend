@@ -114,3 +114,8 @@ class ScenarioDeactivateBody(BaseModel):
 
 class DuplicateScenarioBody(BaseModel):
     editor: str
+
+
+class SetOpeningHoursBody(BaseModel):
+    time_unit: int
+    facility_schedules: List[List[float]]

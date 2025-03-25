@@ -1,6 +1,6 @@
 import asyncio
-from datetime import datetime, time
-from typing import List, Union
+from datetime import datetime, time, timedelta
+from typing import List
 
 import boto3
 import numpy as np
@@ -802,6 +802,49 @@ class SimulationService:
             matric.append({"name": name, "value": f"{value} Nodes"})
 
         return {"matric": matric, "sanky": sanky, "capacity": capacity}
+
+    # =====================================
+
+    async def _calculate_capacity(self, facility_schedule: list, time_unit: int):
+        by_pass = 1e-11
+
+        if by_pass in facility_schedule:
+            return None
+
+        return sum(
+            1 / (schedule / 60) * time_unit if schedule != 0 else 0
+            for schedule in facility_schedule
+        )
+
+    async def generate_set_opening_hours(self, facility_info):
+
+        # test 코드
+        # test = facility_info.facility_schedules
+        # facility_schedules = []
+
+        # for i in range(4):
+        #     for a in range(36):
+        #         facility_schedules.append(test[i])
+        # ==========
+
+        time_list = [
+            (datetime(2023, 1, 1, 0, 0) + timedelta(minutes=10 * i)).strftime(
+                "%H:%M:%S"
+            )
+            for i in range(144)
+        ]
+
+        data_list = [
+            await self._calculate_capacity(facility_schedule, facility_info.time_unit)
+            for facility_schedule in facility_info.facility_schedules
+        ]
+
+        non_none_data = [data for data in data_list if data is not None]
+        max_data = max(non_none_data) if non_none_data else 0
+
+        data_list = [data if data is not None else max_data * 2 for data in data_list]
+
+        return {"x": time_list, "y": data_list}
 
     # =====================================
     async def _create_simulation_flow_chart(

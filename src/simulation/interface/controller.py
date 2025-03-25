@@ -4,18 +4,19 @@ from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy import Connection
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.exceptions import BadRequestException
 from src.containers import Container
 from src.database import aget_supabase_session, get_boto3_session, get_snowflake_session
+from src.exceptions import BadRequestException
 from src.simulation.application.service import SimulationService
 from src.simulation.interface.schema import (
     DuplicateScenarioBody,
     FacilityConnBody,
     FlightScheduleBody,
-    ScenarioDeactivateBody,
     PassengerScheduleBody,
+    ScenarioDeactivateBody,
     ScenarioMetadataBody,
     ScenarioUpdateBody,
+    SetOpeningHoursBody,
     SimulationScenarioBody,
     SimulationTotalChartBody,
 )
@@ -342,6 +343,25 @@ async def generate_facility_conn(
         facility_conn.flight_schedule,
         facility_conn.destribution_conditions,
         facility_conn.processes,
+    )
+
+
+@simulation_router.post(
+    "/facility-info/charts/line",
+    status_code=status.HTTP_200_OK,
+    summary="06_SI_015",
+    description="06_SI_015에서 set_opening_hours의 apply버튼을 눌렀을 때 line chart 데이터를 응답하는 엔드포인트",
+)
+@inject
+async def generate_set_opening_hours(
+    facility_info: SetOpeningHoursBody,
+    simulation_service: SimulationService = Depends(
+        Provide[Container.simulation_service]
+    ),
+):
+
+    return await simulation_service.generate_set_opening_hours(
+        facility_info=facility_info
     )
 
 
