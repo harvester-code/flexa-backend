@@ -710,15 +710,26 @@ class SimulationService:
                             self._calculate_sample_node,
                             args=(priority_matrix_df.fillna(0),),
                         )
+                    # else:
+                    #     df_pax.loc[
+                    #         condition, f"{horizontal_process}_component"
+                    #     ] = df_pax.loc[
+                    #         condition, f"{vertical_process}_component"
+                    #     ].apply(
+                    #         self._calculate_sample_node,
+                    #         args=(priority_matrix_df.fillna(0),),
+                    #     )
                     else:
-                        df_pax.loc[
-                            condition, f"{horizontal_process}_component"
-                        ] = df_pax.loc[
-                            condition, f"{vertical_process}_component"
-                        ].apply(
-                            self._calculate_sample_node,
-                            args=(priority_matrix_df.fillna(0),),
-                        )
+                        for idx, row in df_pax.loc[condition].iterrows():
+                            previous_value = row[f"{vertical_process}_component"]
+
+                            # 이전 값이 매트릭스의 인덱스에 존재하는 경우에만 업데이트
+                            if previous_value in priority_matrix_df.index.tolist():
+                                df_pax.at[idx, f"{horizontal_process}_component"] = (
+                                    self._calculate_sample_node(
+                                        previous_value, priority_matrix_df.fillna(0)
+                                    )
+                                )
 
         return df_pax
 
