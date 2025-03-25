@@ -616,7 +616,7 @@ class SimulationService:
 
         return sankey_data
 
-    async def _create_capacity_chart(self, df_pax, node_list):
+    async def _create_capacity_chart(self, df_pax, process, node_list):
         times = [
             time(hour=hour, minute=minute)
             for hour in range(24)
@@ -628,7 +628,7 @@ class SimulationService:
         node_data = {}
 
         for node in node_list:
-            df_pax_filtered = df_pax[df_pax["checkin_component"] == node].copy()
+            df_pax_filtered = df_pax[df_pax[f"{process}_component"] == node].copy()
             df_pax_filtered.loc[:, "show_up_time"] = df_pax_filtered[
                 "show_up_time"
             ].dt.floor("10min")
@@ -667,6 +667,8 @@ class SimulationService:
             vertical_process = facility_detail[
                 source_num
             ].name  # 시작점 ex. operating_carrier_iata
+            vertical_process = COL_FILTER_MAP.get(vertical_process, vertical_process)
+
             horizontal_process = facility_detail[facility].name  # 도착점 ex. check-in
 
             # 매트릭스 테이블 df 만들기
@@ -696,9 +698,10 @@ class SimulationService:
 
                     condition = pd.Series(True, index=df_pax.index)
                     for con in priority_matrix.condition:
-                        condition = condition & (
-                            df_pax[COL_FILTER_MAP[con.criteria]].isin(con.value)
-                        )
+                        if COL_FILTER_MAP.get(con.criteria, None):
+                            condition = condition & (
+                                df_pax[COL_FILTER_MAP[con.criteria]].isin(con.value)
+                            )
 
                     if facility == "1":  # is root
                         df_pax.loc[
@@ -735,7 +738,7 @@ class SimulationService:
 
         sanky = await self._create_facility_conn_sankey(processes, pax_df)
         capacity = await self._create_capacity_chart(
-            pax_df, node_list=processes["1"].nodes
+            pax_df, process=processes["1"].name, node_list=processes["1"].nodes
         )
 
         pax_df["passenger_pattern"] = (
