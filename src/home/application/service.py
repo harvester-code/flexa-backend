@@ -26,17 +26,7 @@ class HomeService:
     ):
         pax_df = await self.home_repo.download_from_s3(session, scenario_id)
         calculator = HomeCalculator(pax_df, calculate_type, percentile)
-        return {
-            "status": "success",
-            "data": {
-                "time_range": calculator.get_time_range(),
-                "summary": {
-                    "flights": calculator.get_flight_summary(),
-                    "pax": calculator.get_pax_summary(),
-                    "kpi": calculator.get_kpi(),
-                },
-            },
-        }
+        return calculator.get_summary()
 
     async def fetch_alert_issues(
         self,
@@ -47,12 +37,7 @@ class HomeService:
     ):
         pax_df = await self.home_repo.download_from_s3(session, scenario_id)
         calculator = HomeCalculator(pax_df, calculate_type, percentile)
-        return {
-            "status": "success",
-            "data": {
-                "alert_issues": calculator.get_alert_issues(),
-            },
-        }
+        return calculator.get_alert_issues()
 
     async def fetch_facility_details(
         self,
@@ -73,6 +58,15 @@ class HomeService:
         pax_df = await self.home_repo.download_from_s3(session, scenario_id)
         calculator = HomeCalculator(pax_df)
         return calculator.get_flow_chart_data()
+
+    async def fetch_histogram(
+        self,
+        session: boto3.Session,
+        scenario_id: str | None,
+    ):
+        pax_df = await self.home_repo.download_from_s3(session, scenario_id)
+        calculator = HomeCalculator(pax_df)
+        return calculator.get_histogram_data()
 
     async def fetch_sankey_diagram(
         self,

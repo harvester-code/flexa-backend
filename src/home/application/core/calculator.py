@@ -15,77 +15,95 @@ class HomeCalculator:
         self.time_unit = "10min"
 
     # Summary
-    def get_time_range(self):
-        start_time = pd.to_datetime(self.pax_df["show_up_time"].min()).strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
-        end_time = pd.to_datetime(self.pax_df["show_up_time"].max()).strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
-        return {
-            "time_range": {"start": start_time, "end": end_time},
-        }
+    def _calculate_kpi_values(self, method):
+        # 모든 프로세스의 처리 시간 차이를 계산하여 하나의 리스트로 합침
+        all_pax_data = []
 
-    def get_flight_summary(self):
-        departure_flights = self.pax_df["flight_number"].nunique()
-        arrival_flights = 0
-        delayed_flights = self.pax_df[self.pax_df["gate_departure_delay"] > 15][
-            "flight_number"
-        ].nunique()
-        # is_cancelled 열을 불리언으로 변환하고 합계를 구함
-        cancelled_values = pd.to_numeric(
-            self.pax_df["is_cancelled"]
-            .astype(str)
-            .str.strip()
-            .map({"True": 1, "False": 0}),
-            errors="coerce",
-        )
-        returned_flights = int(cancelled_values.sum())
+        process_list = [
+            col.replace("_on_pred", "")
+            for col in self.pax_df.columns
+            if "_on_pred" in col
+        ]
 
-        return {
-            "departure_flights": departure_flights,
-            "arrival_flights": arrival_flights,
-            "delayed_flights": delayed_flights,
-            "returned_flights": returned_flights,
-        }
+        if method == "wait_time":
+            for process in process_list:
+                # 각 프로세스의 처리 시간 계산 (분 단위)
+                process_time = (
+                    self.pax_df[f"{process}_pt_pred"]
+                    - self.pax_df[f"{process}_on_pred"]
+                ).dt.total_seconds()
 
-    def get_pax_summary(self):
-        return {
-            "departure_pax": len(self.pax_df),
-            "arrival_pax": 0,
-            "transfer_pax": 0,
-        }
+                all_pax_data.extend(process_time.dropna().tolist())
+        elif method == "queue_length":
+            for process in process_list:
+                queue_length = self.pax_df[f"{process}_que"]
+                all_pax_data.extend(queue_length.dropna().tolist())
 
-    def get_kpi(self):
-        return {
-            "pax_throughout": int(self.pax_df["passport_pt_pred"].notna().sum()),
-            "pax_waiting_time": self._calculate_pt_average(),
-            "pax_queue_length": 0,
-            "facility_utilization": 0,
-        }
-
-    def _calculate_pt_average(
-        self,
-    ):
-        columns = [col for col in self.pax_df.columns if col.endswith("_pt")]
-
-        # nan 값을 제외하고 행별 평균 계산
-        row_means = self.pax_df[columns].mean(axis=1, skipna=True)
-        # nan이 아닌 값들만 선택
-        row_means = row_means.dropna()
-
-        if len(row_means) == 0:
+        if not all_pax_data:  # 빈 리스트인 경우
             return np.nan
 
         if self.percentile is None:
             # 전체 평균 반환
-            return row_means.mean()
+            return round(np.mean(all_pax_data))
         else:
-            # 상위 백분위수 계산
-            threshold = np.percentile(row_means, 100 - self.percentile)
-            # 상위 값들만 필터링하여 평균 계산
-            top_means = row_means[row_means >= threshold]
-            return top_means.mean()
+            # # 상위 n% 값들의 평균 계산
+            # threshold = np.percentile(all_pax_data, 100 - self.percentile)
+            # top_values = [x for x in all_pax_data if x >= threshold]
+            # return round(np.mean(top_values))
+            # 상위 n% 지점의 값을 반환
+            return round(np.percentile(all_pax_data, 100 - self.percentile))
+
+    def get_summary(self):
+        """메인 함수: 요약 데이터를 생성하여 반환"""
+        # 기본 데이터 계산
+        departure_flights = self.pax_df["flight_number"].nunique()
+        delayed_flights = self.pax_df[self.pax_df["gate_departure_delay"] > 15][
+            "flight_number"
+        ].nunique()
+        cancelled_flights = int(
+            pd.to_numeric(
+                self.pax_df["is_cancelled"]
+                .astype(str)
+                .str.strip()
+                .map({"True": 1, "False": 0}),
+                errors="coerce",
+            ).sum()
+        )
+        total_pax = len(self.pax_df)
+
+        # KPI 데이터
+        throughput = int(self.pax_df["passport_pt_pred"].notna().sum())
+        wait_time = self._calculate_kpi_values(method="wait_time")
+        wait_time = f"{wait_time // 60:02d}:{wait_time % 60:02d}"
+        queue_length = self._calculate_kpi_values(method="queue_length")
+
+        return {
+            "summary": [
+                {
+                    "label": "normal",
+                    "data": [
+                        {"title": "Departure Flights", "value": departure_flights},
+                        {"title": "Arrival Flights", "value": 0},
+                        {
+                            "title": "Delay / Return",
+                            "value": [delayed_flights, cancelled_flights],
+                        },
+                        {"title": "Departure Pax", "value": total_pax},
+                        {"title": "Arrival Pax", "value": 0},
+                        {"title": "Transfer Pax", "value": 0},
+                    ],
+                },
+                {
+                    "label": "KPI",
+                    "data": [
+                        {"title": "Passenger Throughput", "value": throughput},
+                        {"title": "Wait Time", "value": wait_time},
+                        {"title": "Queue Length", "value": queue_length},
+                        {"title": "Facility Utilization", "value": "100%"},
+                    ],
+                },
+            ]
+        }
 
     # Alert Issues
     def get_alert_issues(self) -> dict:
@@ -326,7 +344,7 @@ class HomeCalculator:
         time_df = self._create_time_dataframe()
 
         # 대기열 및 대기 시간 데이터 추가
-        time_df = self._add_queue_data(time_df, self.time_unit)
+        time_df = self._add_queue_data(time_df)
 
         # 프론트엔드 형식으로 변환
         return self._convert_to_frontend_format(time_df)
@@ -507,3 +525,96 @@ class HomeCalculator:
             "label": labels,
             "link": {"source": sources, "target": targets, "value": values},
         }
+
+    def _calculate_wait_time_distribution(self, process):
+        """대기 시간 분포를 계산하여 JSON 형태로 반환"""
+        bins = [0, 15, 30, 45, 60, float("inf")]
+        labels = ["00:00-15:00", "15:00-30:00", "30:00-45:00", "45:00-60:00", "60:00-"]
+
+        time_diff = (
+            self.pax_df[f"{process}_pt_pred"] - self.pax_df[f"{process}_on_pred"]
+        ).dt.total_seconds() / 60
+
+        time_groups = pd.cut(time_diff, bins=bins, labels=labels, right=False)
+        percentages = (time_groups.value_counts(normalize=True) * 100).round(1)
+
+        return [
+            {"title": label, "value": f"{percentages[label]:.0f}%"} for label in labels
+        ]
+
+    def _calculate_queue_length_distribution(self, process):
+        """대기열 길이 분포를 계산하여 JSON 형태로 반환"""
+        bins = [0, 50, 100, 150, 200, 250, float("inf")]
+        labels = ["0-50", "50-100", "100-150", "150-200", "200-250", "250+"]
+
+        queue_groups = pd.cut(
+            self.pax_df[f"{process}_que"], bins=bins, labels=labels, right=False
+        )
+        percentages = (
+            (queue_groups.value_counts(normalize=True) * 100).round(1).sort_index()
+        )
+
+        return [
+            {"title": label, "value": f"{percentages[label]:.0f}%"} for label in labels
+        ]
+
+    def _calculate_average_distribution(self, histogram_data):
+        """전체 시설의 평균 분포를 계산"""
+        all_wait_time = {}
+        all_queue_length = {}
+
+        for facility in histogram_data:
+            for wt in facility["data"]["wait_time"]:
+                value = float(wt["value"].replace("%", ""))
+                all_wait_time.setdefault(wt["title"], []).append(value)
+
+            for ql in facility["data"]["queue_length"]:
+                value = float(ql["value"].replace("%", ""))
+                all_queue_length.setdefault(ql["title"], []).append(value)
+
+        avg_wait_time = [
+            {"title": title, "value": f"{sum(values)/len(values):.0f}%"}
+            for title, values in all_wait_time.items()
+        ]
+
+        avg_queue_length = [
+            {"title": title, "value": f"{sum(values)/len(values):.0f}%"}
+            for title, values in all_queue_length.items()
+        ]
+
+        return {"wait_time": avg_wait_time, "queue_length": avg_queue_length}
+
+    def _get_process_list(self):
+        """프로세스 목록을 추출"""
+        return [
+            col.replace("_on_pred", "")
+            for col in self.pax_df.columns
+            if "on_pred" in col
+        ]
+
+    def get_histogram_data(self):
+        """시설별 통계 데이터 생성"""
+        process_list = self._get_process_list()
+
+        # 개별 시설 데이터 먼저 생성
+        facility_data = [
+            {
+                "label": process,
+                "data": {
+                    "wait_time": self._calculate_wait_time_distribution(process),
+                    "queue_length": self._calculate_queue_length_distribution(process),
+                },
+            }
+            for process in process_list
+        ]
+
+        # All Facility 데이터 계산
+        all_facility_data = self._calculate_average_distribution(facility_data)
+
+        # 결과에서 All Facility를 첫 번째로 위치시킴
+        result = {
+            "histogram": [{"label": "All Facility", "data": all_facility_data}]
+            + facility_data
+        }
+
+        return result

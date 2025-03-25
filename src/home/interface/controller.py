@@ -86,6 +86,20 @@ async def fetch_flow_chart(
 
 
 @home_router.get(
+    "/charts/histogram/{scenario_id}",
+    status_code=200,
+    summary="histogram를 응답하는 엔드포인트",
+)
+@inject
+async def fetch_histogram(
+    home_service: HomeService = Depends(Provide[Container.home_service]),
+    session: boto3.Session = Depends(get_boto3_session),
+    scenario_id: str | None = None,
+):
+    return await home_service.fetch_histogram(session, scenario_id)
+
+
+@home_router.get(
     "/charts/sankey-diagram/{scenario_id}",
     status_code=200,
     summary="sankey-diagram를 응답하는 엔드포인트",
