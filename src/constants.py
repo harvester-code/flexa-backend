@@ -4,6 +4,11 @@ COL_FILTER_MAP = {
     "Airline": "operating_carrier_iata",
     "Region": "region_name",
     "Country": "country_code",
+    "international/domestic": "flight_type",
+    "i/d": "flight_type",
+    "airline": "operating_carrier_iata",
+    "region": "region_name",
+    "country": "country_code",
 }
 
 CRITERIA_MAP = {
