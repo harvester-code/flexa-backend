@@ -41,14 +41,14 @@ class HomeCalculator:
         except:
             return "00:00:00"
 
-    def _calculate_wait_time(self, process_df, process):
+    def _calculate_waiting_time(self, process_df, process):
         """대기 시간 계산 (Timedelta 반환)"""
         return process_df[f"{process}_pt_pred"] - process_df[f"{process}_on_pred"]
 
-    def _calculate_wait_time_minutes(self, process_df, process):
+    def _calculate_waiting_time_minutes(self, process_df, process):
         """대기 시간 계산 (분 단위 반환)"""
-        wait_time = self._calculate_wait_time(process_df, process)
-        return wait_time.dt.total_seconds() / 60
+        waiting_time = self._calculate_waiting_time(process_df, process)
+        return waiting_time.dt.total_seconds() / 60
 
     def _create_time_dataframe(self):
         """시간별 데이터프레임 생성"""
@@ -74,8 +74,8 @@ class HomeCalculator:
         cancelled_flights = int(self.pax_df["is_cancelled"].sum())
         total_pax = len(self.pax_df)
         throughput = int(self.pax_df["passport_pt_pred"].notna().sum())
-        wait_time = self._calculate_kpi_values(method="wait_time")
-        wait_time = f"{wait_time // 60:02d}:{wait_time % 60:02d}"
+        waiting_time = self._calculate_kpi_values(method="waiting_time")
+        waiting_time = f"{waiting_time // 60:02d}:{waiting_time % 60:02d}"
         queue_length = self._calculate_kpi_values(method="queue_length")
         return {
             "summary": [
@@ -97,7 +97,7 @@ class HomeCalculator:
                     "label": "KPI",
                     "data": [
                         {"title": "Passenger Throughput", "value": throughput},
-                        {"title": "Wait Time", "value": wait_time},
+                        {"title": "Wait Time", "value": waiting_time},
                         {"title": "Queue Length", "value": queue_length},
                         {"title": "Facility Utilization", "value": "100%"},
                     ],
@@ -110,7 +110,7 @@ class HomeCalculator:
         return pd.DataFrame(
             {
                 "datetime": self.pax_df[f"{process}_on_pred"].dt.floor(time_interval),
-                "wait_time": self.pax_df[f"{process}_pt_pred"]
+                "waiting_time": self.pax_df[f"{process}_pt_pred"]
                 - self.pax_df[f"{process}_on_pred"],
                 "queue_length": self.pax_df[f"{process}_que"],
                 "process_name": self.pax_df[f"{process}_pred"],
@@ -118,7 +118,7 @@ class HomeCalculator:
             }
         )
 
-    def _format_wait_time(self, timedelta):
+    def _format_waiting_time(self, timedelta):
         """대기 시간을 MM:SS 형식의 문자열로 변환"""
         return f"{int(timedelta.total_seconds() // 60):02d}:{int(timedelta.total_seconds() % 60):02d}"
 
@@ -126,7 +126,7 @@ class HomeCalculator:
         """각 행을 알림 데이터 형식으로 변환"""
         return {
             "time": row["datetime"].strftime("%H:%M:%S"),
-            "wait_time": row["wait_time"],
+            "waiting_time": row["waiting_time"],
             "queue_length": str(row["queue_length"]),
             "location": row["process_name"],
         }
@@ -141,12 +141,14 @@ class HomeCalculator:
         result_df = pd.concat(df_list, ignore_index=True)
 
         # 데이터 정렬 및 중복 제거
-        result_df = result_df.sort_values("wait_time", ascending=False).drop_duplicates(
-            subset=["datetime", "process_name"]
-        )
+        result_df = result_df.sort_values(
+            "waiting_time", ascending=False
+        ).drop_duplicates(subset=["datetime", "process_name"])
 
         # 대기 시간 형식 변환
-        result_df["wait_time"] = result_df["wait_time"].apply(self._format_wait_time)
+        result_df["waiting_time"] = result_df["waiting_time"].apply(
+            self._format_waiting_time
+        )
 
         # 알림 JSON 구조 생성
         alert_json = {
@@ -240,7 +242,7 @@ class HomeCalculator:
             {
                 "label": process,
                 "data": {
-                    "wait_time": self._calculate_wait_time_distribution(process),
+                    "waiting_time": self._calculate_waiting_time_distribution(process),
                     "queue_length": self._calculate_queue_length_distribution(process),
                 },
             }
@@ -256,9 +258,11 @@ class HomeCalculator:
     def _calculate_kpi_values(self, method):
         """KPI 값 계산"""
         all_pax_data = []
-        if method == "wait_time":
+        if method == "waiting_time":
             for process in self.process_list:
-                process_time = self._calculate_wait_time_minutes(self.pax_df, process)
+                process_time = self._calculate_waiting_time_minutes(
+                    self.pax_df, process
+                )
                 all_pax_data.extend(process_time.dropna().tolist())
         elif method == "queue_length":
             for process in self.process_list:
@@ -274,7 +278,7 @@ class HomeCalculator:
     def _calculate_overview_metrics(self, df, process):
         """프로세스 전체 개요 지표 계산"""
         opened_count = df[f"{process}_pred"].nunique()
-        wait_time = self._calculate_wait_time(df, process)
+        waiting_time = self._calculate_waiting_time(df, process)
         return {
             "opened": [opened_count, opened_count],
             "isOpened": opened_count > 0,
@@ -283,7 +287,9 @@ class HomeCalculator:
                 df[f"{process}_que"].max() if not df[f"{process}_que"].empty else 0
             ),
             "queueLength": int(
-                df[f"{process}_que"].mean() if not df[f"{process}_que"].empty else 0
+                df[f"{process}_que"].quantile(0.95)
+                if not df[f"{process}_que"].empty
+                else 0
             ),
             "procTime": self._format_seconds_to_time(
                 df[f"{process}_pt"].quantile(0.95)
@@ -291,7 +297,9 @@ class HomeCalculator:
                 else 0
             ),
             "waitTime": self._format_timedelta(
-                wait_time.quantile(0.95) if not wait_time.empty else pd.Timedelta(0)
+                waiting_time.quantile(0.95)
+                if not waiting_time.empty
+                else pd.Timedelta(0)
             ),
         }
 
@@ -300,7 +308,7 @@ class HomeCalculator:
         facilities = df[f"{process}_pred"].unique()
         for facility in facilities:
             facility_df = df[df[f"{process}_pred"] == facility]
-            wait_time = self._calculate_wait_time(facility_df, process)
+            waiting_time = self._calculate_waiting_time(facility_df, process)
             component = {
                 "title": facility,
                 "opened": [1, 1] if not facility_df.empty else [0, 0],
@@ -322,7 +330,9 @@ class HomeCalculator:
                     else 0
                 ),
                 "waitTime": self._format_timedelta(
-                    wait_time.quantile(0.95) if not wait_time.empty else pd.Timedelta(0)
+                    waiting_time.quantile(0.95)
+                    if not waiting_time.empty
+                    else pd.Timedelta(0)
                 ),
             }
             category_obj["components"].append(component)
@@ -335,12 +345,12 @@ class HomeCalculator:
                 f"{process}_que"
             ].mean()
             time_df[f"{process}_que"] = round(queue, 2).fillna(0)
-            wait_time_minutes = self._calculate_wait_time_minutes(temp, process)
-            wait_time = wait_time_minutes.groupby(
+            waiting_time_minutes = self._calculate_waiting_time_minutes(temp, process)
+            waiting_time = waiting_time_minutes.groupby(
                 temp[f"{process}_on_pred"].dt.floor(self.time_unit)
             ).mean()
 
-            time_df[f"{process}_wait_time"] = wait_time.round(1).fillna(0.0)
+            time_df[f"{process}_waiting_time"] = waiting_time.round(1).fillna(0.0)
 
             done_counts = (
                 temp[f"{process}_done_pred"]
@@ -368,12 +378,16 @@ class HomeCalculator:
             components.append({"column": column, "values": values})
         return {"flow_chart": {"x_values": times, "y_values": components}}
 
-    def _calculate_wait_time_distribution(self, process):
+    def _calculate_waiting_time_distribution(self, process):
         """대기 시간 분포를 계산"""
-        wait_time_minutes = self._calculate_wait_time_minutes(self.pax_df, process)
+        waiting_time_minutes = self._calculate_waiting_time_minutes(
+            self.pax_df, process
+        )
         bins = [0, 15, 30, 45, 60, float("inf")]
         labels = ["00:00-15:00", "15:00-30:00", "30:00-45:00", "45:00-60:00", "60:00-"]
-        time_groups = pd.cut(wait_time_minutes, bins=bins, labels=labels, right=False)
+        time_groups = pd.cut(
+            waiting_time_minutes, bins=bins, labels=labels, right=False
+        )
         percentages = (time_groups.value_counts(normalize=True) * 100).round(1)
         return [
             {"title": label, "value": f"{percentages[label]:.0f}%"} for label in labels
@@ -395,21 +409,21 @@ class HomeCalculator:
 
     def _calculate_average_distribution(self, histogram_data):
         """전체 시설의 평균 분포를 계산"""
-        all_wait_time = {}
+        all_waiting_time = {}
         all_queue_length = {}
         for facility in histogram_data:
-            for wt in facility["data"]["wait_time"]:
+            for wt in facility["data"]["waiting_time"]:
                 value = float(wt["value"].replace("%", ""))
-                all_wait_time.setdefault(wt["title"], []).append(value)
+                all_waiting_time.setdefault(wt["title"], []).append(value)
             for ql in facility["data"]["queue_length"]:
                 value = float(ql["value"].replace("%", ""))
                 all_queue_length.setdefault(ql["title"], []).append(value)
-        avg_wait_time = [
+        avg_waiting_time = [
             {"title": title, "value": f"{sum(values)/len(values):.0f}%"}
-            for title, values in all_wait_time.items()
+            for title, values in all_waiting_time.items()
         ]
         avg_queue_length = [
             {"title": title, "value": f"{sum(values)/len(values):.0f}%"}
             for title, values in all_queue_length.items()
         ]
-        return {"wait_time": avg_wait_time, "queue_length": avg_queue_length}
+        return {"waiting_time": avg_waiting_time, "queue_length": avg_queue_length}
