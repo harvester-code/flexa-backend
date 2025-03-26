@@ -1371,8 +1371,16 @@ class SimulationService:
                 component_node_pairs.append([comp.name, node.name])
                 max_queue_length.append(node.max_queue_length)
                 facilities_per_node.append(node.facility_count)
-                # FIXME: 일시적으로 1440줄 만들도록 설정.
-                facility_schedules.append(np.array([node.facility_schedules[0]] * 1440))
+
+                time_unit = 10  # NOTE: 프론트 화면에서 나중에 10이 아닌 다른 값이 올때 바꿔줘야한다.
+                temp_facility_schedules = np.concatenate(
+                    [
+                        np.tile(np.array(facility_schedule), (time_unit, 1))
+                        for facility_schedule in node.facility_schedules
+                    ],
+                    axis=0,
+                )
+                facility_schedules.append(temp_facility_schedules)
 
                 if comp.name in component_node_map.keys():
                     component_node_map[comp.name].append(node.id)
@@ -1606,8 +1614,14 @@ class SimulationService:
                 component_node_pairs.append([comp.name, node.name])
                 max_queue_length.append(node.max_queue_length)
                 facilities_per_node.append(node.facility_count)
+
                 # FIXME: 일시적으로 1440줄 만들도록 설정.
                 facility_schedules.append(np.array([node.facility_schedules[0]] * 1440))
+                # NOTE: time_unit = 10 일때로 바뀐 코드(효율성 x)
+                # temp_facility_schedules = []
+                # for facility_schedule in node.facility_schedules:
+                #     for _ in range(10):
+                #         temp_facility_schedules.append(facility_schedule)
 
                 if comp.name in component_node_map.keys():
                     component_node_map[comp.name].append(node.id)
