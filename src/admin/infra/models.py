@@ -1,4 +1,4 @@
-from sqlalchemy import Integer, String
+from sqlalchemy import Integer, String, Boolean
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -15,3 +15,16 @@ class OperationSetting(Base):
     processing_procedure: Mapped[dict] = mapped_column(JSONB, nullable=True)
     terminal_layout: Mapped[dict] = mapped_column(JSONB, nullable=True)
     terminal_layout_image_url: Mapped[str] = mapped_column(String(36), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class Groups(Base):
+    __tablename__ = "groups"
+    __table_args__ = {"extend_existing": True}
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    master_scenario_id: Mapped[str] = mapped_column(String(36), nullable=True)
+    group_name: Mapped[str] = mapped_column(String(36), nullable=False)
+    description: Mapped[str] = mapped_column(String(36), nullable=True)
+    timezone: Mapped[str] = mapped_column(String(36), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

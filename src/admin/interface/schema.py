@@ -13,3 +13,7 @@ class UpdateOperationSettingBody(BaseModel):
     processing_procedure: dict | None
     terminal_layout: dict | None
     terminal_layout_image_url: str | None
+
+
+class UpdateGroupNameBody(BaseModel):
+    group_name: str

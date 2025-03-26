@@ -21,3 +21,7 @@ class IAdminRepository(metaclass=ABCMeta):
     @abstractmethod
     def deactivate_operation_setting(self):
         raise NotImplementedError
+
+    @abstractmethod
+    def update_group_name(self):
+        raise NotImplementedError

@@ -11,20 +11,29 @@ from sqlalchemy.inspection import inspect
 from src.database import S3_SAVE_PATH
 from src.admin.domain.repository import IAdminRepository
 from src.admin.domain.admin import OperationSetting as OperationSettingVO
-from src.admin.infra.models import OperationSetting
+from src.admin.infra.models import OperationSetting, Groups
 
 
 class AdminRepository(IAdminRepository):
 
     async def fetch_operation_setting(self, db: AsyncSession, group_id: str):
 
-        result = await db.execute(
-            select(OperationSetting).where(OperationSetting.group_id == int(group_id))
-        )
+        async with db.begin():
+            result = await db.execute(
+                select(OperationSetting).where(
+                    OperationSetting.group_id == int(group_id)
+                )
+            )
 
-        operation_setting = result.scalars().all()
+            operation_setting = result.scalars().all()
 
-        return operation_setting
+            result = await db.execute(
+                select(Groups.group_name).where(Groups.id == int(group_id))
+            )
+
+            group_name = result.mappings().first()
+
+        return {"operation_setting": operation_setting, "group_name": group_name}
 
     async def create_operation_setting(
         self, db: AsyncSession, operation_setting: OperationSettingVO
@@ -77,14 +86,20 @@ class AdminRepository(IAdminRepository):
         )
         await db.commit()
 
-    async def deactivate_operation_setting(
-        self,
-        db: AsyncSession,
-    ):
+    async def deactivate_operation_setting(self, db: AsyncSession, id: str):
 
         await db.execute(
             update(OperationSetting)
             .where(OperationSetting.id == id)
             .values(is_active=False)
+        )
+        await db.commit()
+
+    async def update_group_name(self, db: AsyncSession, id: str, group_name: str):
+
+        await db.execute(
+            update(Groups)
+            .where(Groups.id == int(id))
+            .values({Groups.group_name: group_name})
         )
         await db.commit()

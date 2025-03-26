@@ -10,6 +10,7 @@ from src.admin.application.service import AdminService
 from src.admin.interface.schema import (
     CreateOperationSettingBody,
     UpdateOperationSettingBody,
+    UpdateGroupNameBody,
 )
 
 admin_router = APIRouter(prefix="/admins")
@@ -114,7 +115,25 @@ async def deactivate_operation_setting(
     db: AsyncSession = Depends(aget_supabase_session),
 ):
 
-    await admin_service.update_operation_setting(
+    await admin_service.deactivate_operation_setting(
         db=db,
         id=operation_setting_id,
+    )
+
+
+@admin_router.patch(
+    "/groups/group-id/{group_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="운영세팅 Airport name 변경",
+)
+@inject
+async def update_group_name(
+    group_id: str,
+    group_name: UpdateGroupNameBody,
+    admin_service: AdminService = Depends(Provide[Container.admin_service]),
+    db: AsyncSession = Depends(aget_supabase_session),
+):
+
+    await admin_service.update_group_name(
+        db=db, id=group_id, group_name=group_name.group_name
     )

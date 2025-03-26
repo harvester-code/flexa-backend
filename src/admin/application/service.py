@@ -75,6 +75,9 @@ class AdminService:
     ):
         await self.admin_repo.deactivate_operation_setting(db, id)
 
+    async def update_group_name(self, db: AsyncSession, id: str, group_name: str):
+        await self.admin_repo.update_group_name(db, id, group_name)
+
     # ======================================
     async def test(self):
         """"""
