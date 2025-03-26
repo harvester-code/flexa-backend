@@ -199,6 +199,7 @@ class HomeCalculator:
         """시간별 대기열 및 대기 시간 데이터 생성"""
         time_df = self._create_time_dataframe()
         time_df = self._add_queue_data(time_df)
+        time_df.fillna(0, inplace=True)
         return self._convert_to_frontend_format(time_df)
 
     def get_sankey_diagram_data(self):
