@@ -163,7 +163,7 @@ class SimulationService:
         db: AsyncSession,
         scenario_id: str,
         overview: dict | None,
-        history: dict | None,
+        history: list | None,
         flight_sch: dict | None,
         passenger_sch: dict | None,
         passenger_attr: dict | None,
@@ -171,8 +171,8 @@ class SimulationService:
         facility_info: dict | None,
     ):
 
-        if history:
-            history["modification_date"] = self.timestamp.time_now()
+        # if history:
+        #     history["modification_date"] = self.timestamp.time_now()
 
         scenario_metadata: ScenarioMetadata = ScenarioMetadata(
             scenario_id=scenario_id,
