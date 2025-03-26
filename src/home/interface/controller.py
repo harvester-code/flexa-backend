@@ -45,12 +45,8 @@ async def fetch_alert_issues(
     home_service: HomeService = Depends(Provide[Container.home_service]),
     session: boto3.Session = Depends(get_boto3_session),
     scenario_id: str | None = None,
-    calculate_type: str = "mean",
-    percentile: int | None = None,
 ):
-    return await home_service.fetch_alert_issues(
-        session, scenario_id, calculate_type, percentile
-    )
+    return await home_service.fetch_alert_issues(session, scenario_id)
 
 
 @home_router.get(
