@@ -68,12 +68,23 @@ class SimulationService:
 
         return scenario
 
+    async def fetch_simulation_location(
+        self,
+        db: AsyncSession,
+        group_id: str,
+    ):
+
+        location = await self.simulation_repo.fetch_simulation_location(db, group_id)
+
+        return location
+
     async def create_simulation_scenario(
         self,
         db: AsyncSession,
         user_id: str,
         name: str,
         memo: str,
+        # airport: str,
         terminal: str,
         editor: str,
     ):
@@ -93,9 +104,18 @@ class SimulationService:
             created_at=self.timestamp.time_now(),
         )
 
+        # overview = {
+        #     "overview": [
+        #         {
+        #             "name": "Terminal",
+        #             "value": airport,
+        #         }
+        #     ]
+        # }
+
         scenario_metadata: ScenarioMetadata = ScenarioMetadata(
             scenario_id=id,
-            overview=None,
+            overview=None,  # overview,
             history=None,
             flight_sch=None,
             passenger_sch=None,

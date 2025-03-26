@@ -15,6 +15,10 @@ class ISimulationRepository(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
+    def fetch_simulation_location(self):
+        raise NotImplementedError
+
+    @abstractmethod
     def create_simulation_scenario(self):
         raise NotImplementedError
 

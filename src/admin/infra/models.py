@@ -7,6 +7,7 @@ from src.database import Base
 
 class OperationSetting(Base):
     __tablename__ = "operation_setting"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     group_id: Mapped[Integer] = mapped_column(Integer, nullable=False)

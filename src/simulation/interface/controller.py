@@ -65,6 +65,26 @@ async def fetch_scenario(
     )
 
 
+@simulation_router.get(
+    "/scenarios/location/group-id/{group_id}",
+    status_code=status.HTTP_201_CREATED,
+    summary="06_SI_001",
+    description="06_SI_001에서 new_scenario 버튼을 클릭해서 나오는 팝업창에서 빈칸을 작성한 후 create 버튼을 누르면 실행되는 엔드포인트",
+)
+@inject
+async def fetch_simulation_location(
+    group_id: str,
+    simulation_service: SimulationService = Depends(
+        Provide[Container.simulation_service]
+    ),
+    db: AsyncSession = Depends(aget_supabase_session),
+):
+    if not group_id:
+        raise BadRequestException("Group ID is required")
+
+    return await simulation_service.fetch_simulation_location(db=db, group_id=group_id)
+
+
 @simulation_router.post(
     "/scenarios",
     status_code=status.HTTP_201_CREATED,
@@ -86,6 +106,7 @@ async def create_scenario(
         user_id=request.state.user_id,
         name=scenario.simulation_name,
         memo=scenario.memo,
+        # airport=scenario.airport,
         terminal=scenario.terminal,
         editor=scenario.editor,
     )

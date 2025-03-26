@@ -2,7 +2,7 @@ import awswrangler as wr
 import boto3
 import pandas as pd
 
-from typing import Union, List
+from typing import List
 from sqlalchemy import Connection, update, true, desc, bindparam, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -16,7 +16,12 @@ from src.simulation.domain.simulation import (
 from src.simulation.domain.simulation import (
     SimulationScenario as SimulationScenarioVO,
 )
-from src.simulation.infra.models import ScenarioMetadata, SimulationScenario, Groups
+from src.simulation.infra.models import (
+    ScenarioMetadata,
+    SimulationScenario,
+    Groups,
+    OperationSetting,
+)
 from src.simulation.infra.schema import (
     GeneralDeclarationArrival,
     GeneralDeclarationDeparture,
@@ -81,6 +86,23 @@ class SimulationRepository(ISimulationRepository):
             "master_scenario": [master_scenario],
             "user_scenario": user_scenario,
         }
+
+    async def fetch_simulation_location(
+        self,
+        db: AsyncSession,
+        group_id: str,
+    ):
+
+        async with db.begin():
+            result = await db.execute(
+                select(OperationSetting.terminal_name).where(
+                    OperationSetting.group_id == int(group_id)
+                )
+            )
+            scenario_info = [row["terminal_name"] for row in result.mappings().all()]
+            scenario_info.append("Un-decided")
+
+        return scenario_info
 
     async def create_simulation_scenario(
         self,
