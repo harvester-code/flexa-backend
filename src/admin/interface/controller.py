@@ -1,17 +1,17 @@
-import boto3
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, Request, status
-from sqlalchemy import Connection
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.containers import Container
-from src.database import aget_supabase_session, get_boto3_session
 from src.admin.application.service import AdminService
 from src.admin.interface.schema import (
     CreateOperationSettingBody,
-    UpdateOperationSettingBody,
     UpdateGroupNameBody,
+    UpdateOperationSettingBody,
 )
+from src.containers import Container
+from src.database import aget_supabase_session
+from src.exceptions import BadRequestException
+from src.response import SuccessResponse
 
 admin_router = APIRouter(prefix="/admins")
 
@@ -24,27 +24,9 @@ status 코드 정리
 """
 
 
-# @admin_router.get(
-#     "/sample",
-#     summary="샘플코드",
-# )
-# @inject
-# async def fetch_scenario(
-#     # process: str,
-#     admin_service: AdminService = Depends(Provide[Container.admin_service]),
-#     db: AsyncSession = Depends(aget_supabase_session),
-#     session: boto3.Session = Depends(get_boto3_session),
-# ):
-
-#     # await facility_service.test(session=session, process=process)
-#     # data = await admin_service.fetch_process_list(session=session)
-
-#     return "테스트 성공"
-
-
 @admin_router.get(
     "/operation-settings/group-id/{group_id}",
-    status_code=status.HTTP_201_CREATED,
+    status_code=status.HTTP_200_OK,
     summary="운영세팅 get",
 )
 @inject
@@ -53,10 +35,12 @@ async def fetch_operation_setting(
     admin_service: AdminService = Depends(Provide[Container.admin_service]),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
+    if not group_id:
+        raise BadRequestException("Group ID is required")
 
-    result = await admin_service.fetch_operation_setting(db=db, group_id=group_id)
+    data = await admin_service.fetch_operation_setting(db=db, group_id=group_id)
 
-    return result
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=data)
 
 
 @admin_router.post(
@@ -71,12 +55,14 @@ async def create_operation_setting(
     admin_service: AdminService = Depends(Provide[Container.admin_service]),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
+    if not group_id:
+        raise BadRequestException("Group ID is required")
 
     await admin_service.create_operation_setting(
         db=db, group_id=group_id, terminal_name=operation_setting.terminal_name
     )
 
-    return "success"
+    return SuccessResponse(status_code=status.HTTP_201_CREATED)
 
 
 @admin_router.patch(
@@ -91,6 +77,8 @@ async def update_operation_setting(
     admin_service: AdminService = Depends(Provide[Container.admin_service]),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
+    if not operation_setting_id:
+        raise BadRequestException("Operation Setting ID is required")
 
     await admin_service.update_operation_setting(
         db=db,
@@ -101,6 +89,8 @@ async def update_operation_setting(
         terminal_layout=operation_setting.terminal_layout,
         terminal_layout_image_url=operation_setting.terminal_layout_image_url,
     )
+
+    return SuccessResponse(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @admin_router.patch(
@@ -114,11 +104,15 @@ async def deactivate_operation_setting(
     admin_service: AdminService = Depends(Provide[Container.admin_service]),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
+    if not operation_setting_id:
+        raise BadRequestException("Operation Setting ID is required")
 
     await admin_service.deactivate_operation_setting(
         db=db,
         id=operation_setting_id,
     )
+
+    return SuccessResponse(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @admin_router.patch(
@@ -133,7 +127,11 @@ async def update_group_name(
     admin_service: AdminService = Depends(Provide[Container.admin_service]),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
+    if not group_id:
+        raise BadRequestException("Group ID is required")
 
     await admin_service.update_group_name(
         db=db, id=group_id, group_name=group_name.group_name
     )
+
+    return SuccessResponse(status_code=status.HTTP_204_NO_CONTENT)
