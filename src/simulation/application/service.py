@@ -1766,7 +1766,8 @@ class SimulationService:
         # =====================================
         # NOTE: 시뮬레이션 결과 데이터 s3 저장
         # print(ow.passengers)
-        ow.passengers.to_csv("sim_pax_test.csv", encoding="utf-8-sig", index=False)
+        # ow.passengers.to_csv("sim_pax_test.csv", encoding="utf-8-sig", index=False)
+        ow.passengers.to_parquet("samples/sim_pax_test.parquet", compression="snappy")
 
         # filename = f"{user_id}/{scenario_id}.parquet"
         # await self.simulation_repo.upload_to_s3(session, ow.passengers, filename)
