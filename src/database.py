@@ -13,7 +13,7 @@ from sqlalchemy.orm import sessionmaker
 from supabase._async.client import AsyncClient, create_client
 
 # ============================================================
-S3_SAVE_PATH = "s3://flexa-prod-ap-northeast-2-data-storage/simulations"
+S3_SAVE_PATH = "s3://flexa-dev-ap-northeast-2-data-storage/simulations"
 
 
 def get_s3_client():
