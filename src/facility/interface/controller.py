@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy import Connection
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.response import SuccessResponse
 from src.containers import Container
 from src.database import aget_supabase_session, get_boto3_session
 from src.facility.application.service import FacilityService
@@ -62,16 +63,17 @@ async def fetch_process_list(
 
 @facility_router.get(
     "/kpi-summaries/tables/kpi/scenario-id/{scenario_id}",
+    response_model=SuccessResponse,
     status_code=status.HTTP_200_OK,
     summary="kpi 테이블을 위한 데이터",
-    description="func에 들어갈 수 있는 값: max, min, median, mean, sum, top5, bottom5",
+    description="stats에 들어갈 수 있는 값: max, min, median, mean, sum, top5, bottom5",
 )
 @inject
 async def fetch_kpi(
     request: Request,
     scenario_id: str,
     process: str,
-    func: str | None = "mean",
+    stats: str | None = "mean",
     facility_service: FacilityService = Depends(Provide[Container.facility_service]),
     session: boto3.Session = Depends(get_boto3_session),
 ):
@@ -82,12 +84,12 @@ async def fetch_kpi(
     result = await facility_service.generate_kpi(
         session=session,
         process=process,
-        func=func,
-        user_id=request.state.user_id,
+        stats=stats,
+        user_id="request.state.user_id",
         scenario_id=scenario_id,
     )
 
-    return result
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
 
 
 @facility_router.get(
@@ -161,7 +163,7 @@ async def fetch_pie_chart(
     result = await facility_service.generate_pie_chart(
         session=session,
         process=process,
-        user_id=request.state.user_id,
+        user_id="request.state.user_id",
         scenario_id=scenario_id,
     )
 
