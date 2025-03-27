@@ -270,8 +270,8 @@ class DsNode:
             if len(node.passenger_queues) < node.max_capacity
         ]
 
-        if len(available_destination_nodes) == 0:
-            return min(destination_nodes, key=lambda x: len(x.passenger_queues))
+        # if len(available_destination_nodes) == 0:
+        #     return min(destination_nodes, key=lambda x: len(x.passenger_queues))
 
         # ==================================================
         if edited_df:

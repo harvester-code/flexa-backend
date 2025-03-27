@@ -57,7 +57,7 @@ class DsSimulator:
             return passenger[criteria_col] in condition.value
 
     # FIXME: 해당 메서드는 DsSimulator에 위치하는게 아니라 DsGraph에 있어야하는게 아닐까?
-    def add_flow(self, current_second: int, greedy: bool = True):
+    def add_flow(self, current_second: int, greedy: bool = False):
         first_component = self.components[0]
         comp_to_idx = self.comp_to_idx[first_component]
 
@@ -173,7 +173,7 @@ class DsSimulator:
             f"시뮬레이션을 종료합니다. (소요 시간: {round(time.time() - start_at)}초)"
         )
 
-    async def run_test(self, start_time, end_time, unit=10):
+    async def run_test(self, start_time, end_time, unit=1):
         logger.info("시뮬레이션을 시작합니다.")
         start_at = time.time()
 
