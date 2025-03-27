@@ -106,7 +106,6 @@ async def create_scenario(
         user_id=request.state.user_id,
         name=scenario.simulation_name,
         memo=scenario.memo,
-        # airport=scenario.airport,
         terminal=scenario.terminal,
         editor=scenario.editor,
     )

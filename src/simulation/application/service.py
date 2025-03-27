@@ -84,7 +84,6 @@ class SimulationService:
         user_id: str,
         name: str,
         memo: str,
-        # airport: str,
         terminal: str,
         editor: str,
     ):
@@ -104,18 +103,9 @@ class SimulationService:
             created_at=self.timestamp.time_now(),
         )
 
-        # overview = {
-        #     "overview": [
-        #         {
-        #             "name": "Terminal",
-        #             "value": airport,
-        #         }
-        #     ]
-        # }
-
         scenario_metadata: ScenarioMetadata = ScenarioMetadata(
             scenario_id=id,
-            overview=None,  # overview,
+            overview=None,
             history=None,
             flight_sch=None,
             passenger_sch=None,
