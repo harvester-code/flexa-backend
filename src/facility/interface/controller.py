@@ -1,14 +1,12 @@
 import boto3
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Request, status
-from sqlalchemy import Connection
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.response import SuccessResponse
 from src.containers import Container
-from src.database import aget_supabase_session, get_boto3_session
-from src.facility.application.service import FacilityService
+from src.database import get_boto3_session
 from src.exceptions import BadRequestException
+from src.facility.application.service import FacilityService
+from src.response import SuccessResponse
 
 facility_router = APIRouter(prefix="/facilities")
 
@@ -55,11 +53,11 @@ async def fetch_process_list(
     if not scenario_id:
         raise BadRequestException("Scenario ID is required")
 
-    result = await facility_service.fetch_process_list(
+    data = await facility_service.fetch_process_list(
         session=session, user_id=request.state.user_id, scenario_id=scenario_id
     )
 
-    return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=data)
 
 
 @facility_router.get(
@@ -82,7 +80,7 @@ async def fetch_kpi(
     if not scenario_id or not process:
         raise BadRequestException("Scenario ID and Process is required")
 
-    result = await facility_service.generate_kpi(
+    data = await facility_service.generate_kpi(
         session=session,
         process=process,
         stats=stats,
@@ -90,7 +88,7 @@ async def fetch_kpi(
         scenario_id=scenario_id,
     )
 
-    return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=data)
 
 
 @facility_router.get(
@@ -110,14 +108,14 @@ async def fetch_chart(
     if not scenario_id or not process:
         raise BadRequestException("Scenario ID and Process is required")
 
-    result = await facility_service.generate_ks_chart(
+    data = await facility_service.generate_ks_chart(
         session=session,
         process=process,
         user_id=request.state.user_id,
         scenario_id=scenario_id,
     )
 
-    return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=data)
 
 
 @facility_router.get(
@@ -137,14 +135,14 @@ async def fetch_heatmap(
     if not scenario_id or not process:
         raise BadRequestException("Scenario ID and Process is required")
 
-    result = await facility_service.generate_heatmap(
+    data = await facility_service.generate_heatmap(
         session=session,
         process=process,
         user_id=request.state.user_id,
         scenario_id=scenario_id,
     )
 
-    return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=data)
 
 
 @facility_router.get(
@@ -164,14 +162,14 @@ async def fetch_pie_chart(
     if not scenario_id or not process:
         raise BadRequestException("Scenario ID and Process is required")
 
-    result = await facility_service.generate_pie_chart(
+    data = await facility_service.generate_pie_chart(
         session=session,
         process=process,
         user_id=request.state.user_id,
         scenario_id=scenario_id,
     )
 
-    return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=data)
 
 
 @facility_router.get(
@@ -191,11 +189,11 @@ async def fetch_pa_chart(
     if not scenario_id or not process:
         raise BadRequestException("Scenario ID and Process is required")
 
-    result = await facility_service.generate_pa_chart(
+    data = await facility_service.generate_pa_chart(
         session=session,
         process=process,
         user_id=request.state.user_id,
         scenario_id=scenario_id,
     )
 
-    return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=data)
