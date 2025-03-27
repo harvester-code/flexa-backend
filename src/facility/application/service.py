@@ -3,7 +3,7 @@ from src.facility.domain.repository import IFacilityRepository
 import boto3
 import pandas as pd
 import numpy as np
-from src.home.application.core.calculator import HomeCalculator
+from datetime import timedelta
 
 
 class FacilityService:
@@ -204,6 +204,29 @@ class FacilityService:
 
         return df_grouped
 
+    async def get_average_time_string(self, time_list):
+        """시간 문자열 리스트의 평균을 다시 시간 문자열로 반환합니다 (형식: HH:MM:SS)."""
+        # 1. 모든 시간 문자열을 초 단위로 변환
+        seconds_list = [pd.Timedelta(t).total_seconds() for t in time_list]
+
+        # 2. 평균 초 계산
+        average_seconds = sum(seconds_list) / len(seconds_list)
+
+        # 3. 초를 다시 timedelta로 변환
+        average_time = timedelta(seconds=average_seconds)
+
+        # 4. 문자열로 변환 (HH:MM:SS 형식)
+        average_time_str = str(average_time)
+
+        # 4. 시간, 분, 초 추출
+        hours, remainder = divmod(average_time.total_seconds(), 3600)
+        minutes, seconds = divmod(remainder, 60)
+
+        # 5. 원하는 포맷으로 변환 (00:00:00)
+        average_time_str = f"{int(hours):02}:{int(minutes):02}:{int(seconds):02}"
+
+        return average_time_str
+
     # NOTE: KPI
     async def generate_kpi(
         self,
@@ -235,46 +258,118 @@ class FacilityService:
         for node in node_list:
             kpi_result["header"]["subColumns"].append({"label": node})
 
-        # TP
-        tp_data = await self._create_throughput(
-            sim_df=sim_df, process=process, group_column=f"{process}_pred"
-        )
-        tp_all = round(tp_data.sum().mean())
-        tp_list = tp_data.sum().astype(int).values.tolist()
-        tp_list.insert(0, tp_all)
+        quantile_options = {
+            "max": 1,
+            "min": 0,
+            "median": 0.5,
+            "top5": 0.95,
+            "bottom5": 0.05,
+            "mean": "mean",
+        }
+        quantile = quantile_options.get(stats, None)
+
+        cols_needed = [
+            f"{process}_pred",
+            f"{process}_que",
+            f"{process}_pt",
+            f"{process}_on_pred",
+            f"{process}_pt_pred",
+        ]
+        process_df = sim_df[cols_needed].copy()
+        # # TP
+        # tp_data = await self._create_throughput(
+        #     sim_df=sim_df, process=process, group_column=f"{process}_pred"
+        # )
+        # tp_all = round(tp_data.sum().mean())
+        # tp_list = tp_data.sum().astype(int).values.tolist()
+        # tp_list.insert(0, tp_all)
+
+        # kpi_result["body"].append(
+        #     {"label": "Throughput", "unit": "pax", "values": tp_list}
+        # )
+
+        # NEW TroughPut
+        tp_result = []
+        for node in node_list:
+            troughput = len(process_df[process_df[f"{process}_pred"] == node])
+            tp_result.append(troughput)
+
+        tp_mean = np.mean(tp_result)
+        tp_result.insert(0, float(tp_mean))
 
         kpi_result["body"].append(
-            {"label": "Throughput", "unit": "pax", "values": tp_list}
+            {"label": "Throughput", "unit": "pax", "values": tp_result}
         )
 
-        # QL
-        ql_data = await self._create_queue_length(
-            sim_df=sim_df, process=process, group_column=f"{process}_pred", func=stats
-        )
-        # print(ql_data)
-        ql_all = round(ql_data.max().mean())
-        ql_list = ql_data.max().astype(int).values.tolist()
-        ql_list.insert(0, ql_all)
+        # ===============================
+        # # QL
+        # ql_data = await self._create_queue_length(
+        #     sim_df=sim_df, process=process, group_column=f"{process}_pred", func=stats
+        # )
+        # # print(ql_data)
+        # ql_all = round(ql_data.max().mean())
+        # ql_list = ql_data.max().astype(int).values.tolist()
+        # ql_list.insert(0, ql_all)
 
+        # kpi_result["body"].append(
+        #     {"label": "Queue Length", "unit": "pax", "values": ql_list}
+        # )
+
+        # NEW Queue Length
+        ql_result = []
+        for node in node_list:
+            filtered_df = process_df[process_df[f"{process}_pred"] == node]
+
+            if quantile == "mean":
+                queue_length = filtered_df[f"{process}_que"].mean()
+            else:
+                queue_length = filtered_df[f"{process}_que"].quantile(quantile)
+
+            ql_result.append(int(queue_length))
+
+        ql_mean = np.mean(ql_result)
+        ql_result.insert(0, float(ql_mean))
         kpi_result["body"].append(
-            {"label": "Queue Length", "unit": "pax", "values": ql_list}
+            {"label": "Queue Length", "unit": "pax", "values": ql_result}
         )
 
+        # ================================
         # WT
-        wt_data = await self._create_waiting_time(
-            sim_df=sim_df, process=process, group_column=f"{process}_pred", func=stats
-        )
-        wt_all = round(wt_data.mean().mean())
-        wt_list = wt_data.mean().astype(int).values.tolist()
-        wt_list.insert(0, wt_all)
+        # wt_data = await self._create_waiting_time(
+        #     sim_df=sim_df, process=process, group_column=f"{process}_pred", func=stats
+        # )
+        # wt_all = round(wt_data.mean().mean())
+        # wt_list = wt_data.mean().astype(int).values.tolist()
+        # wt_list.insert(0, wt_all)
 
+        # kpi_result["body"].append(
+        #     {"label": "Waiting Time", "unit": "sec", "values": wt_list}
+        # )
+
+        # NEW WT
+        wt_result = []
+        for node in node_list:
+            filtered_df = process_df[process_df[f"{process}_pred"] == node]
+            wt_df = (
+                filtered_df[f"{process}_pt_pred"] - filtered_df[f"{process}_on_pred"]
+            )
+            if quantile == "mean":
+                waiting_time = wt_df.mean()
+            else:
+                waiting_time = wt_df.quantile(quantile)
+
+            # waiting_time = pd.Timedelta(waiting_time).total_seconds()
+            wt_result.append(str(waiting_time).split()[-1].split(".")[0])
+
+        wt_mean = await self.get_average_time_string(wt_result)
+        wt_result.insert(0, wt_mean)
         kpi_result["body"].append(
-            {"label": "Waiting Time", "unit": "sec", "values": wt_list}
+            {"label": "Waiting Time", "unit": "min", "values": wt_result}
         )
-
+        # ====================================
         # FE
         fe_data = await self._create_facility_efficiency(sim_df, process)
-        fe_all = round(((fe_data.sum(axis=1) / 4) * 100).mean())
+        fe_all = round(((fe_data.sum(axis=1) / 4) * 100).mean(), 1)
         column_list = fe_data.columns.tolist()
         fe_list = []
         for column in column_list:
