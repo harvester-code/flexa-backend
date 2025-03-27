@@ -24,8 +24,8 @@ async def db_exception_handler(request: Request, exc: SQLAlchemyError):
 class BadRequestException(HTTPException):
     def __init__(
         self,
-        status_code: int = status.HTTP_400_BAD_REQUEST,
         detail: str = "Invalid request data",
+        status_code: int = status.HTTP_400_BAD_REQUEST,
         headers: dict = None,
     ):
         super().__init__(status_code=status_code, detail=detail, headers=headers)
