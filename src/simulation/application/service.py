@@ -1088,11 +1088,11 @@ class SimulationService:
         start_time = f"{process}_on_pred"
         end_time = f"{process}_pt_pred"
 
-        sim_df = sim_df.loc[sim_df[f"{process}_pred"] == f"{process}_{node}"].copy()
+        df = sim_df.loc[sim_df[f"{process}_pred"] == f"{process}_{node}"].copy()
 
-        sim_df[start_time] = pd.to_datetime(sim_df[start_time])
-        sim_df[end_time] = pd.to_datetime(sim_df[end_time])
-        df = sim_df[[start_time, end_time, group_column]]
+        df[start_time] = pd.to_datetime(df[start_time])
+        df[end_time] = pd.to_datetime(df[end_time])
+        df = df[[start_time, end_time, group_column]]
 
         df["waiting_time"] = (df[end_time] - df[start_time]).dt.total_seconds()
 
