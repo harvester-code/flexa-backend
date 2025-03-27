@@ -54,6 +54,8 @@ Thumbs.db
 # sample data
 sample_ICN_data.json
 sim_pax_test.csv
+sim_pax_test.parquet
+samples/sim_pax_test.parquet
 
 # .env
 .env
