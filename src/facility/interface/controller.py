@@ -41,6 +41,7 @@ status 코드 정리
 
 @facility_router.get(
     "/processes/scenario-id/{scenario_id}",
+    response_model=SuccessResponse,
     status_code=status.HTTP_200_OK,
     summary="최초 시나리오를 불러올 시 process list를 응답하는 엔드포인트",
 )
@@ -58,7 +59,7 @@ async def fetch_process_list(
         session=session, user_id=request.state.user_id, scenario_id=scenario_id
     )
 
-    return result
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
 
 
 @facility_router.get(
@@ -85,7 +86,7 @@ async def fetch_kpi(
         session=session,
         process=process,
         stats=stats,
-        user_id="request.state.user_id",
+        user_id=request.state.user_id,
         scenario_id=scenario_id,
     )
 
@@ -94,6 +95,7 @@ async def fetch_kpi(
 
 @facility_router.get(
     "/kpi-summaries/charts/line/scenario-id/{scenario_id}",
+    response_model=SuccessResponse,
     status_code=status.HTTP_200_OK,
     summary="kpi-summary chart를 위한 데이터",
 )
@@ -115,11 +117,12 @@ async def fetch_chart(
         scenario_id=scenario_id,
     )
 
-    return result
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
 
 
 @facility_router.get(
     "/kpi-summaries/charts/heat-map/scenario-id/{scenario_id}",
+    response_model=SuccessResponse,
     status_code=status.HTTP_200_OK,
     summary="heat-map을 위한 데이터",
 )
@@ -141,11 +144,12 @@ async def fetch_heatmap(
         scenario_id=scenario_id,
     )
 
-    return result
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
 
 
 @facility_router.get(
     "/passenger-analyses/charts/pie/scenario-id/{scenario_id}",
+    response_model=SuccessResponse,
     status_code=status.HTTP_200_OK,
     summary="pie-chart를 위한 데이터",
 )
@@ -163,15 +167,16 @@ async def fetch_pie_chart(
     result = await facility_service.generate_pie_chart(
         session=session,
         process=process,
-        user_id="request.state.user_id",
+        user_id=request.state.user_id,
         scenario_id=scenario_id,
     )
 
-    return result
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
 
 
 @facility_router.get(
     "/passenger-analyses/charts/bar/scenario-id/{scenario_id}",
+    response_model=SuccessResponse,
     status_code=status.HTTP_200_OK,
     summary="passenger-analysis chart를 위한 데이터",
 )
@@ -193,4 +198,4 @@ async def fetch_pa_chart(
         scenario_id=scenario_id,
     )
 
-    return result
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=result)

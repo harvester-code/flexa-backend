@@ -3,6 +3,7 @@ from src.facility.domain.repository import IFacilityRepository
 import boto3
 import pandas as pd
 import numpy as np
+from src.home.application.core.calculator import HomeCalculator
 
 
 class FacilityService:
@@ -208,7 +209,7 @@ class FacilityService:
         self,
         session: boto3.Session,
         process: str,
-        func: str = "mean",
+        stats: str = "mean",
         user_id: str | None = None,
         scenario_id: str | None = None,
     ):
@@ -248,10 +249,11 @@ class FacilityService:
 
         # QL
         ql_data = await self._create_queue_length(
-            sim_df=sim_df, process=process, group_column=f"{process}_pred", func=func
+            sim_df=sim_df, process=process, group_column=f"{process}_pred", func=stats
         )
-        ql_all = round(ql_data.mean().mean())
-        ql_list = ql_data.mean().astype(int).values.tolist()
+        # print(ql_data)
+        ql_all = round(ql_data.max().mean())
+        ql_list = ql_data.max().astype(int).values.tolist()
         ql_list.insert(0, ql_all)
 
         kpi_result["body"].append(
@@ -260,7 +262,7 @@ class FacilityService:
 
         # WT
         wt_data = await self._create_waiting_time(
-            sim_df=sim_df, process=process, group_column=f"{process}_pred", func=func
+            sim_df=sim_df, process=process, group_column=f"{process}_pred", func=stats
         )
         wt_all = round(wt_data.mean().mean())
         wt_list = wt_data.mean().astype(int).values.tolist()
@@ -288,6 +290,9 @@ class FacilityService:
             {"label": "Facility Efficiency", "unit": "%", "values": fe_list}
         )
 
+        # cal = HomeCalculator(pax_df=sim_df, calculate_type=stats)
+        # result = cal.get_facility_details()
+        # print(result)
         return kpi_result
 
     # NOTE: KPI Summary Chart
@@ -425,6 +430,15 @@ class FacilityService:
     # ============================================================
     # NOTE: Passenger Analysis
 
+    def get_criteria_options(self, process) -> dict:
+        criteria_options = {
+            "airline": "operating_carrier_name",
+            "destination": "country_code",
+            "flight_number": "flight_number",
+            f"{process}": f"{process}_pred",
+        }
+        return criteria_options
+
     # NOTE: Pie Chart
     async def generate_pie_chart(
         self,
@@ -443,20 +457,12 @@ class FacilityService:
 
         # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
         sim_df = pd.read_parquet("samples/v1_sim_pax.parquet")
-
-        group_mapping = {
-            "Airline": "operating_carrier_name",
-            "Destination": "country_code",
-            "Flight Number": "flight_number",
-            f"{process} Counter": f"{process}_pred",
-        }
-
         queue_length = f"{process}_que"
 
         pie_result = {}
         table_result = {}
         total_queue_length_result = {}
-        for group_name, group_column in group_mapping.items():
+        for group_name, group_column in self.get_criteria_options(process).items():
             group_max_queue = sim_df.groupby(group_column)[queue_length].max()
             top5_groups = group_max_queue.nlargest(5).index
             top5_df = sim_df[sim_df[group_column].isin(top5_groups)].copy()
@@ -464,9 +470,7 @@ class FacilityService:
             group_df = await self._create_queue_length(
                 sim_df=top5_df, process=process, group_column=group_column
             )
-
             df = group_df.mean().sort_values(ascending=False)
-
             labels = []
             values = []
             table_values = []
@@ -481,15 +485,10 @@ class FacilityService:
                 labels.append(column_name)
 
                 table_values.append(
-                    {"label": row + 1, "values": [f"{column_name} {que_mean}pax"]}
+                    {"rank": row + 1, "title": column_name, "value": que_mean}
                 )
 
-            header = {
-                "columns": [
-                    {"label": f"{group_name} Top{len(table_values)}", "rowSpan": 2}
-                ]
-            }
-            table_result[group_name] = {"header": header, "body": table_values}
+            table_result[group_name] = table_values
             pie_result[group_name] = {"labels": labels, "values": values}
             total_queue_length_result[group_name] = total_queue_length
 
@@ -578,15 +577,8 @@ class FacilityService:
         # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
         sim_df = pd.read_parquet("samples/v1_sim_pax.parquet")
 
-        group_mapping = {
-            "Airline": "operating_carrier_name",
-            "Destination": "country_code",
-            "Flight Number": "flight_number",
-            f"{process} Counter": f"{process}_pred",
-        }
-
         chart_result = {}
-        for group_name, group_column in group_mapping.items():
+        for group_name, group_column in self.get_criteria_options(process).items():
             group_result = {}
             # TP
             tp = await self._create_throughput(
