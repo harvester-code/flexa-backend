@@ -12,8 +12,163 @@ class HomeCalculator:
         self.pax_df = pax_df
         self.calculate_type = calculate_type
         self.percentile = percentile
-        self.time_unit = "10min"
+        self.time_unit = "30min"
         self.process_list = self._get_process_list()
+
+    # ===== 메인 함수들 =====
+    def get_summary(self):
+        """메인 함수: 요약 데이터를 생성하여 반환"""
+        departure_flights = self.pax_df["flight_number"].nunique()
+        delayed_flights = self.pax_df[self.pax_df["gate_departure_delay"] > 15][
+            "flight_number"
+        ].nunique()
+        cancelled_flights = int(self.pax_df["is_cancelled"].sum())
+        total_pax = len(self.pax_df)
+        throughput = int(self.pax_df["passport_pt_pred"].notna().sum())
+        waiting_time = self._calculate_kpi_values(method="waiting_time")
+        waiting_time = f"{waiting_time // 60:02d}:{waiting_time % 60:02d}"
+        queue_length = self._calculate_kpi_values(method="queue_length")
+        return {
+            "normal": [
+                {"title": "Departure Flights", "value": departure_flights},
+                {"title": "Arrival Flights", "value": 0},
+                {
+                    "title": "Delay / Return",
+                    "value": [delayed_flights, cancelled_flights],
+                },
+                {"title": "Departure Pax", "value": total_pax},
+                {"title": "Arrival Pax", "value": 0},
+                {"title": "Transfer Pax", "value": 0},
+            ],
+            "KPI": [
+                {"title": "Passenger Throughput", "value": throughput},
+                {"title": "Wait Time", "value": waiting_time},
+                {"title": "Queue Length", "value": queue_length},
+                {"title": "Facility Utilization", "value": "100%"},
+            ],
+        }
+
+    def get_alert_issues(self, top_n=8, time_interval="30min"):
+        """대기 시간 알림 데이터 생성 메인 함수"""
+        # 모든 프로세스의 데이터프레임 생성 및 결합
+        df_list = [
+            self._create_process_dataframe(process, time_interval)
+            for process in self.process_list
+        ]
+        result_df = pd.concat(df_list, ignore_index=True)
+
+        # 데이터 정렬 및 중복 제거
+        result_df = result_df.sort_values(
+            "waiting_time", ascending=False
+        ).drop_duplicates(subset=["datetime", "process_name"])
+
+        # 대기 시간 형식 변환
+        result_df["waiting_time"] = result_df["waiting_time"].apply(
+            self._format_waiting_time
+        )
+
+        # 알림 JSON 구조 생성
+        alert_json = {
+            "all_facilities": [
+                self._create_alert_data_entry(row)
+                for _, row in result_df.head(top_n).iterrows()
+            ]
+        }
+
+        # 각 프로세스별 데이터 추가
+        for process in self.process_list:
+            process_data = result_df[result_df["process"] == process].head(top_n)
+            alert_json[process] = [
+                self._create_alert_data_entry(row) for _, row in process_data.iterrows()
+            ]
+
+        return alert_json
+
+    def get_facility_details(self):
+        """시설별 세부 데이터를 계산하고 반환"""
+        result = {}
+        for process in self.process_list:
+            cols_needed = [
+                f"{process}_pred",
+                f"{process}_que",
+                f"{process}_pt",
+                f"{process}_on_pred",
+                f"{process}_pt_pred",
+            ]
+            process_df = self.pax_df[cols_needed].copy()
+            overview = self._calculate_overview_metrics(process_df, process)
+            category_obj = {"category": process, "overview": overview, "components": []}
+            self._add_facility_components(process_df, process, category_obj)
+            result[process] = category_obj
+        return result
+
+    def get_flow_chart_data(self):
+        """시간별 대기열 및 대기 시간 데이터 생성"""
+        time_df = self._create_time_dataframe()
+        time_df = self._add_queue_data(time_df)
+        time_df.fillna(0, inplace=True)
+        times = time_df.index.strftime("%Y-%m-%d %H:%M:%S").tolist()
+        components = []
+        for column in time_df.columns:
+            values = (
+                time_df[column].astype(float).tolist()
+                if time_df[column].dtype.kind in "ifc"
+                else time_df[column].tolist()
+            )
+            components.append({"label": column, "values": values})
+        return {"x_values": times, "y_values": components}
+
+    def get_histogram_data(self):
+        """시설별 통계 데이터 생성"""
+        facility_data = [
+            {
+                process: {
+                    "waiting_time": self._calculate_waiting_time_distribution(process),
+                    "queue_length": self._calculate_queue_length_distribution(process),
+                },
+            }
+            for process in self.process_list
+        ]
+        all_facility_data = self._calculate_average_distribution(facility_data)
+
+        # 결과를 단일 객체로 변환
+        result = {"All Facility": all_facility_data}
+        for facility in facility_data:
+            result.update(facility)
+
+        return result
+
+    def get_sankey_diagram_data(self):
+        """시설 이용 흐름을 분석하여 Sankey 다이어그램 데이터를 생성"""
+        target_columns = [
+            col
+            for col in self.pax_df.columns
+            if col.endswith("_pred") and not any(x in col for x in ["on", "done", "pt"])
+        ]
+        flow_df = self.pax_df.groupby(target_columns).size().reset_index(name="count")
+        unique_values = {}
+        current_index = 0
+        for col in target_columns:
+            unique_values[col] = {
+                val: i + current_index for i, val in enumerate(flow_df[col].unique())
+            }
+            current_index += len(flow_df[col].unique())
+        sources, targets, values = [], [], []
+        for i in range(len(target_columns) - 1):
+            col1, col2 = target_columns[i], target_columns[i + 1]
+            grouped = flow_df.groupby([col1, col2])["count"].sum().reset_index()
+
+            for _, row in grouped.iterrows():
+                sources.append(unique_values[col1][row[col1]])
+                targets.append(unique_values[col2][row[col2]])
+                values.append(int(row["count"]))
+        labels = []
+        for col in target_columns:
+            labels.extend(list(flow_df[col].unique()))
+        return {
+            "label": labels,
+            "link": {"source": sources, "target": targets, "value": values},
+        }
 
     # ===== 공통 유틸리티 함수들 =====
     def _get_process_list(self):
@@ -64,196 +219,6 @@ class HomeCalculator:
         )
         return pd.DataFrame(index=all_times).sort_index()
 
-    # ===== 메인 함수들 =====
-    def get_summary(self):
-        """메인 함수: 요약 데이터를 생성하여 반환"""
-        departure_flights = self.pax_df["flight_number"].nunique()
-        delayed_flights = self.pax_df[self.pax_df["gate_departure_delay"] > 15][
-            "flight_number"
-        ].nunique()
-        cancelled_flights = int(self.pax_df["is_cancelled"].sum())
-        total_pax = len(self.pax_df)
-        throughput = int(self.pax_df["passport_pt_pred"].notna().sum())
-        waiting_time = self._calculate_kpi_values(method="waiting_time")
-        waiting_time = f"{waiting_time // 60:02d}:{waiting_time % 60:02d}"
-        queue_length = self._calculate_kpi_values(method="queue_length")
-        return {
-            "summary": [
-                {
-                    "label": "normal",
-                    "data": [
-                        {"title": "Departure Flights", "value": departure_flights},
-                        {"title": "Arrival Flights", "value": 0},
-                        {
-                            "title": "Delay / Return",
-                            "value": [delayed_flights, cancelled_flights],
-                        },
-                        {"title": "Departure Pax", "value": total_pax},
-                        {"title": "Arrival Pax", "value": 0},
-                        {"title": "Transfer Pax", "value": 0},
-                    ],
-                },
-                {
-                    "label": "KPI",
-                    "data": [
-                        {"title": "Passenger Throughput", "value": throughput},
-                        {"title": "Wait Time", "value": waiting_time},
-                        {"title": "Queue Length", "value": queue_length},
-                        {"title": "Facility Utilization", "value": "100%"},
-                    ],
-                },
-            ]
-        }
-
-    def _create_process_dataframe(self, process, time_interval="30min"):
-        """각 프로세스별 데이터프레임 생성"""
-        return pd.DataFrame(
-            {
-                "datetime": self.pax_df[f"{process}_on_pred"].dt.floor(time_interval),
-                "waiting_time": self.pax_df[f"{process}_pt_pred"]
-                - self.pax_df[f"{process}_on_pred"],
-                "queue_length": self.pax_df[f"{process}_que"],
-                "process_name": self.pax_df[f"{process}_pred"],
-                "label": process,
-            }
-        )
-
-    def _format_waiting_time(self, timedelta):
-        """대기 시간을 MM:SS 형식의 문자열로 변환"""
-        return f"{int(timedelta.total_seconds() // 60):02d}:{int(timedelta.total_seconds() % 60):02d}"
-
-    def _create_alert_data_entry(self, row):
-        """각 행을 알림 데이터 형식으로 변환"""
-        return {
-            "time": row["datetime"].strftime("%H:%M:%S"),
-            "waiting_time": row["waiting_time"],
-            "queue_length": str(row["queue_length"]),
-            "location": row["process_name"],
-        }
-
-    def get_alert_issues(self, top_n=8, time_interval="30min"):
-        """대기 시간 알림 데이터 생성 메인 함수"""
-        # 모든 프로세스의 데이터프레임 생성 및 결합
-        df_list = [
-            self._create_process_dataframe(process, time_interval)
-            for process in self.process_list
-        ]
-        result_df = pd.concat(df_list, ignore_index=True)
-
-        # 데이터 정렬 및 중복 제거
-        result_df = result_df.sort_values(
-            "waiting_time", ascending=False
-        ).drop_duplicates(subset=["datetime", "process_name"])
-
-        # 대기 시간 형식 변환
-        result_df["waiting_time"] = result_df["waiting_time"].apply(
-            self._format_waiting_time
-        )
-
-        # 알림 JSON 구조 생성
-        alert_json = {
-            "alert-issues": [
-                # 전체 시설 데이터
-                {
-                    "label": "All-Facilities",
-                    "data": [
-                        self._create_alert_data_entry(row)
-                        for _, row in result_df.head(top_n).iterrows()
-                    ],
-                }
-            ]
-        }
-
-        # 각 프로세스별 데이터 추가
-        for process in self.process_list:
-            process_data = result_df[result_df["label"] == process].head(top_n)
-            alert_json["alert-issues"].append(
-                {
-                    "label": process,
-                    "data": [
-                        self._create_alert_data_entry(row)
-                        for _, row in process_data.iterrows()
-                    ],
-                }
-            )
-
-        return alert_json
-
-    def get_facility_details(self):
-        """시설별 세부 데이터를 계산하고 반환"""
-        result = {"details": []}
-        for process in self.process_list:
-            cols_needed = [
-                f"{process}_pred",
-                f"{process}_que",
-                f"{process}_pt",
-                f"{process}_on_pred",
-                f"{process}_pt_pred",
-            ]
-            process_df = self.pax_df[cols_needed].copy()
-            overview = self._calculate_overview_metrics(process_df, process)
-            category_obj = {"category": process, "overview": overview, "components": []}
-            self._add_facility_components(process_df, process, category_obj)
-            result["details"].append(category_obj)
-        return result
-
-    def get_flow_chart_data(self):
-        """시간별 대기열 및 대기 시간 데이터 생성"""
-        time_df = self._create_time_dataframe()
-        time_df = self._add_queue_data(time_df)
-        time_df.fillna(0, inplace=True)
-        return self._convert_to_frontend_format(time_df)
-
-    def get_sankey_diagram_data(self):
-        """시설 이용 흐름을 분석하여 Sankey 다이어그램 데이터를 생성"""
-        target_columns = [
-            col
-            for col in self.pax_df.columns
-            if col.endswith("_pred") and not any(x in col for x in ["on", "done", "pt"])
-        ]
-        flow_df = self.pax_df.groupby(target_columns).size().reset_index(name="count")
-        unique_values = {}
-        current_index = 0
-        for col in target_columns:
-            unique_values[col] = {
-                val: i + current_index for i, val in enumerate(flow_df[col].unique())
-            }
-            current_index += len(flow_df[col].unique())
-        sources, targets, values = [], [], []
-        for i in range(len(target_columns) - 1):
-            col1, col2 = target_columns[i], target_columns[i + 1]
-            grouped = flow_df.groupby([col1, col2])["count"].sum().reset_index()
-
-            for _, row in grouped.iterrows():
-                sources.append(unique_values[col1][row[col1]])
-                targets.append(unique_values[col2][row[col2]])
-                values.append(int(row["count"]))
-        labels = []
-        for col in target_columns:
-            labels.extend(list(flow_df[col].unique()))
-        return {
-            "label": labels,
-            "link": {"source": sources, "target": targets, "value": values},
-        }
-
-    def get_histogram_data(self):
-        """시설별 통계 데이터 생성"""
-        facility_data = [
-            {
-                "label": process,
-                "data": {
-                    "waiting_time": self._calculate_waiting_time_distribution(process),
-                    "queue_length": self._calculate_queue_length_distribution(process),
-                },
-            }
-            for process in self.process_list
-        ]
-        all_facility_data = self._calculate_average_distribution(facility_data)
-        return {
-            "histogram": [{"label": "All Facility", "data": all_facility_data}]
-            + facility_data
-        }
-
     # ===== 보조 함수들 =====
     def _calculate_kpi_values(self, method):
         """KPI 값 계산"""
@@ -274,6 +239,32 @@ class HomeCalculator:
             return round(np.mean(all_pax_data))
         else:
             return round(np.percentile(all_pax_data, 100 - self.percentile))
+
+    def _create_process_dataframe(self, process, time_interval="30min"):
+        """각 프로세스별 데이터프레임 생성"""
+        return pd.DataFrame(
+            {
+                "datetime": self.pax_df[f"{process}_on_pred"].dt.floor(time_interval),
+                "waiting_time": self.pax_df[f"{process}_pt_pred"]
+                - self.pax_df[f"{process}_on_pred"],
+                "queue_length": self.pax_df[f"{process}_que"],
+                "process_name": self.pax_df[f"{process}_pred"],
+                "process": process,
+            }
+        )
+
+    def _format_waiting_time(self, timedelta):
+        """대기 시간을 MM:SS 형식의 문자열로 변환"""
+        return f"{int(timedelta.total_seconds() // 60):02d}:{int(timedelta.total_seconds() % 60):02d}"
+
+    def _create_alert_data_entry(self, row):
+        """각 행을 알림 데이터 형식으로 변환"""
+        return {
+            "time": row["datetime"].strftime("%H:%M:%S"),
+            "waiting_time": row["waiting_time"],
+            "queue_length": str(row["queue_length"]),
+            "node": row["process_name"],
+        }
 
     def _calculate_overview_metrics(self, df, process):
         """프로세스 전체 개요 지표 계산"""
@@ -365,19 +356,6 @@ class HomeCalculator:
                     time_df.loc[time_idx, f"{process}_throughput"] = count
         return time_df
 
-    def _convert_to_frontend_format(self, df):
-        """데이터프레임을 프론트엔드 형식으로 변환"""
-        times = df.index.strftime("%Y-%m-%d %H:%M:%S").tolist()
-        components = []
-        for column in df.columns:
-            values = (
-                df[column].astype(float).tolist()
-                if df[column].dtype.kind in "ifc"
-                else df[column].tolist()
-            )
-            components.append({"column": column, "values": values})
-        return {"flow_chart": {"x_values": times, "y_values": components}}
-
     def _calculate_waiting_time_distribution(self, process):
         """대기 시간 분포를 계산"""
         waiting_time_minutes = self._calculate_waiting_time_minutes(
@@ -412,12 +390,15 @@ class HomeCalculator:
         all_waiting_time = {}
         all_queue_length = {}
         for facility in histogram_data:
-            for wt in facility["data"]["waiting_time"]:
+            # facility의 첫 번째 (유일한) 키-값 쌍을 가져옴
+            process_data = list(facility.values())[0]
+            for wt in process_data["waiting_time"]:
                 value = float(wt["value"].replace("%", ""))
                 all_waiting_time.setdefault(wt["title"], []).append(value)
-            for ql in facility["data"]["queue_length"]:
+            for ql in process_data["queue_length"]:
                 value = float(ql["value"].replace("%", ""))
                 all_queue_length.setdefault(ql["title"], []).append(value)
+
         avg_waiting_time = [
             {"title": title, "value": f"{sum(values)/len(values):.0f}%"}
             for title, values in all_waiting_time.items()

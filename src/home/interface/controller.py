@@ -1,10 +1,10 @@
 import boto3
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, status
 from src.containers import Container
 from src.home.application.service import HomeService
 from src.database import get_boto3_session
-from pydantic import BaseModel
+from src.response import SuccessResponse
 
 home_router = APIRouter(prefix="/homes")
 
@@ -30,9 +30,10 @@ async def fetch_summary(
     calculate_type: str = "mean",
     percentile: int | None = None,
 ):
-    return await home_service.fetch_summary(
+    result = await home_service.fetch_summary(
         session, scenario_id, calculate_type, percentile
     )
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
 
 
 @home_router.get(
@@ -46,7 +47,8 @@ async def fetch_alert_issues(
     session: boto3.Session = Depends(get_boto3_session),
     scenario_id: str | None = None,
 ):
-    return await home_service.fetch_alert_issues(session, scenario_id)
+    result = await home_service.fetch_alert_issues(session, scenario_id)
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
 
 
 @home_router.get(
@@ -62,9 +64,10 @@ async def fetch_facility_details(
     calculate_type: str = "mean",
     percentile: int | None = None,
 ):
-    return await home_service.fetch_facility_details(
+    result = await home_service.fetch_facility_details(
         session, scenario_id, calculate_type, percentile
     )
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
 
 
 @home_router.get(
@@ -78,7 +81,8 @@ async def fetch_flow_chart(
     session: boto3.Session = Depends(get_boto3_session),
     scenario_id: str | None = None,
 ):
-    return await home_service.fetch_flow_chart(session, scenario_id)
+    result = await home_service.fetch_flow_chart(session, scenario_id)
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
 
 
 @home_router.get(
@@ -92,7 +96,8 @@ async def fetch_histogram(
     session: boto3.Session = Depends(get_boto3_session),
     scenario_id: str | None = None,
 ):
-    return await home_service.fetch_histogram(session, scenario_id)
+    result = await home_service.fetch_histogram(session, scenario_id)
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
 
 
 @home_router.get(
@@ -106,4 +111,5 @@ async def fetch_sankey_diagram(
     session: boto3.Session = Depends(get_boto3_session),
     scenario_id: str | None = None,
 ):
-    return await home_service.fetch_sankey_diagram(session, scenario_id)
+    result = await home_service.fetch_sankey_diagram(session, scenario_id)
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
