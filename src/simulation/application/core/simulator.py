@@ -57,7 +57,7 @@ class DsSimulator:
             return passenger[criteria_col] in condition.value
 
     # FIXME: 해당 메서드는 DsSimulator에 위치하는게 아니라 DsGraph에 있어야하는게 아닐까?
-    def add_flow(self, current_second: int, greedy: bool = False):
+    def add_flow(self, current_second: int, greedy: bool = True):
         first_component = self.components[0]
         comp_to_idx = self.comp_to_idx[first_component]
 
