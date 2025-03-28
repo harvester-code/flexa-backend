@@ -769,7 +769,6 @@ class SimulationService:
         standard_deviations = []
         for condition in destribution_conditions:
             standard_deviations.append(condition.standard_deviation)
-        standard_deviation = sum(standard_deviations) / len(standard_deviations)
 
         matric = [
             {"name": "Date", "value": flight_sch.date},
@@ -787,15 +786,15 @@ class SimulationService:
             },
             {
                 "name": "Flights",
-                "value": f"{len(data)} flights",
+                "value": f"{len(data):,} flights",
             },
             {
                 "name": "Passengers",
-                "value": f"{len(pax_df)} pax",
+                "value": f"{len(pax_df):,} pax",
             },
             {
                 "name": "Passengers Pattern",
-                "value": f"AVG {round(passenger_pattern)}mins Dist {round(standard_deviation)}mins",
+                "value": f"{round(passenger_pattern):,} mins",
             },
             {
                 "name": "Generation Method",
