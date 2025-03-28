@@ -793,7 +793,7 @@ class SimulationService:
                 "value": f"{len(pax_df):,} pax",
             },
             {
-                "name": "Passengers Pattern",
+                "name": "Pax Show-up Pattern",
                 "value": f"{round(passenger_pattern):,} mins",
             },
             {
