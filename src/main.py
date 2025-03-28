@@ -2,7 +2,7 @@ from art import text2art
 from fastapi import APIRouter, FastAPI
 from fastapi.responses import PlainTextResponse
 from starlette.middleware.cors import CORSMiddleware
-
+from fastapi.middleware.gzip import GZipMiddleware
 from src.admin.interface.controller import admin_router
 from src.containers import Container
 from src.middleware import add_middlewares
@@ -23,6 +23,7 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
+app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)
 
 add_middlewares(app)
 add_exception_handlers(app)
