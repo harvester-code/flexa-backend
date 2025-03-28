@@ -83,130 +83,136 @@ class DsNode:
             destination = self.select_destination(
                 nodes, passengers, passenger_id, second
             )
-            destination.passenger_ids.append(passenger_id)
 
-            # NOTE: destination의 승객 노드 ID
-            _passenger_node_id = destination.passenger_node_id
+            if destination:
+                destination.passenger_ids.append(passenger_id)
 
-            # TODO: 아래 코드 위치를 수정해보기
-            destination.passenger_node_id += 1
+                # NOTE: destination의 승객 노드 ID
+                _passenger_node_id = destination.passenger_node_id
 
-            destination.on_time[_passenger_node_id] = self.done_time[passenger_node_id]
+                # TODO: 아래 코드 위치를 수정해보기
+                destination.passenger_node_id += 1
 
-            minute_of_day = min(
-                1439, (destination.on_time[_passenger_node_id] % 86400) // 60
-            )
-            destination_passenger_id = destination.passenger_ids[_passenger_node_id]
-            destination_facility_number = destination.select_facility(
-                minute=minute_of_day
-            )
+                destination.on_time[_passenger_node_id] = self.done_time[
+                    passenger_node_id
+                ]
 
-            destination.facility_numbers[_passenger_node_id] = (
-                destination_facility_number
-            )
+                minute_of_day = min(
+                    1439, (destination.on_time[_passenger_node_id] % 86400) // 60
+                )
+                destination_passenger_id = destination.passenger_ids[_passenger_node_id]
+                destination_facility_number = destination.select_facility(
+                    minute=minute_of_day
+                )
 
-            # dod: destination of destination
-            dod_component = destination.components[1]
-            # 기존 도착 컴포넌트
-            destination_component = destination.components[0]
-            priority_dod_node_indices = None
-            if dod_component:
-                passenger = passengers.loc[destination_passenger_id]
-                # 기존 코드와 동일
-                for process in self.processes.values():
-                    if process.name == dod_component:
-                        priority_matrix = process.priority_matrix
-                        break
+                destination.facility_numbers[_passenger_node_id] = (
+                    destination_facility_number
+                )
 
-                edited_df = None
-                # NOTE: 상위 매트릭스부터 확인하면서 모든 condition을 만족할 시 해당 매트릭스의 값을 가져옴.
-                if priority_matrix:
-                    for priority in priority_matrix:
+                # dod: destination of destination
+                dod_component = destination.components[1]
+                # 기존 도착 컴포넌트
+                destination_component = destination.components[0]
+                priority_dod_node_indices = None
+                if dod_component:
+                    passenger = passengers.loc[destination_passenger_id]
+                    # 기존 코드와 동일
+                    for process in self.processes.values():
+                        if process.name == dod_component:
+                            priority_matrix = process.priority_matrix
+                            break
 
-                        conditions = priority.condition
-                        check = all(
-                            self.check_condition(
-                                passenger, condition, destination_component, second
+                    edited_df = None
+                    # NOTE: 상위 매트릭스부터 확인하면서 모든 condition을 만족할 시 해당 매트릭스의 값을 가져옴.
+                    if priority_matrix:
+                        for priority in priority_matrix:
+
+                            conditions = priority.condition
+                            check = all(
+                                self.check_condition(
+                                    passenger, condition, destination_component, second
+                                )
+                                for condition in conditions
                             )
-                            for condition in conditions
+
+                            if check:
+                                edited_df = priority.matrix
+                                break
+                    # 기존 코드와 동일
+                    if edited_df:
+                        priority_dod_node_indices = (
+                            [
+                                self.comp_to_idx[dod_component][idx]
+                                for idx in list(list(edited_df.values())[0].keys())
+                            ]
+                            if destination.node_id
+                            in [
+                                self.comp_to_idx[destination_component][key]
+                                for key in list(edited_df.keys())
+                            ]
+                            else None
                         )
 
-                        if check:
-                            edited_df = priority.matrix
-                            break
-                # 기존 코드와 동일
-                if edited_df:
-                    priority_dod_node_indices = (
-                        [
-                            self.comp_to_idx[dod_component][idx]
-                            for idx in list(list(edited_df.values())[0].keys())
-                        ]
-                        if destination.node_id
-                        in [
-                            self.comp_to_idx[destination_component][key]
-                            for key in list(edited_df.keys())
-                        ]
-                        else None
+                priority_dod_nodes = (
+                    [nodes[idx] for idx in priority_dod_node_indices]
+                    if priority_dod_node_indices
+                    else None
+                )
+                dod_nodes = priority_dod_nodes or destination.destinations
+
+                # ======================================================
+                # NOTE: 도착지의 가용가능한 기기가 없을 경우(= 줄이서있는 상황) que_history 넣기
+                if destination.unoccupied_facilities.sum() > 0:
+                    destination.que_history[_passenger_node_id] = len(
+                        destination.passenger_queues
+                    )
+                # ======================================================
+                if destination_facility_number == 0:
+                    heapq.heappush(
+                        destination.passenger_queues,
+                        (destination.on_time[_passenger_node_id], _passenger_node_id),
                     )
 
-            priority_dod_nodes = (
-                [nodes[idx] for idx in priority_dod_node_indices]
-                if priority_dod_node_indices
-                else None
-            )
-            dod_nodes = priority_dod_nodes or destination.destinations
-
-            # ======================================================
-            # NOTE: 도착지의 가용가능한 기기가 없을 경우(= 줄이서있는 상황) que_history 넣기
-            if destination.unoccupied_facilities.sum() > 0:
-                destination.que_history[_passenger_node_id] = len(
-                    destination.passenger_queues
-                )
-            # ======================================================
-            if destination_facility_number == 0:
-                heapq.heappush(
-                    destination.passenger_queues,
-                    (destination.on_time[_passenger_node_id], _passenger_node_id),
-                )
-
-            elif dod_nodes is not None and all(
-                [
-                    ddst.max_capacity - len(ddst.passenger_queues) <= 0
-                    for ddst in dod_nodes
-                ]
-            ):
-                destination.unoccupied_facilities[destination_facility_number - 1] = 1
-                heapq.heappush(
-                    destination.passenger_queues,
-                    (destination.on_time[_passenger_node_id], _passenger_node_id),
-                )
-                destination.que_history[_passenger_node_id] = len(
-                    destination.passenger_queues
-                )
-            else:
-                adjusted_processing_time = destination.adjust_processing_time(
-                    destination.processing_config[minute_of_day][
-                        destination_facility_number - 1
+                elif dod_nodes is not None and all(
+                    [
+                        ddst.max_capacity - len(ddst.passenger_queues) <= 0
+                        for ddst in dod_nodes
                     ]
-                )
-                heapq.heappush(
-                    destination.occupied_facilities,
-                    (
-                        destination.on_time[_passenger_node_id]
-                        + adjusted_processing_time,
-                        _passenger_node_id,
-                        destination_facility_number - 1,
-                    ),
-                )
-                destination.processing_time[_passenger_node_id] = (
-                    adjusted_processing_time
-                )
+                ):
+                    destination.unoccupied_facilities[
+                        destination_facility_number - 1
+                    ] = 1
+                    heapq.heappush(
+                        destination.passenger_queues,
+                        (destination.on_time[_passenger_node_id], _passenger_node_id),
+                    )
+                    destination.que_history[_passenger_node_id] = len(
+                        destination.passenger_queues
+                    )
+                else:
+                    adjusted_processing_time = destination.adjust_processing_time(
+                        destination.processing_config[minute_of_day][
+                            destination_facility_number - 1
+                        ]
+                    )
+                    heapq.heappush(
+                        destination.occupied_facilities,
+                        (
+                            destination.on_time[_passenger_node_id]
+                            + adjusted_processing_time,
+                            _passenger_node_id,
+                            destination_facility_number - 1,
+                        ),
+                    )
+                    destination.processing_time[_passenger_node_id] = (
+                        adjusted_processing_time
+                    )
 
-            # ======================================================
-            if destination.unoccupied_facilities.sum() == 0:
-                destination.que_history[_passenger_node_id] = len(
-                    destination.passenger_queues
-                )
+                # ======================================================
+                if destination.unoccupied_facilities.sum() == 0:
+                    destination.que_history[_passenger_node_id] = len(
+                        destination.passenger_queues
+                    )
 
     def select_destination(self, nodes, df_pax, pax_idx, second):
 
@@ -264,14 +270,35 @@ class DsNode:
 
         destination_nodes = priority_destination_nodes or self.destinations
 
-        available_destination_nodes = [
+        available_destination_node_ids = [
             i
             for i, node in enumerate(destination_nodes)
             if len(node.passenger_queues) < node.max_capacity
         ]
 
-        # if len(available_destination_nodes) == 0:
-        #     return min(destination_nodes, key=lambda x: len(x.passenger_queues))
+        available_destination_nodes = [
+            node
+            for i, node in enumerate(destination_nodes)
+            if len(node.passenger_queues) < node.max_capacity
+        ]
+
+        # for i, node in enumerate(destination_nodes):
+        #     print(
+        #         "nodenum",
+        #         node.node_label,
+        #         "/pax_queue",
+        #         len(node.passenger_queues),
+        #         "/max_queue",
+        #         node.max_capacity,
+        #         "/selected_node",
+        #     )
+        #     if len(node.passenger_queues) < node.max_capacity:
+        #         print("요놈1", node.node_label)
+
+        if len(available_destination_node_ids) == 0:
+            # NOTE: 목적지가 지정되면안되기 때문에 None으로 설정
+            return None
+            # return min(destination_nodes, key=lambda x: len(x.passenger_queues))
 
         # ==================================================
         if edited_df:
@@ -286,18 +313,26 @@ class DsNode:
                     prob = np.array(
                         [
                             self.destination_choices[i]
-                            for i in available_destination_nodes
+                            for i in available_destination_node_ids
                         ],
                         dtype=float,
                     )
         else:
             prob = np.array(
-                [self.destination_choices[i] for i in available_destination_nodes],
+                [self.destination_choices[i] for i in available_destination_node_ids],
                 dtype=float,
             )
 
-        # FIXME: destination_nodes가 아니라 available_destination_nodes가 아닐까?
-        return destination_nodes[np.random.choice(len(prob), p=self.normalize(prob))]
+        # print(
+        #     "요놈2",
+        #     available_destination_nodes[
+        #         np.random.choice(len(prob), p=self.normalize(prob))
+        #     ].node_label,
+        # )
+
+        return available_destination_nodes[
+            np.random.choice(len(prob), p=self.normalize(prob))
+        ]
 
     def _prod_que(self, second, minute, nodes, passengers):
         while self.passenger_queues and self.passenger_queues[0][0] <= second:
