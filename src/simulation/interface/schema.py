@@ -53,7 +53,6 @@ class SimulationBody(BaseModel):
 class FlightScheduleBody(BaseModel):
     airport: str
     date: str
-    first_load: bool
     condition: List[Condition] | None
 
 

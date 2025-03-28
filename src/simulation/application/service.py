@@ -355,7 +355,6 @@ class SimulationService:
         date: str,
         airport: str,
         condition: list | None,
-        first_load: bool,
     ):
         """
         최초에 불러올때는 add condition에 사용될 데이터와, 그래프를 만들때 사용할 데이터를 둘다 챙겨야함
@@ -368,23 +367,22 @@ class SimulationService:
         data = await self.fetch_flight_schedule_data(db, date, airport, condition)
         flight_df = pd.DataFrame(data)
 
-        add_conditions = None
-        if first_load:
-            # I/D, 항공사, 터미널
-            i_d = flight_df["flight_type"].unique().tolist()
-            airline = flight_df["operating_carrier_iata"].unique().tolist()
-            terminal = flight_df["departure_terminal"].unique().tolist()
+        # Condition
+        # I/D, 항공사, 터미널
+        i_d = flight_df["flight_type"].unique().tolist()
+        airline = flight_df["operating_carrier_iata"].unique().tolist()
+        terminal = flight_df["departure_terminal"].unique().tolist()
 
-            if None in terminal:
-                terminal = [t for t in terminal if t is not None]
+        if None in terminal:
+            terminal = [t for t in terminal if t is not None]
 
-            add_conditions = [
-                {"name": "I/D", "operator": ["="], "value": i_d},
-                {"name": "Airline", "operator": ["is in"], "value": airline},
-                {"name": "Terminal", "operator": ["="], "value": terminal},
-            ]
+        add_conditions = [
+            {"name": "I/D", "operator": ["="], "value": i_d},
+            {"name": "Airline", "operator": ["is in"], "value": airline},
+            {"name": "Terminal", "operator": ["="], "value": terminal},
+        ]
 
-        add_priorities = None
+        # Prioirties
         # ["Airline", "I/D", "Region", "Country"]
         i_d = flight_df["flight_type"].unique().tolist()
         airline = flight_df["operating_carrier_iata"].unique().tolist()
@@ -1767,7 +1765,9 @@ class SimulationService:
         # NOTE: 시뮬레이션 결과 데이터 s3 저장
         # print(ow.passengers)
         # ow.passengers.to_csv("sim_pax_test.csv", encoding="utf-8-sig", index=False)
-        ow.passengers.to_parquet("samples/sim_pax_test.parquet", compression="snappy")
+        ow.passengers.to_parquet(
+            "samples/sim_pax_test_real.parquet", compression="snappy"
+        )
 
         # filename = f"{user_id}/{scenario_id}.parquet"
         # await self.simulation_repo.upload_to_s3(session, ow.passengers, filename)
@@ -1786,26 +1786,36 @@ class SimulationService:
         node_list = sorted(ow.passengers[f"{first_process}_pred"].unique().tolist())
         first_node = node_list[0].replace(f"{first_process}_", "")
 
-        chart = await self.generate_simulation_charts_node(
-            session=session,
-            user_id=None,
-            scenario_id=None,
-            sim_df=ow.passengers,
-            process=first_process,
-            node=first_node,
-        )
+        kpi_result = []
+        chart_result = []
 
-        kpi = await self.generate_simulation_metrics_kpi(
-            session=session,
-            user_id=None,
-            scenario_id=None,
-            sim_df=ow.passengers,
-            process=first_process,
-            node=first_node,
-        )
+        for process in comp_to_idx.keys():
+
+            for node in comp_to_idx[process].keys():
+
+                chart = await self.generate_simulation_charts_node(
+                    session=session,
+                    user_id=None,
+                    scenario_id=None,
+                    sim_df=ow.passengers,
+                    process=process,
+                    node=node,
+                )
+                chart_result.append(chart)
+
+                kpi = await self.generate_simulation_metrics_kpi(
+                    session=session,
+                    user_id=None,
+                    scenario_id=None,
+                    sim_df=ow.passengers,
+                    process=process,
+                    node=node,
+                )
+                kpi_result.append(kpi)
 
         await asyncio.sleep(0.001)
 
         # FIXME: 테스트용 확인코드
         # print(f"완료시간 : {datetime.now()}")
-        return {"sankey": sankey, "kpi": kpi, "chart": chart}
+        # return {"sankey": sankey, "kpi": kpi_result, "chart": chart_result}
+        return "Success"

@@ -294,7 +294,6 @@ async def fetch_flight_schedule(
         flight_schedule.date,
         flight_schedule.airport,
         flight_schedule.condition,
-        flight_schedule.first_load,
     )
 
     await simulation_service.update_simulation_scenario_target_date(
