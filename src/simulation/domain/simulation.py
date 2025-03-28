@@ -7,9 +7,9 @@ from typing import List
 class SimulationScenario:
     id: str
     user_id: str
-    simulation_url: str | None
     simulation_name: str
     size: str | None
+    airport: str
     terminal: str
     editor: str
     memo: str

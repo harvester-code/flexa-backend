@@ -114,9 +114,9 @@ class SimulationRepository(ISimulationRepository):
         new_scenario = SimulationScenario(
             id=simulation_scenario.id,
             user_id=simulation_scenario.user_id,
-            simulation_url=simulation_scenario.simulation_url,
             simulation_name=simulation_scenario.simulation_name,
             size=simulation_scenario.size,
+            airport=simulation_scenario.airport,
             terminal=simulation_scenario.terminal,
             editor=simulation_scenario.editor,
             memo=simulation_scenario.memo,

@@ -13,9 +13,9 @@ class SimulationScenario(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     user_id: Mapped[UUID] = mapped_column(UUID, nullable=False)
-    simulation_url: Mapped[str] = mapped_column(String(36), nullable=True)
     simulation_name: Mapped[str] = mapped_column(String(36), nullable=False)
     size: Mapped[Integer] = mapped_column(Integer, nullable=True)
+    airport: Mapped[str] = mapped_column(String(36), nullable=False)
     terminal: Mapped[str] = mapped_column(String(36), nullable=False)
     editor: Mapped[str] = mapped_column(String(36), nullable=False)
     memo: Mapped[str] = mapped_column(String(36), nullable=True)

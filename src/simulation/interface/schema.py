@@ -77,6 +77,7 @@ class RunSimulationBody(BaseModel):
 
 class SimulationScenarioBody(BaseModel):
     simulation_name: str
+    airport: str
     terminal: str
     editor: str
     memo: str | None

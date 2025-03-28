@@ -84,6 +84,7 @@ class SimulationService:
         user_id: str,
         name: str,
         memo: str,
+        airport: str,
         terminal: str,
         editor: str,
     ):
@@ -92,9 +93,9 @@ class SimulationService:
         simulation_scenario: SimulationScenario = SimulationScenario(
             id=id,
             user_id=user_id,
-            simulation_url=None,
             simulation_name=name,
             size=None,
+            airport=airport,
             terminal=terminal,
             editor=editor,
             memo=memo,
