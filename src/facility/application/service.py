@@ -75,6 +75,7 @@ class FacilityService:
             freq="10min",
         )
         df_grouped = df_grouped.reindex(all_hours, fill_value=0)
+        # print(df_grouped["checkin_A"])
         # print(df_grouped)  # 히트맵
         # print(df_grouped.sum(axis=1))  # 차트
         # print(df_grouped.sum())  # 테이블
@@ -249,8 +250,13 @@ class FacilityService:
         sim_df = pd.read_parquet("samples/sim_pax.parquet")
         node_list: list = sim_df[f"{process}_pred"].unique().tolist()
 
-        kpi_result["header"]["columns"].append({"label": "KPI", "rowSpan": 2})
-        kpi_result["header"]["columns"].append({"label": "AVERAGE", "rowSpan": 2})
+        description = "A weighted average is a calculation that assigns varying degrees of importance to the numbers in a particular data set."
+        kpi_result["header"]["columns"].append(
+            {"label": "KPI", "description": description, "rowSpan": 2}
+        )
+        kpi_result["header"]["columns"].append(
+            {"label": "Weighted Average", "rowSpan": 2}
+        )
         kpi_result["header"]["columns"].append(
             {"label": process, "colSpan": len(node_list)}
         )
@@ -410,35 +416,44 @@ class FacilityService:
         # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
         sim_df = pd.read_parquet("samples/sim_pax.parquet")
 
-        # TP
+        node_list = sim_df[f"{process}_pred"].unique().tolist()
+
         tp_data = await self._create_throughput(
             sim_df=sim_df, process=process, group_column=f"{process}_pred"
         )
-        tp = tp_data.sum(axis=1)
-        tp_x_list = tp.index.astype(str).tolist()
-        tp_y_list = tp.astype(int).values.tolist()
-
-        chart_result["throughput"] = {"x": tp_x_list, "y": tp_y_list}
-
-        # QL
         ql_data = await self._create_queue_length(
             sim_df=sim_df, process=process, group_column=f"{process}_pred"
         )
-        ql = ql_data.mean(axis=1)
-        ql_x_list = ql.index.astype(str).tolist()
-        ql_y_list = ql.astype(int).values.tolist()
-
-        chart_result["queue_length"] = {"x": ql_x_list, "y": ql_y_list}
-
-        # WT
         wt_data = await self._create_waiting_time(
             sim_df=sim_df, process=process, group_column=f"{process}_pred"
         )
-        wt = wt_data.mean(axis=1)
-        wt_x_list = wt.index.astype(str).tolist()
-        wt_y_list = wt.astype(int).values.tolist()
 
-        chart_result["waiting_time"] = {"x": wt_x_list, "y": wt_y_list}
+        for node in node_list:
+            node_result = {}
+
+            # TP
+            tp = tp_data[node]
+            tp_x_list = tp.index.astype(str).tolist()
+            tp_y_list = tp.astype(int).values.tolist()
+
+            node_result["throughput"] = {"x": tp_x_list, "y": tp_y_list}
+
+            # QL
+            ql = ql_data[node]
+            ql_x_list = ql.index.astype(str).tolist()
+            ql_y_list = ql.astype(int).values.tolist()
+
+            node_result["queue_length"] = {"x": ql_x_list, "y": ql_y_list}
+
+            # WT
+            wt = wt_data[node]
+            wt_x_list = wt.index.astype(str).tolist()
+            wt_y_list = wt.astype(int).values.tolist()
+
+            node_result["waiting_time"] = {"x": wt_x_list, "y": wt_y_list}
+
+            # result
+            chart_result[node] = node_result
 
         # # FE
         # fe_data = await self._create_facility_efficiency(sim_df, process)
@@ -530,9 +545,26 @@ class FacilityService:
             "airline": "operating_carrier_name",
             "destination": "country_code",
             "flight_number": "flight_number",
-            f"{process}": f"{process}_pred",
         }
         return criteria_options
+
+    async def _create_top5(self, sim_df: pd.DataFrame):
+
+        total_groups = sim_df.shape[1]
+        has_etc = total_groups > 5
+        if has_etc:
+            top_5_columns = sim_df.sum().nlargest(5).index.tolist()
+            sim_df["etc"] = sim_df.drop(columns=top_5_columns, errors="ignore").sum(
+                axis=1
+            )
+            sim_df = sim_df[top_5_columns + ["etc"]]
+
+        group_order = sim_df.sum().sort_values(ascending=False).index.tolist()
+        if has_etc and "etc" in group_order:
+            group_order.remove("etc")
+            group_order.append("etc")
+
+        return sim_df, group_order
 
     # NOTE: Pie Chart
     async def generate_pie_chart(
@@ -552,35 +584,32 @@ class FacilityService:
 
         # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
         sim_df = pd.read_parquet("samples/sim_pax.parquet")
-        queue_length = f"{process}_que"
 
         pie_result = {}
         table_result = {}
         total_queue_length_result = {}
         for group_name, group_column in self.get_criteria_options(process).items():
-            group_max_queue = sim_df.groupby(group_column)[queue_length].max()
-            top5_groups = group_max_queue.nlargest(5).index
-            top5_df = sim_df[sim_df[group_column].isin(top5_groups)].copy()
-
             group_df = await self._create_queue_length(
-                sim_df=top5_df, process=process, group_column=group_column
+                sim_df=sim_df, process=process, group_column=group_column
             )
+            group_df, group_order = await self._create_top5(sim_df=group_df)
             df = group_df.mean().sort_values(ascending=False)
+
             labels = []
             values = []
             table_values = []
             total_queue_length = 0
-            for row in range(len(df)):
+            for i, row in enumerate(group_order):
 
-                que_mean = round(df.iloc[row])
+                que_mean = round(df.loc[row])
                 total_queue_length += que_mean
-                column_name = df.index[row]
+                column_name = row
 
                 values.append(que_mean)
                 labels.append(column_name)
 
                 table_values.append(
-                    {"rank": row + 1, "title": column_name, "value": que_mean}
+                    {"rank": i + 1, "title": column_name, "value": que_mean}
                 )
 
             table_result[group_name] = table_values
@@ -593,50 +622,10 @@ class FacilityService:
             "table_result": table_result,
         }
 
-        # labels = []
-        # values = []
-        # table_values = []
-        # for label, column_name in enumerate(
-        #     top5_df[group_column].unique().tolist(), start=1
-        # ):
-        #     df = top5_df[top5_df[group_column] == column_name].copy()
-
-        #     max_que = df[queue_length].max()
-        #     max_time = (
-        #         df.loc[df[queue_length] == max_que, start_time]
-        #         .iloc[0]
-        #         .floor("10min")
-        #     )
-        #     max_time_plus_10 = max_time + pd.Timedelta(minutes=10)
-        #     max_time_minus_10 = max_time - pd.Timedelta(minutes=10)
-
-        #     df.loc[:, start_time] = df[start_time].dt.floor("10min")
-        #     filtered_df = df[
-        #         (df[start_time] >= max_time_minus_10)
-        #         & (df[start_time] <= max_time_plus_10)
-        #     ]
-
-        #     que_mean = round(filtered_df[queue_length].mean())
-
-        #     values.append(que_mean)
-        #     labels.append(column_name)
-
-        #     table_values.append(
-        #         {"label": label, "values": [f"{column_name} {que_mean} {max_time}"]}
-        #     )
-
-        # return
-
     # NOTE: Chart 공용로직
-    async def _create_top5_chart(
+    async def _create_all_chart(
         self, sim_df: pd.DataFrame, group_result: dict, kpi_name: str
     ):
-
-        total_groups = sim_df.shape[1]
-        has_etc = total_groups > 5
-        if has_etc:
-            top_5_columns = sim_df.sum().nlargest(5).index.tolist()
-            sim_df = sim_df[top_5_columns]
 
         sim_df_x_list = sim_df.index.astype(str).tolist()
         traces = []
@@ -680,14 +669,14 @@ class FacilityService:
                 sim_df=sim_df, process=process, group_column=group_column
             )
 
-            group_result = await self._create_top5_chart(tp, group_result, "throughput")
+            group_result = await self._create_all_chart(tp, group_result, "throughput")
 
             # QL
             ql = await self._create_queue_length(
                 sim_df=sim_df, process=process, group_column=group_column
             )
 
-            group_result = await self._create_top5_chart(
+            group_result = await self._create_all_chart(
                 ql, group_result, "queue_length"
             )
 
@@ -695,7 +684,7 @@ class FacilityService:
             wt = await self._create_waiting_time(
                 sim_df=sim_df, process=process, group_column=group_column
             )
-            group_result = await self._create_top5_chart(
+            group_result = await self._create_all_chart(
                 wt, group_result, "waiting_time"
             )
 
