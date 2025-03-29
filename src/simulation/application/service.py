@@ -1542,32 +1542,60 @@ class SimulationService:
         await websocket.send_json({"progress": "98%"})
         await asyncio.sleep(0.001)
 
-        first_process = next(iter(comp_to_idx), None)
-        node_list = sorted(ow.passengers[f"{first_process}_pred"].unique().tolist())
-        first_node = node_list[0].replace(f"{first_process}_", "")
+        # first_process = next(iter(comp_to_idx), None)
+        # node_list = sorted(ow.passengers[f"{first_process}_pred"].unique().tolist())
+        # first_node = node_list[0].replace(f"{first_process}_", "")
 
-        chart = await self.generate_simulation_charts_node(
-            session=session,
-            user_id=None,
-            scenario_id=None,
-            sim_df=ow.passengers,
-            process=first_process,
-            node=first_node,
-        )
+        kpi_result = []
+        chart_result = []
+        for process in comp_to_idx.keys():
 
-        kpi = await self.generate_simulation_metrics_kpi(
-            session=session,
-            user_id=None,
-            scenario_id=None,
-            sim_df=ow.passengers,
-            process=first_process,
-            node=first_node,
-        )
+            for node in comp_to_idx[process].keys():
+
+                chart = await self.generate_simulation_charts_node(
+                    session=session,
+                    user_id=None,
+                    scenario_id=None,
+                    sim_df=ow.passengers,
+                    process=process,
+                    node=node,
+                )
+                chart_result.append(chart)
+
+                kpi = await self.generate_simulation_metrics_kpi(
+                    session=session,
+                    user_id=None,
+                    scenario_id=None,
+                    sim_df=ow.passengers,
+                    process=process,
+                    node=node,
+                )
+                kpi_result.append(kpi)
+
+        # chart = await self.generate_simulation_charts_node(
+        #     session=session,
+        #     user_id=None,
+        #     scenario_id=None,
+        #     sim_df=ow.passengers,
+        #     process=first_process,
+        #     node=first_node,
+        # )
+
+        # kpi = await self.generate_simulation_metrics_kpi(
+        #     session=session,
+        #     user_id=None,
+        #     scenario_id=None,
+        #     sim_df=ow.passengers,
+        #     process=first_process,
+        #     node=first_node,
+        # )
 
         await websocket.send_json({"progress": "99%"})
         await asyncio.sleep(0.001)
 
-        return {"sankey": sankey, "kpi": kpi, "chart": chart}
+        return {"sankey": sankey, "kpi": kpi_result, "chart": chart_result}
+
+        # return {"sankey": sankey, "kpi": kpi, "chart": chart}
 
     async def run_simulation_test(
         self,
@@ -1782,9 +1810,9 @@ class SimulationService:
 
         await asyncio.sleep(0.001)
 
-        first_process = next(iter(comp_to_idx), None)
-        node_list = sorted(ow.passengers[f"{first_process}_pred"].unique().tolist())
-        first_node = node_list[0].replace(f"{first_process}_", "")
+        # first_process = next(iter(comp_to_idx), None)
+        # node_list = sorted(ow.passengers[f"{first_process}_pred"].unique().tolist())
+        # first_node = node_list[0].replace(f"{first_process}_", "")
 
         kpi_result = []
         chart_result = []
