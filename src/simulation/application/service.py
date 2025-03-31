@@ -1392,9 +1392,9 @@ class SimulationService:
         # NOTE: dist_key와 td_arr을 생성
         np_pax_col = df_pax.columns.to_numpy()
         np_pax = df_pax.to_numpy()
-
+        np_pax_col_name = COL_FILTER_MAP.get(processes["0"].name, None)
         sorted_idx = np.argsort(np_pax[:, (np_pax_col == "show_up_time")].flatten())
-        mask = (np_pax_col == "show_up_time") | (np_pax_col == "operating_carrier_name")
+        mask = (np_pax_col == "show_up_time") | (np_pax_col == np_pax_col_name)
         np_filtered_pax = np_pax[sorted_idx][:, mask]
 
         # 정렬된 DataFrame 재생성 -> passengers 매개변수에 사용
@@ -1660,8 +1660,9 @@ class SimulationService:
         np_pax_col = df_pax.columns.to_numpy()
         np_pax = df_pax.to_numpy()
 
+        np_pax_col_name = COL_FILTER_MAP.get(processes["0"].name, None)
         sorted_idx = np.argsort(np_pax[:, (np_pax_col == "show_up_time")].flatten())
-        mask = (np_pax_col == "show_up_time") | (np_pax_col == "operating_carrier_name")
+        mask = (np_pax_col == "show_up_time") | (np_pax_col == np_pax_col_name)
         np_filtered_pax = np_pax[sorted_idx][:, mask]
 
         # 정렬된 DataFrame 재생성 -> passengers 매개변수에 사용
