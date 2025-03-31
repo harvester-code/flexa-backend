@@ -479,6 +479,34 @@ from src.simulation.interface.schema import RunSimulationBody
 
 
 @simulation_router.post(
+    "/run-simulation/temp",
+    status_code=200,
+    summary="웹소켓 사용불가로 일시적으로 사용할 시뮬레이션 엔드포인트",
+)
+@inject
+async def run_simulation_temp(
+    run_simulation: RunSimulationBody,
+    request: Request,
+    simulation_service: SimulationService = Depends(
+        Provide[Container.simulation_service]
+    ),
+    db: Connection = Depends(get_snowflake_session),
+    session: boto3.Session = Depends(get_boto3_session),
+):
+
+    return await simulation_service.run_simulation_temp(
+        db,
+        session,
+        request.state.user_id,
+        run_simulation.scenario_id,
+        run_simulation.flight_schedule,
+        run_simulation.destribution_conditions,
+        run_simulation.processes,
+        run_simulation.components,
+    )
+
+
+@simulation_router.post(
     "/run-simulation/only-algorithm",
     status_code=200,
     summary="알고리즘 테스트용. 프론트는 웹소켓을 통해 실행.",
