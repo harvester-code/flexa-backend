@@ -1535,17 +1535,52 @@ class SimulationService:
         await asyncio.sleep(0.001)
 
         # =====================================
-        # NOTE: 시뮬레이션 결과 데이터를 차트로 변환
+        # NOTE: 시뮬레이션 결과
+        last_process = next(reversed(comp_to_idx), None)
+        complete = ow.passengers[f"{last_process[-1]}_done_pred"].notna().sum()
+        incomplete = ow.passengers[f"{last_process[-1]}_done_pred"].isna().sum()
+        simulation_completed = [
+            {
+                "title": "completed",
+                "value": complete,
+            },
+            {
+                "title": "incomplete",
+                "value": incomplete,
+            },
+        ]
+
+        # NOTE: 생키차트
         sankey = await self._create_simulation_sankey(
             df=ow.passengers, component_list=components
         )
         await websocket.send_json({"progress": "98%"})
         await asyncio.sleep(0.001)
 
+        # NOTE: 첫번째 프로세스의 첫번째 노드만 차트로 변환
         # first_process = next(iter(comp_to_idx), None)
         # node_list = sorted(ow.passengers[f"{first_process}_pred"].unique().tolist())
         # first_node = node_list[0].replace(f"{first_process}_", "")
 
+        # chart = await self.generate_simulation_charts_node(
+        #     session=session,
+        #     user_id=None,
+        #     scenario_id=None,
+        #     sim_df=ow.passengers,
+        #     process=first_process,
+        #     node=first_node,
+        # )
+
+        # kpi = await self.generate_simulation_metrics_kpi(
+        #     session=session,
+        #     user_id=None,
+        #     scenario_id=None,
+        #     sim_df=ow.passengers,
+        #     process=first_process,
+        #     node=first_node,
+        # )
+
+        # NOTE: 모든 프로세스의 노드를 차트로 변환
         kpi_result = []
         chart_result = []
         for process in comp_to_idx.keys():
@@ -1572,28 +1607,15 @@ class SimulationService:
                 )
                 kpi_result.append(kpi)
 
-        # chart = await self.generate_simulation_charts_node(
-        #     session=session,
-        #     user_id=None,
-        #     scenario_id=None,
-        #     sim_df=ow.passengers,
-        #     process=first_process,
-        #     node=first_node,
-        # )
-
-        # kpi = await self.generate_simulation_metrics_kpi(
-        #     session=session,
-        #     user_id=None,
-        #     scenario_id=None,
-        #     sim_df=ow.passengers,
-        #     process=first_process,
-        #     node=first_node,
-        # )
-
         await websocket.send_json({"progress": "99%"})
         await asyncio.sleep(0.001)
 
-        return {"sankey": sankey, "kpi": kpi_result, "chart": chart_result}
+        return {
+            "simulation_completed": simulation_completed,
+            "sankey": sankey,
+            "kpi": kpi_result,
+            "chart": chart_result,
+        }
 
         # return {"sankey": sankey, "kpi": kpi, "chart": chart}
 
