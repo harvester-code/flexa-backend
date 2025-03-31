@@ -1106,6 +1106,17 @@ class SimulationService:
                 fill_value=0,
             )
         )
+        total_groups = df_grouped.shape[1]
+        has_etc = total_groups > 9
+
+        if has_etc:
+            top_9_columns = df_grouped.sum().nlargest(9).index.tolist()
+            df_grouped["etc"] = df_grouped.drop(
+                columns=top_9_columns, errors="ignore"
+            ).sum(axis=1)
+            df_grouped = df_grouped[top_9_columns + ["etc"]]
+        else:
+            top_9_columns = df_grouped.columns.tolist()
 
         start_day = df_grouped.index[0].strftime("%Y-%m-%d %H:%M:%S")
         end_day = df_grouped.index[-1].strftime("%Y-%m-%d %H:%M:%S")
@@ -1116,11 +1127,25 @@ class SimulationService:
         )
         df_grouped = df_grouped.reindex(all_hours, fill_value=0)
 
-        df_grouped = df_grouped.mean(axis=1)
-        wt_x_list = df_grouped.index.astype(str).tolist()
-        wt_y_list = df_grouped.astype(int).values.tolist()
+        group_order = df_grouped.sum().sort_values(ascending=False).index.tolist()
+        if has_etc and "etc" in group_order:
+            group_order.remove("etc")
+            group_order.append("etc")
 
-        return {"y": wt_y_list, "default_x": wt_x_list}
+        # df_grouped = df_grouped.mean(axis=1)
+        traces = [
+            {
+                "name": column,
+                "order": group_order.index(column),
+                "y": df_grouped[column].astype(int).values.tolist(),
+            }
+            for column in df_grouped.columns
+        ]
+        wt_x_list = df_grouped.index.astype(str).tolist()
+        # wt_y_list = df_grouped.astype(int).values.tolist()
+        # print(traces)
+
+        return {"traces": traces, "default_x": wt_x_list}
 
     async def _create_simulation_kpi(self, sim_df: pd.DataFrame, process, node):
 
@@ -1141,12 +1166,16 @@ class SimulationService:
         average_delay = int((total_delay / throughput) * 100) / 100
         average_transaction_time = int(filtered_sim_df[process_time].mean() * 10) / 10
 
-        result = {
-            "Processed Passengers": throughput,
-            "Maximum Wait Time": max_delay,
-            "Average Wait Time": average_delay,
-            "Average Processing Time": average_transaction_time,
-        }
+        result = [
+            {"title": "Processed Passengers", "value": throughput, "unit": "pax"},
+            {"title": "Maximum Wait Time", "value": max_delay, "unit": None},
+            {"title": "Average Wait Time", "value": average_delay, "unit": None},
+            {
+                "title": "Average Processing Time",
+                "value": average_transaction_time,
+                "unit": None,
+            },
+        ]
 
         return result
 
@@ -1217,7 +1246,7 @@ class SimulationService:
                 sim_df=sim_df, process=process, node=node, group_column=group_column
             )
 
-            waiting[CRITERIA_MAP[group_column]] = waiting_data["y"]
+            waiting[CRITERIA_MAP[group_column]] = waiting_data["traces"]
 
             for flow in ["on", "pt"]:
                 # process = checkin / node = A / flow = on / group_column = operating_carrier_name
@@ -1795,7 +1824,6 @@ class SimulationService:
             start_time=0,
             end_time=max(SECONDS_IN_THREE_DAYS, last_passenger_arrival_time),
         )
-        print()
 
         ow = DsOutputWrapper(
             passengers=sorted_df_pax,
@@ -1887,6 +1915,24 @@ class SimulationService:
                     process=process,
                     node=node,
                 )
+
+                for component in component_list:
+                    if component.name == process:
+                        for c_node in component.nodes:
+                            if c_node.name == node:
+                                kpi_que = {
+                                    "title": "Queue Capacity Limit",
+                                    "value": c_node.max_queue_length,
+                                    "unit": "pax",
+                                }
+                                kpi_fc = {
+                                    "title": "Number of Facilities",
+                                    "value": c_node.facility_count,
+                                    "unit": "EA",
+                                }
+                                kpi["kpi"].append(kpi_que)
+                                kpi["kpi"].append(kpi_fc)
+
                 kpi_result.append(kpi)
 
         await asyncio.sleep(0.001)
