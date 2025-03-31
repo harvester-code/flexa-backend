@@ -45,7 +45,6 @@ async def run_simulation(
     db=Depends(get_snowflake_session),
     session: boto3.Session = Depends(get_boto3_session),
 ):
-    await websocket.accept()  # 먼저 연결 수락
     if await websocket_jwt_decoder(websocket) is None:  # 인증 실패 시
         return
 
@@ -59,7 +58,7 @@ async def run_simulation(
                 parsed_data = json.loads(data)
                 run_simulation_data = RunSimulationBody(**parsed_data)
 
-                user_id = websocket.state.user_id
+                user_id = "websocket.state.user_id"
                 if not user_id:
                     await websocket.send_json({"error": "User ID is required"})
                     raise

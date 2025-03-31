@@ -96,12 +96,16 @@ async def jwt_decoder(request: Request, call_next):
 
 async def websocket_jwt_decoder(websocket: WebSocket):
 
-    token = websocket.headers.get("Authorization")
-    if not token or not token.startswith("Bearer "):
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Please JWT")
+    token = websocket.headers.get("sec-websocket-protocol")
+    await websocket.accept(subprotocol=token)
+
+    if not token:
+        await websocket.close(
+            code=status.WS_1008_POLICY_VIOLATION, reason="Please Sec-WebSocket-Protocol"
+        )
         raise
 
-    token = token.split(" ")[1]
+    # token = token.split(" ")[1]
 
     try:
         payload = jwt.decode(
@@ -112,13 +116,18 @@ async def websocket_jwt_decoder(websocket: WebSocket):
         )
         user_id = payload.get("sub")
         if user_id is None:
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            await websocket.close(
+                code=status.WS_1008_POLICY_VIOLATION,
+                reason="Check user_id in Access Token",
+            )
             raise
 
         websocket.state.user_id = user_id
 
     except JWTError:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        await websocket.close(
+            code=status.WS_1008_POLICY_VIOLATION, reason="Check Access Token"
+        )
         raise
 
 
