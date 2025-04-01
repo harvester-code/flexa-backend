@@ -36,34 +36,29 @@ class HomeCalculator:
             facility_utilizations.append(utilization)
         facility_utilization = sum(facility_utilizations) / len(facility_utilizations)
 
-        return {
-            "data": [
+        data = {
+            "normal": [
+                {"title": "Departure Flights", "value": departure_flights},
+                {"title": "Arrival Flights", "value": 0},
                 {
-                    "normal": [
-                        {"title": "Departure Flights", "value": departure_flights},
-                        {"title": "Arrival Flights", "value": 0},
-                        {
-                            "title": "Delay / Return",
-                            "value": [delayed_flights, cancelled_flights],
-                        },
-                        {"title": "Departure Pax", "value": total_pax},
-                        {"title": "Arrival Pax", "value": 0},
-                        {"title": "Transfer Pax", "value": 0},
-                    ],
+                    "title": "Delay / Return",
+                    "value": [delayed_flights, cancelled_flights],
                 },
+                {"title": "Departure Pax", "value": total_pax},
+                {"title": "Arrival Pax", "value": 0},
+                {"title": "Transfer Pax", "value": 0},
+            ],
+            "kpi": [
+                {"title": "Passenger Throughput", "value": throughput},
+                {"title": "Wait Time", "value": waiting_time},
+                {"title": "Queue Length", "value": queue_length},
                 {
-                    "KPI": [
-                        {"title": "Passenger Throughput", "value": throughput},
-                        {"title": "Wait Time", "value": waiting_time},
-                        {"title": "Queue Length", "value": queue_length},
-                        {
-                            "title": "Facility Utilization",
-                            "value": f"{facility_utilization:.1f}%",
-                        },
-                    ],
+                    "title": "Facility Utilization",
+                    "value": f"{facility_utilization:.1f}%",
                 },
-            ]
+            ],
         }
+        return data
 
     def get_alert_issues(self, top_n=8, time_interval="30min"):
         """대기 시간 알림 데이터 생성 메인 함수"""
@@ -86,33 +81,32 @@ class HomeCalculator:
 
         # 알림 JSON 구조 생성
         alert_json = {
-            "data": [
-                {
-                    "all_facilities": [
-                        self._create_alert_data_entry(row)
-                        for _, row in result_df.head(top_n).iterrows()
-                    ]
-                }
+            "all_facilities": [
+                self._create_alert_data_entry(row)
+                for _, row in result_df.head(top_n).iterrows()
             ]
         }
 
         # 각 프로세스별 데이터 추가
         for process in self.process_list:
             process_data = result_df[result_df["process"] == process].head(top_n)
-            alert_json["data"].append(
-                {
-                    process: [
-                        self._create_alert_data_entry(row)
-                        for _, row in process_data.iterrows()
-                    ]
-                }
-            )
+            # alert_json["data"].append(
+            #     {
+            #         process: [
+            #             self._create_alert_data_entry(row)
+            #             for _, row in process_data.iterrows()
+            #         ]
+            #     }
+            # )
+            alert_json[process] = [
+                self._create_alert_data_entry(row) for _, row in process_data.iterrows()
+            ]
 
         return alert_json
 
     def get_facility_details(self):
         """시설별 세부 데이터를 계산하고 반환"""
-        result = {"data": []}
+        result = []
         for process in self.process_list:
             cols_needed = [
                 f"{process}_pred",
@@ -125,7 +119,7 @@ class HomeCalculator:
             overview = self._calculate_overview_metrics(process_df, process)
             category_obj = {"category": process, "overview": overview, "components": []}
             self._add_facility_components(process_df, process, category_obj)
-            result["data"].append(category_obj)
+            result.append(category_obj)
         return result
 
     def get_flow_chart_data(self):
@@ -142,7 +136,7 @@ class HomeCalculator:
                 else time_df[column].tolist()
             )
             components.append({"label": column, "values": values})
-        return {"data": {"x_values": times, "y_values": components}}
+        return {"x_values": times, "y_values": components}
 
     def get_histogram_data(self):
         """시설별 통계 데이터 생성"""
@@ -156,7 +150,9 @@ class HomeCalculator:
             for process in self.process_list
         ]
         all_facility_data = self._calculate_average_distribution(facility_data)
-        return {"data": [{"All Facility": all_facility_data}] + facility_data}
+        result = {"all_facility": all_facility_data, **facility_data}
+        return result
+        # return {"data": [{"All Facility": all_facility_data}] + facility_data}
 
     def get_sankey_diagram_data(self):
         """시설 이용 흐름을 분석하여 Sankey 다이어그램 데이터를 생성"""
@@ -186,10 +182,8 @@ class HomeCalculator:
         for col in target_columns:
             labels.extend(list(flow_df[col].unique()))
         return {
-            "data": {
-                "label": labels,
-                "link": {"source": sources, "target": targets, "value": values},
-            }
+            "label": labels,
+            "link": {"source": sources, "target": targets, "value": values},
         }
 
     # ===== 공통 유틸리티 함수들 =====
