@@ -9,6 +9,7 @@ COL_FILTER_MAP = {
     "airline": "operating_carrier_iata",
     "region": "region_name",
     "country": "country_code",
+    "operating_carrier_name": "operating_carrier_name",
 }
 
 CRITERIA_MAP = {
