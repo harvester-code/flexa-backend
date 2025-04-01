@@ -270,17 +270,25 @@ class DsNode:
 
         destination_nodes = priority_destination_nodes or self.destinations
 
-        available_destination_node_ids = [
-            i
-            for i, node in enumerate(destination_nodes)
-            if len(node.passenger_queues) < node.max_capacity
-        ]
+        # available_destination_node_ids = [
+        #     i
+        #     for i, node in enumerate(destination_nodes)
+        #     if len(node.passenger_queues) < node.max_capacity
+        # ]
 
-        available_destination_nodes = [
-            node
-            for i, node in enumerate(destination_nodes)
-            if len(node.passenger_queues) < node.max_capacity
-        ]
+        # available_destination_nodes = [
+        #     node
+        #     for i, node in enumerate(destination_nodes)
+        #     if len(node.passenger_queues) < node.max_capacity
+        # ]
+        available_destination_node_ids = []
+        available_destination_nodes = []
+        for i, node in enumerate(destination_nodes):
+            if len(node.passenger_queues) < node.max_capacity:
+                available_destination_node_ids.append(i)  # [0,2,3]
+                available_destination_nodes.append(
+                    node
+                )  # [object(0), object(2), object(3)]
 
         # for i, node in enumerate(destination_nodes):
         #     print(
@@ -296,9 +304,12 @@ class DsNode:
         #         print("요놈1", node.node_label)
 
         if len(available_destination_node_ids) == 0:
-            # NOTE: 목적지가 지정되면안되기 때문에 None으로 설정
-            return None
-            # return min(destination_nodes, key=lambda x: len(x.passenger_queues))
+
+            # NOTE : available_dstination_node_ids가 0이어도 목적지에 보내야 한다
+            # 그 이유는 만약 가면 안되는 것이 있다면 prod_que에서 걸러졌을 것이다.
+            # 즉 가면 안되는 것은 prod_que에서 facility를 아예 안보낼 것인데,
+            # 만약 prod_que에서 heapq.heappush가 되었다면 뭐라고 뽑아주는 것이 맞다.
+            return min(destination_nodes, key=lambda x: len(x.passenger_queues))
 
         # ==================================================
         if edited_df:
@@ -322,6 +333,9 @@ class DsNode:
                 [self.destination_choices[i] for i in available_destination_node_ids],
                 dtype=float,
             )
+            # available_destination_node_ids = [0,2,3]
+            # self.destination_choices = [0.1,0.15,0.2,0.25,0.3]
+            # prob = [0.1, 0.2, 0.25]
 
         # print(
         #     "요놈2",
@@ -404,7 +418,7 @@ class DsNode:
             if destination_nodes is not None:
                 # NOTE: 현재 목적지의 모든 노드가 꽉 찬 상태
                 if all(
-                    len(node.passenger_queues) >= node.max_capacity
+                    len(node.passenger_queues) >= (node.max_capacity - 3)
                     for node in destination_nodes
                 ):
                     self.unoccupied_facilities[counter_num - 1] = 1
