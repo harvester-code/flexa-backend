@@ -826,15 +826,6 @@ class SimulationService:
 
     async def generate_set_opening_hours(self, facility_info):
 
-        # test 코드
-        # test = facility_info.facility_schedules
-        # facility_schedules = []
-
-        # for i in range(4):
-        #     for a in range(36):
-        #         facility_schedules.append(test[i])
-        # ==========
-
         time_list = [
             (datetime(2023, 1, 1, 0, 0) + timedelta(minutes=10 * i)).strftime(
                 "%H:%M:%S"
@@ -855,75 +846,44 @@ class SimulationService:
         return {"x": time_list, "y": data_list}
 
     # =====================================
-    async def _create_simulation_flow_chart(
-        self,
-        sim_df: pd.DataFrame,
-        flow: str,
-        process: str,
-        node: str,
-        group_column: str,
-    ):
+    async def _create_time_range(self, date: str):
+        """
+        서브 함수
+        시뮬레이션 차트에 나올 시간 범위 생성
 
-        _start = datetime.now()
+        Args:
+            date: flight schedule에서 가져온 date
 
-        sim_df = sim_df.loc[sim_df[f"{process}_pred"] == f"{process}_{node}"].copy()
+        Return:
+            pd.date_range
+        """
 
-        sim_df.loc[:, f"{process}_{flow}_pred"] = sim_df[
-            f"{process}_{flow}_pred"
-        ].dt.floor("10min")
+        date_obj = datetime.strptime(date, "%Y-%m-%d")
 
-        df_grouped = (
-            sim_df.groupby([f"{process}_{flow}_pred", group_column])
-            .size()
-            .unstack(fill_value=0)
-        )
-        df_grouped = df_grouped.sort_index()
+        day_before = date_obj - timedelta(days=1)
+        day_after = date_obj + timedelta(days=1)
 
-        total_groups = df_grouped.shape[1]
-        has_etc = total_groups > 9
+        day_before_str = day_before.strftime("%Y-%m-%d")
+        day_after_str = day_after.strftime("%Y-%m-%d")
 
-        if has_etc:
-            top_9_columns = df_grouped.sum().nlargest(9).index.tolist()
-            df_grouped["etc"] = df_grouped.drop(
-                columns=top_9_columns, errors="ignore"
-            ).sum(axis=1)
-            df_grouped = df_grouped[top_9_columns + ["etc"]]
-        else:
-            top_9_columns = df_grouped.columns.tolist()
-
-        start_day = df_grouped.index[0].strftime("%Y-%m-%d %H:%M:%S")
-        end_day = df_grouped.index[-1].strftime("%Y-%m-%d %H:%M:%S")
-        all_hours = pd.date_range(
-            start=pd.Timestamp(start_day),
-            end=pd.Timestamp(end_day),
+        time_range = pd.date_range(
+            start=pd.Timestamp(f"{day_before_str} 23:00:00"),
+            end=pd.Timestamp(f"{day_after_str} 01:00:00"),
             freq="10min",
         )
-        df_grouped = df_grouped.reindex(all_hours, fill_value=0)
 
-        group_order = df_grouped.sum().sort_values(ascending=False).index.tolist()
-        if has_etc and "etc" in group_order:
-            group_order.remove("etc")
-            group_order.append("etc")
-
-        default_x = df_grouped.index.strftime("%Y-%m-%d %H:%M:%S").tolist()
-
-        traces = [
-            {
-                "name": column,
-                "order": group_order.index(column),
-                "y": df_grouped[column].tolist(),
-            }
-            for column in df_grouped.columns
-        ]
-
-        _end = datetime.now()
-        elapsed_time = (_end - _start).total_seconds()
-        # print(f"{process}_{node}_{group_column}의 소요시간 : {elapsed_time:.2f}초")
-        return {"traces": traces, "default_x": default_x}
+        return time_range
 
     async def _create_simulation_queue_chart_optimized(
-        self, sim_df: pd.DataFrame, process, group_column
+        self, sim_df: pd.DataFrame, process, group_column, time_range
     ):
+        """
+        서브 함수
+        explode 큐 데이터를 만드는 함수 (최적화 버전)
+
+        Args:
+            time_range: _create_time_range 함수에서 가져온 데이터
+        """
 
         start_time = f"{process}_on_pred"
         end_time = f"{process}_pt_pred"
@@ -951,6 +911,7 @@ class SimulationService:
             counts = np.cumsum(diff_array)[:-1]
             group_counts[group] = counts
 
+        group_counts = group_counts.reindex(time_range, fill_value=0)
         total_groups = group_counts.shape[1]
         if total_groups > 9:
             top_9 = group_counts.sum().nlargest(9).index.tolist()
@@ -983,6 +944,10 @@ class SimulationService:
         process,
         group_column,
     ):
+        """
+        서브 함수
+        explode 큐 데이터를 만드는 함수
+        """
         _start = datetime.now()
 
         start_time = f"{process}_on_pred"
@@ -1080,8 +1045,15 @@ class SimulationService:
         return {"traces": traces, "default_x": default_x}
 
     async def _create_waiting_time(
-        self, sim_df: pd.DataFrame, process, node, group_column
+        self, sim_df: pd.DataFrame, process, node, group_column, time_range
     ) -> pd.DataFrame:
+        """
+        서브 함수
+        waiting time 데이터 생성
+
+        Args:
+            time_range: _create_time_range 함수에서 가져온 데이터
+        """
 
         start_time = f"{process}_on_pred"
         end_time = f"{process}_pt_pred"
@@ -1118,21 +1090,13 @@ class SimulationService:
         else:
             top_9_columns = df_grouped.columns.tolist()
 
-        start_day = df_grouped.index[0].strftime("%Y-%m-%d %H:%M:%S")
-        end_day = df_grouped.index[-1].strftime("%Y-%m-%d %H:%M:%S")
-        all_hours = pd.date_range(
-            start=pd.Timestamp(start_day),
-            end=pd.Timestamp(end_day),
-            freq="10min",
-        )
-        df_grouped = df_grouped.reindex(all_hours, fill_value=0)
+        df_grouped = df_grouped.reindex(time_range, fill_value=0)
 
         group_order = df_grouped.sum().sort_values(ascending=False).index.tolist()
         if has_etc and "etc" in group_order:
             group_order.remove("etc")
             group_order.append("etc")
 
-        # df_grouped = df_grouped.mean(axis=1)
         traces = [
             {
                 "name": column,
@@ -1142,108 +1106,121 @@ class SimulationService:
             for column in df_grouped.columns
         ]
         wt_x_list = df_grouped.index.astype(str).tolist()
-        # wt_y_list = df_grouped.astype(int).values.tolist()
-        # print(traces)
 
         return {"traces": traces, "default_x": wt_x_list}
 
-    async def _create_simulation_kpi(self, sim_df: pd.DataFrame, process, node):
+    async def _create_simulation_flow_chart(
+        self,
+        sim_df: pd.DataFrame,
+        flow: str,
+        process: str,
+        node: str,
+        group_column: str,
+        time_range,
+    ):
+        """
+        서브 함수
+        inflow outflow 데이터 생성
 
-        start_time = f"{process}_on_pred"
-        end_time = f"{process}_pt_pred"
-        process_time = f"{process}_pt"
+        Args:
+            flow: [on, pt]로 구분되며 inflow인지 outflow인지 구분
+            time_range: _create_time_range 함수에서 가져온 데이터
+        """
 
-        filtered_sim_df = sim_df.loc[
-            sim_df[f"{process}_pred"] == f"{process}_{node}"
-        ].copy()
+        sim_df = sim_df.loc[sim_df[f"{process}_pred"] == f"{process}_{node}"].copy()
 
-        diff_arr = (
-            filtered_sim_df[end_time] - filtered_sim_df[start_time]
-        ).dt.total_seconds()
-        throughput = int(len(filtered_sim_df))
-        total_delay = int(diff_arr.sum() / 60)
-        max_delay = int(diff_arr.max() / 60)
-        average_delay = int((total_delay / throughput) * 100) / 100
-        average_transaction_time = int(filtered_sim_df[process_time].mean() * 10) / 10
+        sim_df.loc[:, f"{process}_{flow}_pred"] = sim_df[
+            f"{process}_{flow}_pred"
+        ].dt.floor("10min")
 
-        result = [
-            {"title": "Processed Passengers", "value": throughput, "unit": "pax"},
-            {"title": "Maximum Wait Time", "value": max_delay, "unit": None},
-            {"title": "Average Wait Time", "value": average_delay, "unit": None},
+        df_grouped = (
+            sim_df.groupby([f"{process}_{flow}_pred", group_column])
+            .size()
+            .unstack(fill_value=0)
+        )
+        df_grouped = df_grouped.sort_index()
+
+        total_groups = df_grouped.shape[1]
+        has_etc = total_groups > 9
+
+        if has_etc:
+            top_9_columns = df_grouped.sum().nlargest(9).index.tolist()
+            df_grouped["etc"] = df_grouped.drop(
+                columns=top_9_columns, errors="ignore"
+            ).sum(axis=1)
+            df_grouped = df_grouped[top_9_columns + ["etc"]]
+        else:
+            top_9_columns = df_grouped.columns.tolist()
+
+        df_grouped = df_grouped.reindex(time_range, fill_value=0)
+
+        group_order = df_grouped.sum().sort_values(ascending=False).index.tolist()
+        if has_etc and "etc" in group_order:
+            group_order.remove("etc")
+            group_order.append("etc")
+
+        default_x = df_grouped.index.strftime("%Y-%m-%d %H:%M:%S").tolist()
+
+        traces = [
             {
-                "title": "Average Processing Time",
-                "value": average_transaction_time,
-                "unit": None,
-            },
+                "name": column,
+                "order": group_order.index(column),
+                "y": df_grouped[column].tolist(),
+            }
+            for column in df_grouped.columns
         ]
 
-        return result
+        return {"traces": traces, "default_x": default_x}
 
-    async def generate_simulation_metrics_kpi(
+    async def _generate_simulation_charts_node(
         self,
-        session: boto3.Session,
-        user_id: str,
         process: str,
         node: str,
-        scenario_id: str | None = None,
-        sim_df: pd.DataFrame | None = None,
+        sim_df: pd.DataFrame,
+        date: str,
     ):
-        # s3에서 시뮬레이션 데이터 프레임 가져오기
-        if scenario_id:
-            filename = f"{user_id}/{scenario_id}"
+        """
+        메인 함수
+        각 노드 별로 차트 데이터를 생성
 
-            sim_df = await self.simulation_repo.download_from_s3(session, filename)
+        Args:
+            date: flight schedule에서 가져온 date
+        """
 
-        kpi = await self._create_simulation_kpi(sim_df, process, node)
+        # 시간 범위 설정
+        time_range = await self._create_time_range(date)
 
-        result = {
-            "process": process,
-            "node": node,
-            "kpi": kpi,
-        }
-        return result
-
-    async def generate_simulation_charts_node(
-        self,
-        session: boto3.Session,
-        user_id: str,
-        process: str,
-        node: str,
-        scenario_id: str | None = None,
-        sim_df: pd.DataFrame | None = None,
-    ):
-        _start = datetime.now()
-
-        # s3에서 시뮬레이션 데이터 프레임 가져오기
-        if scenario_id:
-            filename = f"{user_id}/{scenario_id}"
-
-            sim_df = await self.simulation_repo.download_from_s3(session, filename)
-
-            _end_ = datetime.now()
-            elapsed_time_ = (_end_ - _start).total_seconds()
-            # print(f"S3에서 데이터를 불러오는 소요시간 : {elapsed_time_:.2f}초")
-
-        # 해당 데이터프레임을 선택한 process와 node에 따라 차트 생성
-        inbound = {}
-        outbound = {}
-        queing = {}
-        waiting = {}
-        # process = checkin / node = A / flow = on
-        for group_column in [
+        # color criteria
+        color_criteria_options = [
             "operating_carrier_name",
             "departure_terminal",
             "country_code",
             "region_name",
-        ]:
+        ]
+
+        # 생성될 데이터들이 담길 딕셔너리
+        inbound = {}
+        outbound = {}
+        queing = {}
+        waiting = {}
+
+        # EX. process = checkin / node = A / flow = on
+        for group_column in color_criteria_options:
 
             queue_data = await self._create_simulation_queue_chart_optimized(
-                sim_df, process, group_column
+                sim_df=sim_df,
+                process=process,
+                group_column=group_column,
+                time_range=time_range,
             )
             queing[CRITERIA_MAP[group_column]] = queue_data["traces"]
 
             waiting_data = await self._create_waiting_time(
-                sim_df=sim_df, process=process, node=node, group_column=group_column
+                sim_df=sim_df,
+                process=process,
+                node=node,
+                group_column=group_column,
+                time_range=time_range,
             )
 
             waiting[CRITERIA_MAP[group_column]] = waiting_data["traces"]
@@ -1256,6 +1233,7 @@ class SimulationService:
                     process=process,
                     node=node,
                     group_column=group_column,
+                    time_range=time_range,
                 )
 
                 if flow == "on":
@@ -1283,43 +1261,116 @@ class SimulationService:
             },
         }
 
-        _end = datetime.now()
-        elapsed_time = (_end - _start).total_seconds()
-        # print(f"전체 소요시간 : {elapsed_time:.2f}초")
+        return result
+
+    # =====================================
+    async def _generate_simulation_metrics_kpi(
+        self,
+        process: str,
+        node: str,
+        sim_df: pd.DataFrame,
+    ):
+        """
+        메인 함수
+        각 노드별 KPI Indicator 지표를 생성
+        """
+
+        start_time = f"{process}_on_pred"
+        end_time = f"{process}_pt_pred"
+        process_time = f"{process}_pt"
+
+        filtered_sim_df = sim_df.loc[
+            sim_df[f"{process}_pred"] == f"{process}_{node}"
+        ].copy()
+
+        diff_arr = (
+            filtered_sim_df[end_time] - filtered_sim_df[start_time]
+        ).dt.total_seconds()
+        throughput = int(len(filtered_sim_df))
+        total_delay = int(diff_arr.sum() / 60)
+        max_delay = int(diff_arr.max() / 60)
+        average_delay = int((total_delay / throughput) * 100) / 100
+        average_transaction_time = int(filtered_sim_df[process_time].mean() * 10) / 10
+
+        kpi = [
+            {"title": "Processed Passengers", "value": throughput, "unit": "pax"},
+            {"title": "Maximum Wait Time", "value": max_delay, "unit": None},
+            {"title": "Average Wait Time", "value": average_delay, "unit": None},
+            {
+                "title": "Average Processing Time",
+                "value": average_transaction_time,
+                "unit": None,
+            },
+        ]
+
+        return {
+            "process": process,
+            "node": node,
+            "kpi": kpi,
+        }
+
+    async def _generate_simulation_charts_total(
+        self,
+        sim_df: pd.DataFrame,
+        total: dict,
+    ):
+        """
+        메인 함수
+        모든 노드의 최종 차트 지표를 보여주는 함수
+
+        Args:
+            total: comp_to_idx 딕셔너리 필요
+            EX. comp_to_idx = {'checkin': {'A': 0, 'B': 1, 'C': 2, 'D': 3}, 'departure_gate': {'DG1': 4, 'DG2': 5}, 'security_check': {'SC1': 6, 'SC2': 7}, 'passport_check': {'PC1': 8, 'PC2': 9}}
+        """
+
+        x_data = []
+        throughput_data = []
+        max_delay_data = []
+        average_delay_data = []
+        total_delay_data = []
+        for process, nodes in total.items():
+            for node in nodes.keys():
+                x_data.append(node)
+
+                start_time = f"{process}_on_pred"
+                end_time = f"{process}_pt_pred"
+
+                filtered_sim_df = sim_df.loc[
+                    sim_df[f"{process}_pred"] == f"{process}_{node}"
+                ].copy()
+
+                diff_arr = (
+                    filtered_sim_df[end_time] - filtered_sim_df[start_time]
+                ).dt.total_seconds()
+                throughput = int(len(filtered_sim_df))
+                total_delay = int(diff_arr.sum() / 60)
+                max_delay = int(diff_arr.max() / 60)
+                average_delay = int((total_delay / throughput) * 100) / 100
+
+                throughput_data.append(throughput)
+                max_delay_data.append(max_delay)
+                average_delay_data.append(average_delay)
+                total_delay_data.append(total_delay)
+
+        result = {
+            "defalut_x": x_data,
+            "throughput": throughput_data,
+            "max_delay": max_delay_data,
+            "average_delay": average_delay_data,
+            "total_delay": total_delay_data,
+        }
 
         return result
 
-    async def generate_simulation_charts_total(
-        self,
-        session: boto3.Session,
-        user_id: str,
-        scenario_id: str,
-        total: list,
-    ):
-        filename = f"{user_id}/{scenario_id}"
-        sim_df = await self.simulation_repo.download_from_s3(session, filename)
-
-        kpi_list = []
-        for li in total:
-            kpi = await self._create_simulation_kpi(
-                sim_df=sim_df, process=li.process, node=li.node
-            )
-            kpi["process"] = li.process
-            kpi["node"] = li.node
-
-            kpi_list.append(kpi)
-
-        total_df = pd.DataFrame(kpi_list)
-
-        x_data = [f"{row['process']}_{row['node']}" for _, row in total_df.iterrows()]
-        y_data = total_df.drop(columns=["process", "node"]).to_dict(orient="list")
-
-        return {"x": x_data, "y": y_data}
-
     # =====================================
-    async def _create_simulation_sankey(
+    async def _generate_simulation_sankey(
         self, df: pd.DataFrame, component_list, suffix="_pred"
     ) -> dict:
+        """
+        메인 함수
+        생키차트 데이터 생성
+        """
+
         # 프로세스별 고유값과 인덱스 매핑
         nodes = []
         node_dict = {}
@@ -1861,61 +1912,38 @@ class SimulationService:
             },
         ]
 
-        # NOTE: 생키차트
-        sankey = await self._create_simulation_sankey(
+        # =====================================
+        # NOTE: 차트 생성
+        sankey = await self._generate_simulation_sankey(
             df=ow.passengers, component_list=components
         )
-        await asyncio.sleep(0.001)
+        total = await self._generate_simulation_charts_total(
+            sim_df=ow.passengers, total=comp_to_idx
+        )
 
-        # NOTE: 첫번째 프로세스의 첫번째 노드만 차트로 변환
-        # first_process = next(iter(comp_to_idx), None)
-        # node_list = sorted(ow.passengers[f"{first_process}_pred"].unique().tolist())
-        # first_node = node_list[0].replace(f"{first_process}_", "")
-
-        # chart = await self.generate_simulation_charts_node(
-        #     session=session,
-        #     user_id=None,
-        #     scenario_id=None,
-        #     sim_df=ow.passengers,
-        #     process=first_process,
-        #     node=first_node,
-        # )
-
-        # kpi = await self.generate_simulation_metrics_kpi(
-        #     session=session,
-        #     user_id=None,
-        #     scenario_id=None,
-        #     sim_df=ow.passengers,
-        #     process=first_process,
-        #     node=first_node,
-        # )
-
-        # NOTE: 모든 프로세스의 노드를 차트로 변환
+        sch_date = flight_sch.date
         kpi_result = []
         chart_result = []
-        for process in comp_to_idx.keys():
 
-            for node in comp_to_idx[process].keys():
+        for process, nodes in comp_to_idx.items():
+            for node in nodes.keys():
 
-                chart = await self.generate_simulation_charts_node(
-                    session=session,
-                    user_id=None,
-                    scenario_id=None,
+                chart = await self._generate_simulation_charts_node(
                     sim_df=ow.passengers,
                     process=process,
                     node=node,
+                    date=sch_date,
                 )
                 chart_result.append(chart)
 
-                kpi = await self.generate_simulation_metrics_kpi(
-                    session=session,
-                    user_id=None,
-                    scenario_id=None,
+                kpi = await self._generate_simulation_metrics_kpi(
                     sim_df=ow.passengers,
                     process=process,
                     node=node,
                 )
+                kpi_result.append(kpi)
 
+                # TODO: 이후에 메인 코드에도 추가해야함
                 for component in component_list:
                     if component.name == process:
                         for c_node in component.nodes:
@@ -1932,19 +1960,15 @@ class SimulationService:
                                 }
                                 kpi["kpi"].append(kpi_que)
                                 kpi["kpi"].append(kpi_fc)
-
-                kpi_result.append(kpi)
-
-        await asyncio.sleep(0.001)
+                # =============================
 
         return {
             "simulation_completed": simulation_completed,
             "sankey": sankey,
             "kpi": kpi_result,
             "chart": chart_result,
+            "total": total,
         }
-
-        # return {"sankey": sankey, "kpi": kpi, "chart": chart}
 
     async def run_simulation_test(
         self,
@@ -1993,17 +2017,13 @@ class SimulationService:
                 else:
                     component_node_map[comp.name] = [node.id]
 
-        await asyncio.sleep(0.001)
         # ============================================================
         # NOTE: 쇼업패턴으로 생성된 여객데이터
         data = await self.fetch_flight_schedule_data_test(
             db, flight_sch.date, flight_sch.airport, flight_sch.condition
         )
 
-        await asyncio.sleep(0.001)
-
         df_pax = await self._calculate_show_up_pattern(data, destribution_conditions)
-        await asyncio.sleep(0.001)
         # ============================================================
         # NOTE: dist_key와 td_arr을 생성
         np_pax_col = df_pax.columns.to_numpy()
@@ -2034,7 +2054,6 @@ class SimulationService:
             [(td.total_seconds()) + v0 for td in (ck_on - np.array(ck_on[0]))]
         )
 
-        await asyncio.sleep(0.001)
         # ============================================================
         # NOTE: dist_map과 graph_list를 생성
 
@@ -2091,7 +2110,6 @@ class SimulationService:
                     for node in range(len(nodes)):
                         node_transition_graph.append([])
 
-        await asyncio.sleep(0.001)
         # ============================================================
         # NOTE: 메인 코드
         try:
@@ -2137,63 +2155,56 @@ class SimulationService:
         )
         ow.write_pred()
 
-        await asyncio.sleep(0.001)
-
         # =====================================
         # NOTE: 시뮬레이션 결과 데이터 s3 저장
         # print(ow.passengers)
         # ow.passengers.to_csv("sim_pax_test.csv", encoding="utf-8-sig", index=False)
-        ow.passengers.to_parquet(
-            "samples/sim_pax_test_real.parquet", compression="snappy"
-        )
+        ow.passengers.to_parquet("samples/sim_pax_test.parquet", compression="snappy")
 
         # filename = f"{user_id}/{scenario_id}.parquet"
         # await self.simulation_repo.upload_to_s3(session, ow.passengers, filename)
 
-        await asyncio.sleep(0.001)
-
         # =====================================
         # NOTE: 시뮬레이션 결과 데이터를 차트로 변환
-        sankey = await self._create_simulation_sankey(
+        sankey = await self._generate_simulation_sankey(
             df=ow.passengers, component_list=components
         )
-
-        await asyncio.sleep(0.001)
+        total = await self._generate_simulation_charts_total(
+            sim_df=ow.passengers, total=comp_to_idx
+        )
 
         # first_process = next(iter(comp_to_idx), None)
         # node_list = sorted(ow.passengers[f"{first_process}_pred"].unique().tolist())
         # first_node = node_list[0].replace(f"{first_process}_", "")
-
+        sch_date = flight_sch.date
         kpi_result = []
         chart_result = []
 
-        for process in comp_to_idx.keys():
+        for process, nodes in comp_to_idx.items():
 
-            for node in comp_to_idx[process].keys():
+            for node in nodes.keys():
 
-                chart = await self.generate_simulation_charts_node(
-                    session=session,
-                    user_id=None,
-                    scenario_id=None,
+                chart = await self._generate_simulation_charts_node(
                     sim_df=ow.passengers,
                     process=process,
                     node=node,
+                    date=sch_date,
                 )
                 chart_result.append(chart)
 
-                kpi = await self.generate_simulation_metrics_kpi(
-                    session=session,
-                    user_id=None,
-                    scenario_id=None,
+                kpi = await self._generate_simulation_metrics_kpi(
                     sim_df=ow.passengers,
                     process=process,
                     node=node,
                 )
                 kpi_result.append(kpi)
 
-        await asyncio.sleep(0.001)
-
         # FIXME: 테스트용 확인코드
         # print(f"완료시간 : {datetime.now()}")
-        # return {"sankey": sankey, "kpi": kpi_result, "chart": chart_result}
-        return "Success"
+        return {
+            "sankey": sankey,
+            "kpi": kpi_result,
+            "chart": chart_result,
+            "total": total,
+        }
+        # return "Success"
