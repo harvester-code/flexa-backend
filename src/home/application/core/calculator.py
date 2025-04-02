@@ -122,6 +122,7 @@ class HomeCalculator:
             result.append(category_obj)
         return result
 
+    # FIXME: 데이터 응답 형태를 /api/v1/facilities/kpi-summaries/charts/line/scenario-id/{scenario_id}의 엔드포인트와 같은 응답형태로 변경 필요
     def get_flow_chart_data(self):
         """시간별 대기열 및 대기 시간 데이터 생성"""
         time_df = self._create_time_dataframe()
@@ -159,7 +160,7 @@ class HomeCalculator:
                 "queue_length": self._calculate_queue_length_distribution(process),
             }
         all_facility_data = self._calculate_average_distribution([result])
-        result["all_facility"] = all_facility_data
+        result["all_facilities"] = all_facility_data
 
         return result
 
