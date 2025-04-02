@@ -1923,7 +1923,7 @@ class SimulationService:
 
         sch_date = flight_sch.date
         kpi_result = []
-        chart_result = []
+        bar_chart_result = []
 
         for process, nodes in comp_to_idx.items():
             for node in nodes.keys():
@@ -1934,7 +1934,7 @@ class SimulationService:
                     node=node,
                     date=sch_date,
                 )
-                chart_result.append(chart)
+                bar_chart_result.append(chart)
 
                 kpi = await self._generate_simulation_metrics_kpi(
                     sim_df=ow.passengers,
@@ -1962,11 +1962,35 @@ class SimulationService:
                                 kpi["kpi"].append(kpi_fc)
                 # =============================
 
+        # NOTE: 라인차트 로직
+        line_chart_result = []
+        for process in component_list:
+            for node in process.nodes:
+                data_list = [
+                    await self._calculate_capacity(facility_schedule, 10)
+                    for facility_schedule in node.facility_schedules
+                ]
+
+                non_none_data = [data for data in data_list if data is not None]
+                max_data = max(non_none_data) if non_none_data else 0
+
+                data_list = [
+                    data if data is not None else max_data * 2 for data in data_list
+                ]
+
+                line_chart = {
+                    "process": process.name,
+                    "node": node.name,
+                    "y": data_list,
+                }
+                line_chart_result.append(line_chart)
+
         return {
             "simulation_completed": simulation_completed,
             "sankey": sankey,
             "kpi": kpi_result,
-            "chart": chart_result,
+            "chart": bar_chart_result,
+            "line_chart": line_chart_result,
             "total": total,
         }
 
