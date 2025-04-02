@@ -140,19 +140,28 @@ class HomeCalculator:
 
     def get_histogram_data(self):
         """시설별 통계 데이터 생성"""
-        facility_data = [
-            {
-                process: {
-                    "waiting_time": self._calculate_waiting_time_distribution(process),
-                    "queue_length": self._calculate_queue_length_distribution(process),
-                },
-            }
-            for process in self.process_list
-        ]
-        all_facility_data = self._calculate_average_distribution(facility_data)
-        result = {"all_facility": all_facility_data, **facility_data}
-        return result
+        # facility_data = [
+        #     {
+        #         process: {
+        #             "waiting_time": self._calculate_waiting_time_distribution(process),
+        #             "queue_length": self._calculate_queue_length_distribution(process),
+        #         },
+        #     }
+        #     for process in self.process_list
+        # ]
+
+        # all_facility_data = self._calculate_average_distribution(facility_data)
         # return {"data": [{"All Facility": all_facility_data}] + facility_data}
+        result = {}
+        for process in self.process_list:
+            result[process] = {
+                "waiting_time": self._calculate_waiting_time_distribution(process),
+                "queue_length": self._calculate_queue_length_distribution(process),
+            }
+        all_facility_data = self._calculate_average_distribution([result])
+        result["all_facility"] = all_facility_data
+
+        return result
 
     def get_sankey_diagram_data(self):
         """시설 이용 흐름을 분석하여 Sankey 다이어그램 데이터를 생성"""
