@@ -1286,11 +1286,24 @@ class SimulationService:
         diff_arr = (
             filtered_sim_df[end_time] - filtered_sim_df[start_time]
         ).dt.total_seconds()
-        throughput = int(len(filtered_sim_df))
-        total_delay = int(diff_arr.sum() / 60)
-        max_delay = int(diff_arr.max() / 60)
-        average_delay = int((total_delay / throughput) * 100) / 100
-        average_transaction_time = int(filtered_sim_df[process_time].mean() * 10) / 10
+        throughput = int(len(filtered_sim_df)) if filtered_sim_df is not None else 0
+
+        total_delay = int((diff_arr.sum() / 60) if diff_arr is not None else 0)
+
+        max_delay = int((diff_arr.max() / 60) if diff_arr is not None else 0)
+
+        # 평균 지연 시간 (0으로 나눠지는 것 방지)
+        if throughput:
+            average_delay = round((total_delay / throughput), 2)
+        else:
+            average_delay = 0
+
+        # 평균 처리 시간
+        if filtered_sim_df is not None and process_time in filtered_sim_df.columns:
+            avg_time = filtered_sim_df[process_time].mean()
+            average_transaction_time = round(avg_time if avg_time is not None else 0, 1)
+        else:
+            average_transaction_time = 0
 
         kpi = [
             {"title": "Processed Passengers", "value": throughput, "unit": "pax"},
