@@ -18,7 +18,7 @@ from src.simulation.interface.schema import (
     ScenarioUpdateBody,
     SetOpeningHoursBody,
     SimulationScenarioBody,
-    SimulationTotalChartBody,
+    RunSimulationBody,
 )
 
 simulation_router = APIRouter(prefix="/simulations")
@@ -274,7 +274,7 @@ async def update_scenario_metadata(
     "/flight-schedules/scenario-id/{scenario_id}",
     status_code=status.HTTP_200_OK,
     summary="06_SI_003, 06_SI_006",
-    description="06_SI_003에서 LOAD 버튼과 06_SI_006에서 Apply 버튼을 눌렀을 때 실행되는 엔드포인트 /// 만약 body값에 first_load: true로 설정이 되어있면, add_conditions에 필요한 데이터를 전달한다.",
+    description="06_SI_003에서 LOAD 버튼과 06_SI_006에서 Apply 버튼을 눌렀을 때 실행되는 엔드포인트",
 )
 @inject
 async def fetch_flight_schedule(
@@ -347,7 +347,7 @@ async def fetch_processing_procedures(
     "/facility-conns",
     status_code=status.HTTP_200_OK,
     summary="06_SI_013",
-    description="06_SI_013에서 최종 Apply 버튼을 눌렀을 때 passenger flow 버튼이 나오도록 실행되는 엔드포인트",
+    description="06_SI_013에서 최종 Apply 버튼을 눌렀을 때 facility info에서 사용할 바차트 데이터가 나오는 엔드포인트",
 )
 @inject
 async def generate_facility_conn(
@@ -386,96 +386,27 @@ async def generate_set_opening_hours(
 
 
 @simulation_router.post(
-    "/metrics/kpi/scenario-id/{scenario_id}",
+    "/run-simulation/overview",
     status_code=status.HTTP_200_OK,
-    summary="06_SI_020",
-    description="06_SI_020에서 시뮬레이션 결과 그래프를 보고 특정 프로세스의 특정 노드를 선택할때 실행되는 엔드포인트",
+    summary="06_SI_018",
+    description="06_SI_018로 들어올때 overview 화면에서 필요한 데이터를 응답하는 엔드포인트",
 )
 @inject
-async def generate_simulation_metrics_kpi(
-    scenario_id: str,
-    process: str,
-    node: str,
-    request: Request,
+async def generate_simulation_overview(
+    run_simulation: RunSimulationBody,
     simulation_service: SimulationService = Depends(
         Provide[Container.simulation_service]
     ),
-    session: boto3.Session = Depends(get_boto3_session),
+    db: Connection = Depends(get_snowflake_session),
 ):
 
-    if not scenario_id or not process or not node:
-        raise BadRequestException("Scenario ID and Process and Node is required")
-
-    return await simulation_service.generate_simulation_metrics_kpi(
-        session=session,
-        user_id=request.state.user_id,
-        scenario_id=scenario_id,
-        process=process,
-        node=node,
-        sim_df=None,
+    return await simulation_service.generate_simulation_overview(
+        db,
+        run_simulation.flight_schedule,
+        run_simulation.destribution_conditions,
+        run_simulation.processes,
+        run_simulation.components,
     )
-
-
-@simulation_router.post(
-    "/charts/bar/node/scenario-id/{scenario_id}",
-    status_code=status.HTTP_200_OK,
-    summary="06_SI_020",
-    description="06_SI_020에서 시뮬레이션 결과 그래프를 보고 특정 프로세스의 특정 노드를 선택할때 실행되는 엔드포인트",
-)
-@inject
-async def generate_simulation_kpi_chart(
-    scenario_id: str,
-    process: str,
-    node: str,
-    request: Request,
-    simulation_service: SimulationService = Depends(
-        Provide[Container.simulation_service]
-    ),
-    session: boto3.Session = Depends(get_boto3_session),
-):
-
-    if not scenario_id or not process or not node:
-        raise BadRequestException("Scenario ID and Process and Node is required")
-
-    return await simulation_service.generate_simulation_charts_node(
-        session=session,
-        user_id=request.state.user_id,
-        scenario_id=scenario_id,
-        process=process,
-        node=node,
-        sim_df=None,
-    )
-
-
-@simulation_router.post(
-    "/charts/bar/total/scenario-id/{scenario_id}",
-    status_code=status.HTTP_200_OK,
-    summary="06_SI_020",
-    description="06_SI_020에서 시뮬레이션 결과 그래프를 보고 Total탭을 선택할때 실행되는 엔드포인트",
-)
-@inject
-async def generate_simulation_total_chart(
-    scenario_id: str,
-    total: SimulationTotalChartBody,
-    request: Request,
-    simulation_service: SimulationService = Depends(
-        Provide[Container.simulation_service]
-    ),
-    session: boto3.Session = Depends(get_boto3_session),
-):
-
-    if not scenario_id:
-        raise BadRequestException("Scenario ID is required")
-
-    return await simulation_service.generate_simulation_charts_total(
-        session=session,
-        user_id=request.state.user_id,
-        scenario_id=scenario_id,
-        total=total.total,
-    )
-
-
-from src.simulation.interface.schema import RunSimulationBody
 
 
 @simulation_router.post(
@@ -515,10 +446,11 @@ async def run_simulation_temp(
 async def run_simulation(
     run_simulation: RunSimulationBody,
     request: Request,
+    db: str,
     simulation_service: SimulationService = Depends(
         Provide[Container.simulation_service]
     ),
-    db: Connection = Depends(get_snowflake_session),
+    # db: Connection = Depends(get_snowflake_session),
     session: boto3.Session = Depends(get_boto3_session),
 ):
 
@@ -532,3 +464,93 @@ async def run_simulation(
         run_simulation.processes,
         run_simulation.components,
     )
+
+
+# @simulation_router.post(
+#     "/metrics/kpi/scenario-id/{scenario_id}",
+#     status_code=status.HTTP_200_OK,
+#     summary="06_SI_020",
+#     description="06_SI_020에서 시뮬레이션 결과 그래프를 보고 특정 프로세스의 특정 노드를 선택할때 실행되는 엔드포인트",
+# )
+# @inject
+# async def generate_simulation_metrics_kpi(
+#     scenario_id: str,
+#     process: str,
+#     node: str,
+#     request: Request,
+#     simulation_service: SimulationService = Depends(
+#         Provide[Container.simulation_service]
+#     ),
+#     session: boto3.Session = Depends(get_boto3_session),
+# ):
+
+#     if not scenario_id or not process or not node:
+#         raise BadRequestException("Scenario ID and Process and Node is required")
+
+#     return await simulation_service.generate_simulation_metrics_kpi(
+#         session=session,
+#         user_id=request.state.user_id,
+#         scenario_id=scenario_id,
+#         process=process,
+#         node=node,
+#         sim_df=None,
+#     )
+
+
+# @simulation_router.post(
+#     "/charts/bar/node/scenario-id/{scenario_id}",
+#     status_code=status.HTTP_200_OK,
+#     summary="06_SI_020",
+#     description="06_SI_020에서 시뮬레이션 결과 그래프를 보고 특정 프로세스의 특정 노드를 선택할때 실행되는 엔드포인트",
+# )
+# @inject
+# async def generate_simulation_kpi_chart(
+#     scenario_id: str,
+#     process: str,
+#     node: str,
+#     request: Request,
+#     simulation_service: SimulationService = Depends(
+#         Provide[Container.simulation_service]
+#     ),
+#     session: boto3.Session = Depends(get_boto3_session),
+# ):
+
+#     if not scenario_id or not process or not node:
+#         raise BadRequestException("Scenario ID and Process and Node is required")
+
+#     return await simulation_service.generate_simulation_charts_node(
+#         session=session,
+#         user_id=request.state.user_id,
+#         scenario_id=scenario_id,
+#         process=process,
+#         node=node,
+#         sim_df=None,
+#     )
+
+
+# @simulation_router.post(
+#     "/charts/bar/total/scenario-id/{scenario_id}",
+#     status_code=status.HTTP_200_OK,
+#     summary="06_SI_020",
+#     description="06_SI_020에서 시뮬레이션 결과 그래프를 보고 Total탭을 선택할때 실행되는 엔드포인트",
+# )
+# @inject
+# async def generate_simulation_total_chart(
+#     scenario_id: str,
+#     total: SimulationTotalChartBody,
+#     request: Request,
+#     simulation_service: SimulationService = Depends(
+#         Provide[Container.simulation_service]
+#     ),
+#     session: boto3.Session = Depends(get_boto3_session),
+# ):
+
+#     if not scenario_id:
+#         raise BadRequestException("Scenario ID is required")
+
+#     return await simulation_service.generate_simulation_charts_total(
+#         session=session,
+#         user_id=request.state.user_id,
+#         scenario_id=scenario_id,
+#         total=total.total,
+#     )
