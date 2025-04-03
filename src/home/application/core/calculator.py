@@ -12,7 +12,7 @@ class HomeCalculator:
         self.pax_df = pax_df
         self.calculate_type = calculate_type
         self.percentile = percentile
-        self.time_unit = "30min"
+        self.time_unit = "10min"
         self.process_list = self._get_process_list()
 
     # ===== 메인 함수들 =====
@@ -58,7 +58,7 @@ class HomeCalculator:
                 },
             ],
         }
-        return data
+        return self._format_json_numbers(data)
 
     def get_alert_issues(self, top_n=8, time_interval="30min"):
         """대기 시간 알림 데이터 생성 메인 함수"""
@@ -90,19 +90,11 @@ class HomeCalculator:
         # 각 프로세스별 데이터 추가
         for process in self.process_list:
             process_data = result_df[result_df["process"] == process].head(top_n)
-            # alert_json["data"].append(
-            #     {
-            #         process: [
-            #             self._create_alert_data_entry(row)
-            #             for _, row in process_data.iterrows()
-            #         ]
-            #     }
-            # )
             alert_json[process] = [
                 self._create_alert_data_entry(row) for _, row in process_data.iterrows()
             ]
 
-        return alert_json
+        return self._format_json_numbers(alert_json)
 
     def get_facility_details(self):
         """시설별 세부 데이터를 계산하고 반환"""
@@ -120,39 +112,77 @@ class HomeCalculator:
             category_obj = {"category": process, "overview": overview, "components": []}
             self._add_facility_components(process_df, process, category_obj)
             result.append(category_obj)
-        return result
+        return self._format_json_numbers(result)
 
-    # FIXME: 데이터 응답 형태를 /api/v1/facilities/kpi-summaries/charts/line/scenario-id/{scenario_id}의 엔드포인트와 같은 응답형태로 변경 필요
     def get_flow_chart_data(self):
         """시간별 대기열 및 대기 시간 데이터 생성"""
         time_df = self._create_time_dataframe()
         time_df = self._add_queue_data(time_df)
         time_df.fillna(0, inplace=True)
+
+        # 시간 데이터 생성
         times = time_df.index.strftime("%Y-%m-%d %H:%M:%S").tolist()
-        components = []
-        for column in time_df.columns:
-            values = (
-                time_df[column].astype(float).tolist()
-                if time_df[column].dtype.kind in "ifc"
-                else time_df[column].tolist()
+
+        # 각 프로세스별 데이터 생성
+        throughput_data = []
+        queue_length_data = []
+        waiting_time_data = []
+
+        # 프로세스 목록에 'all_facilities' 추가
+        process_list_with_all = ["all_facilities"] + self.process_list
+
+        # 각 프로세스별 처리량 데이터
+        for process in self.process_list:
+            throughput_data.append(
+                time_df[f"{process}_throughput"].astype(int).tolist()
             )
-            components.append({"label": column, "values": values})
-        return {"x_values": times, "y_values": components}
+
+        # 전체 시설의 평균 대기열 길이와 대기 시간 계산
+        queue_length_avg = pd.DataFrame()
+        waiting_time_avg = pd.DataFrame()
+
+        for process in self.process_list:
+            queue_length_avg[process] = time_df[f"{process}_que"]
+            waiting_time_avg[process] = time_df[f"{process}_waiting_time"]
+
+        queue_length_avg = queue_length_avg.mean(axis=1).astype(int).tolist()
+        waiting_time_avg = waiting_time_avg.mean(axis=1).astype(int).tolist()
+
+        # 각 프로세스별 대기열 길이와 대기 시간 데이터
+        for process in self.process_list:
+            queue_length_data.append(time_df[f"{process}_que"].astype(int).tolist())
+            waiting_time_data.append(
+                time_df[f"{process}_waiting_time"].astype(int).tolist()
+            )
+
+        # 전체 시설의 처리량 합계 계산
+        throughput_sum = pd.DataFrame()
+        for process in self.process_list:
+            throughput_sum[process] = time_df[f"{process}_throughput"]
+        throughput_sum = throughput_sum.sum(axis=1).astype(int).tolist()
+
+        return self._format_json_numbers(
+            {
+                "throughput": {
+                    "x": times,
+                    "y": process_list_with_all,
+                    "z": [throughput_sum] + throughput_data,
+                },
+                "queue_length": {
+                    "x": times,
+                    "y": process_list_with_all,
+                    "z": [queue_length_avg] + queue_length_data,
+                },
+                "waiting_time": {
+                    "x": times,
+                    "y": process_list_with_all,
+                    "z": [waiting_time_avg] + waiting_time_data,
+                },
+            }
+        )
 
     def get_histogram_data(self):
         """시설별 통계 데이터 생성"""
-        # facility_data = [
-        #     {
-        #         process: {
-        #             "waiting_time": self._calculate_waiting_time_distribution(process),
-        #             "queue_length": self._calculate_queue_length_distribution(process),
-        #         },
-        #     }
-        #     for process in self.process_list
-        # ]
-
-        # all_facility_data = self._calculate_average_distribution(facility_data)
-        # return {"data": [{"All Facility": all_facility_data}] + facility_data}
         result = {}
         for process in self.process_list:
             result[process] = {
@@ -162,7 +192,7 @@ class HomeCalculator:
         all_facility_data = self._calculate_average_distribution([result])
         result["all_facilities"] = all_facility_data
 
-        return result
+        return self._format_json_numbers(result)
 
     def get_sankey_diagram_data(self):
         """시설 이용 흐름을 분석하여 Sankey 다이어그램 데이터를 생성"""
@@ -191,10 +221,12 @@ class HomeCalculator:
         labels = []
         for col in target_columns:
             labels.extend(list(flow_df[col].unique()))
-        return {
-            "label": labels,
-            "link": {"source": sources, "target": targets, "value": values},
-        }
+        return self._format_json_numbers(
+            {
+                "label": labels,
+                "link": {"source": sources, "target": targets, "value": values},
+            }
+        )
 
     # ===== 공통 유틸리티 함수들 =====
     def _get_process_list(self):
@@ -434,3 +466,19 @@ class HomeCalculator:
             for title, values in all_queue_length.items()
         ]
         return {"waiting_time": avg_waiting_time, "queue_length": avg_queue_length}
+
+    def _format_number(self, value):
+        """숫자를 천 단위 구분자가 포함된 문자열로 변환"""
+        if isinstance(value, (int, float)):
+            return f"{int(value):,}"
+        return value
+
+    def _format_json_numbers(self, data):
+        """JSON 형태의 데이터에서 모든 숫자를 천 단위 구분자가 포함된 문자열로 변환"""
+        if isinstance(data, dict):
+            return {k: self._format_json_numbers(v) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [self._format_json_numbers(item) for item in data]
+        elif isinstance(data, (int, float)):
+            return self._format_number(data)
+        return data
