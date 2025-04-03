@@ -337,3 +337,27 @@ class SimulationRepository(ISimulationRepository):
         )
 
         return sim_df
+
+    async def fetch_processing_procedures(self):
+        # FIXME: 나중에 운영세팅이 생기면 변경될 코드
+        import json
+        import os
+
+        env = os.getenv("ENVIRONMENT")
+
+        if env == "local":
+            json_path = "samples/sample_processing_procedures.json"
+
+        elif env == "dev":
+            json_path = "/code/samples/sample_processing_procedures.json"
+
+        sample_data = os.path.join(os.getcwd(), json_path)
+        print(sample_data)
+        with open(
+            sample_data,
+            "r",
+            encoding="utf-8",
+        ) as file:
+            data = json.load(file)
+
+        return data

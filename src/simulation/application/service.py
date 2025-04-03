@@ -560,19 +560,7 @@ class SimulationService:
     # =====================================
     # FIXME: 운영세팅이 완료되면 변경될 코드
     async def fetch_processing_procedures(self):
-        import json
-        import os
-
-        sample_data = os.path.join(
-            os.getcwd(), "/code/samples/sample_processing_procedures.json"
-        )
-
-        with open(
-            sample_data,
-            "r",
-            encoding="utf-8",
-        ) as file:
-            data = json.load(file)
+        data = await self.simulation_repo.fetch_processing_procedures()
 
         return data
 

@@ -34,7 +34,7 @@ class FacilityService:
         #     )
 
         # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
-        sim_df = pd.read_parquet("samples/sim_pax.parquet")
+        sim_df = await self.facility_repo.download_from_s3(session, scenario_id)
 
         process_columns = sim_df.columns[
             sim_df.columns.str.contains("pt_pred", case=False)
@@ -247,7 +247,7 @@ class FacilityService:
 
         kpi_result = {"header": {"columns": [], "subColumns": []}, "body": []}
         # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
-        sim_df = pd.read_parquet("samples/sim_pax.parquet")
+        sim_df = await self.facility_repo.download_from_s3(session, scenario_id)
         node_list: list = sim_df[f"{process}_pred"].unique().tolist()
 
         description = "A weighted average is a calculation that assigns varying degrees of importance to the numbers in a particular data set."
@@ -414,7 +414,7 @@ class FacilityService:
         chart_result = {}
 
         # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
-        sim_df = pd.read_parquet("samples/sim_pax.parquet")
+        sim_df = await self.facility_repo.download_from_s3(session, scenario_id)
 
         node_list = sim_df[f"{process}_pred"].unique().tolist()
 
@@ -483,7 +483,7 @@ class FacilityService:
         heatmap_result = {}
 
         # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
-        sim_df = pd.read_parquet("samples/sim_pax.parquet")
+        sim_df = await self.facility_repo.download_from_s3(session, scenario_id)
 
         # TP
         tp = await self._create_throughput(
@@ -583,7 +583,7 @@ class FacilityService:
         #     )
 
         # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
-        sim_df = pd.read_parquet("samples/sim_pax.parquet")
+        sim_df = await self.facility_repo.download_from_s3(session, scenario_id)
 
         pie_result = {}
         table_result = {}
@@ -659,7 +659,7 @@ class FacilityService:
         #     )
 
         # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
-        sim_df = pd.read_parquet("samples/sim_pax.parquet")
+        sim_df = await self.facility_repo.download_from_s3(session, scenario_id)
 
         chart_result = {}
         for group_name, group_column in self.get_criteria_options(process).items():
