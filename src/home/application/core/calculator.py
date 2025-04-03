@@ -152,63 +152,54 @@ class HomeCalculator:
         # 시간 데이터 생성
         times = time_df.index.strftime("%Y-%m-%d %H:%M:%S").tolist()
 
-        # 각 프로세스별 데이터 생성
-        throughput_data = []
-        queue_length_data = []
-        waiting_time_data = []
+        # 결과 딕셔너리 초기화
+        result = {}
 
-        # 프로세스 목록에 'all_facilities' 추가
-        process_list_with_all = ["all_facilities"] + self.process_list
-
-        # 각 프로세스별 처리량 데이터
-        for process in self.process_list:
-            throughput_data.append(
-                time_df[f"{process}_throughput"].astype(int).tolist()
-            )
-
-        # 전체 시설의 평균 대기열 길이와 대기 시간 계산
+        # 전체 시설의 평균 데이터 계산
+        throughput_sum = pd.DataFrame()
         queue_length_avg = pd.DataFrame()
         waiting_time_avg = pd.DataFrame()
 
         for process in self.process_list:
+            throughput_sum[process] = time_df[f"{process}_throughput"]
             queue_length_avg[process] = time_df[f"{process}_que"]
             waiting_time_avg[process] = time_df[f"{process}_waiting_time"]
 
-        queue_length_avg = queue_length_avg.mean(axis=1).astype(int).tolist()
-        waiting_time_avg = waiting_time_avg.mean(axis=1).astype(int).tolist()
+        # all_facilities를 먼저 추가
+        result["all_facilities"] = {
+            "throughput": {
+                "x": times,
+                "y": [],
+            },
+            "queue_length": {
+                "x": times,
+                "y": queue_length_avg.mean(axis=1).astype(int).tolist(),
+            },
+            "waiting_time": {
+                "x": times,
+                "y": waiting_time_avg.mean(axis=1).astype(int).tolist(),
+            },
+        }
 
-        # 각 프로세스별 대기열 길이와 대기 시간 데이터
+        # 각 프로세스별로 데이터 생성
         for process in self.process_list:
-            queue_length_data.append(time_df[f"{process}_que"].astype(int).tolist())
-            waiting_time_data.append(
-                time_df[f"{process}_waiting_time"].astype(int).tolist()
-            )
-
-        # 전체 시설의 처리량 합계 계산
-        throughput_sum = pd.DataFrame()
-        for process in self.process_list:
-            throughput_sum[process] = time_df[f"{process}_throughput"]
-        throughput_sum = throughput_sum.sum(axis=1).astype(int).tolist()
-
-        return self._format_json_numbers(
-            {
+            process_data = {
                 "throughput": {
                     "x": times,
-                    "y": process_list_with_all,
-                    "z": [throughput_sum] + throughput_data,
+                    "y": time_df[f"{process}_throughput"].astype(int).tolist(),
                 },
                 "queue_length": {
                     "x": times,
-                    "y": process_list_with_all,
-                    "z": [queue_length_avg] + queue_length_data,
+                    "y": time_df[f"{process}_que"].astype(int).tolist(),
                 },
                 "waiting_time": {
                     "x": times,
-                    "y": process_list_with_all,
-                    "z": [waiting_time_avg] + waiting_time_data,
+                    "y": time_df[f"{process}_waiting_time"].astype(int).tolist(),
                 },
             }
-        )
+            result[process] = process_data
+
+        return self._format_json_numbers(result)
 
     def get_histogram_data(self):
         """시설별 통계 데이터 생성"""
@@ -221,7 +212,7 @@ class HomeCalculator:
         all_facility_data = self._calculate_average_distribution([result])
         result["all_facilities"] = all_facility_data
 
-        return self._format_json_numbers(result)
+        return result
 
     def get_sankey_diagram_data(self):
         """시설 이용 흐름을 분석하여 Sankey 다이어그램 데이터를 생성"""
@@ -250,12 +241,10 @@ class HomeCalculator:
         labels = []
         for col in target_columns:
             labels.extend(list(flow_df[col].unique()))
-        return self._format_json_numbers(
-            {
-                "label": labels,
-                "link": {"source": sources, "target": targets, "value": values},
-            }
-        )
+        return {
+            "label": labels,
+            "link": {"source": sources, "target": targets, "value": values},
+        }
 
     # ===== 공통 유틸리티 함수들 =====
     def _get_process_list(self):
@@ -332,8 +321,7 @@ class HomeCalculator:
         return pd.DataFrame(
             {
                 "datetime": self.pax_df[f"{process}_on_pred"].dt.floor(time_interval),
-                "waiting_time": self.pax_df[f"{process}_pt_pred"]
-                - self.pax_df[f"{process}_on_pred"],
+                "waiting_time": self._calculate_waiting_time(self.pax_df, process),
                 "queue_length": self.pax_df[f"{process}_que"],
                 "process_name": self.pax_df[f"{process}_pred"],
                 "process": process,
