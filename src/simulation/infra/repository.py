@@ -352,7 +352,6 @@ class SimulationRepository(ISimulationRepository):
             json_path = "/code/samples/sample_processing_procedures.json"
 
         sample_data = os.path.join(os.getcwd(), json_path)
-        print(sample_data)
         with open(
             sample_data,
             "r",
