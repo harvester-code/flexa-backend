@@ -371,8 +371,17 @@ class SimulationService:
         # Condition
         # I/D, 항공사, 터미널
         i_d = flight_df["flight_type"].unique().tolist()
-        airline = flight_df["operating_carrier_iata"].unique().tolist()
         terminal = flight_df["departure_terminal"].unique().tolist()
+        airline = []
+        airline_df = flight_df.drop_duplicates(
+            subset=["operating_carrier_iata", "operating_carrier_name"]
+        )
+        for _, row in airline_df.iterrows():
+            item = {
+                "iata": row["operating_carrier_iata"],
+                "name": row["operating_carrier_name"],
+            }
+            airline.append(item)
 
         if None in terminal:
             terminal = [t for t in terminal if t is not None]
@@ -385,8 +394,6 @@ class SimulationService:
 
         # Prioirties
         # ["Airline", "I/D", "Region", "Country"]
-        i_d = flight_df["flight_type"].unique().tolist()
-        airline = flight_df["operating_carrier_iata"].unique().tolist()
         country = flight_df["country_code"].unique().tolist()
         region = flight_df["region_name"].unique().tolist()
 
@@ -744,10 +751,66 @@ class SimulationService:
         pax_df = await self._calculate_show_up_pattern(data, destribution_conditions)
         pax_df = await self._calculate_add_columns(processes, pax_df)
 
-        sanky = await self._create_facility_conn_sankey(processes, pax_df)
-        capacity = await self._create_capacity_chart(
-            pax_df, process=processes["1"].name, node_list=processes["1"].nodes
+        capacity = {}
+        for process in list(processes.values())[1:]:
+            capacity_data = await self._create_capacity_chart(
+                pax_df, process=process.name, node_list=process.nodes
+            )
+            capacity[process.name] = capacity_data
+
+        return capacity
+
+    # =====================================
+
+    async def _calculate_capacity(self, facility_schedule: list, time_unit: int):
+        by_pass = 1e-11
+
+        if by_pass in facility_schedule:
+            return None
+
+        return sum(
+            1 / (schedule / 60) * time_unit if schedule != 0 else 0
+            for schedule in facility_schedule
         )
+
+    async def generate_set_opening_hours(self, facility_info):
+
+        time_list = [
+            (datetime(2023, 1, 1, 0, 0) + timedelta(minutes=10 * i)).strftime(
+                "%H:%M:%S"
+            )
+            for i in range(144)
+        ]
+
+        data_list = [
+            await self._calculate_capacity(facility_schedule, facility_info.time_unit)
+            for facility_schedule in facility_info.facility_schedules
+        ]
+
+        non_none_data = [data for data in data_list if data is not None]
+        max_data = max(non_none_data) if non_none_data else 0
+
+        data_list = [data if data is not None else max_data * 2 for data in data_list]
+
+        return {"x": time_list, "y": data_list}
+
+    # =====================================
+    async def generate_simulation_overview(
+        self,
+        db: Connection,
+        flight_sch: dict,
+        destribution_conditions: list,
+        processes: dict,
+        components: list,
+    ):
+        data = await self.fetch_flight_schedule_data(
+            db, flight_sch.date, flight_sch.airport, flight_sch.condition
+        )
+
+        pax_df = await self._calculate_show_up_pattern(data, destribution_conditions)
+        pax_df = await self._calculate_add_columns(processes, pax_df)
+
+        sanky = await self._create_facility_conn_sankey(processes, pax_df)
 
         pax_df["passenger_pattern"] = (
             pax_df["scheduled_gate_departure_local"] - pax_df["show_up_time"]
@@ -790,48 +853,22 @@ class SimulationService:
             },
         ]
 
-        for key in list(processes.keys())[1:]:
-            name: str = processes[key].name
+        for component in components:
+            name: str = component.name
             name = name.replace("_", " ").title().replace("Check In", "Check-In")
-            value = len(processes[key].nodes)
 
-            matric.append({"name": name, "value": f"{value} Nodes"})
+            value = []
+            node_count = len(component.nodes)
+            value.append(f"{node_count:,} Nodes")
 
-        return {"matric": matric, "sanky": sanky, "capacity": capacity}
+            facility_count = 0
+            for node in component.nodes:
+                facility_count += node.facility_count
+            value.append(f"{facility_count:,} Facilities")
 
-    # =====================================
+            matric.append({"name": name, "value": value})
 
-    async def _calculate_capacity(self, facility_schedule: list, time_unit: int):
-        by_pass = 1e-11
-
-        if by_pass in facility_schedule:
-            return None
-
-        return sum(
-            1 / (schedule / 60) * time_unit if schedule != 0 else 0
-            for schedule in facility_schedule
-        )
-
-    async def generate_set_opening_hours(self, facility_info):
-
-        time_list = [
-            (datetime(2023, 1, 1, 0, 0) + timedelta(minutes=10 * i)).strftime(
-                "%H:%M:%S"
-            )
-            for i in range(144)
-        ]
-
-        data_list = [
-            await self._calculate_capacity(facility_schedule, facility_info.time_unit)
-            for facility_schedule in facility_info.facility_schedules
-        ]
-
-        non_none_data = [data for data in data_list if data is not None]
-        max_data = max(non_none_data) if non_none_data else 0
-
-        data_list = [data if data is not None else max_data * 2 for data in data_list]
-
-        return {"x": time_list, "y": data_list}
+        return {"matric": matric, "sanky": sanky}
 
     # =====================================
     async def _create_time_range(self, date: str):
@@ -1056,46 +1093,16 @@ class SimulationService:
 
         df.loc[:, end_time] = df[end_time].dt.floor("10min")
 
-        df_grouped = (
-            df.groupby([end_time, group_column], as_index=False)
-            .agg({"waiting_time": "mean"})
-            .pivot_table(
-                index=end_time,
-                columns=group_column,
-                values="waiting_time",
-                fill_value=0,
-            )
+        df_grouped = df.groupby([end_time], as_index=end_time).agg(
+            {"waiting_time": "mean"}
         )
-        total_groups = df_grouped.shape[1]
-        has_etc = total_groups > 9
-
-        if has_etc:
-            top_9_columns = df_grouped.sum().nlargest(9).index.tolist()
-            df_grouped["etc"] = df_grouped.drop(
-                columns=top_9_columns, errors="ignore"
-            ).sum(axis=1)
-            df_grouped = df_grouped[top_9_columns + ["etc"]]
-        else:
-            top_9_columns = df_grouped.columns.tolist()
-
+        df_grouped["waiting_time"] = df_grouped["waiting_time"] / 60
         df_grouped = df_grouped.reindex(time_range, fill_value=0)
 
-        group_order = df_grouped.sum().sort_values(ascending=False).index.tolist()
-        if has_etc and "etc" in group_order:
-            group_order.remove("etc")
-            group_order.append("etc")
-
-        traces = [
-            {
-                "name": column,
-                "order": group_order.index(column),
-                "y": df_grouped[column].astype(int).values.tolist(),
-            }
-            for column in df_grouped.columns
-        ]
         wt_x_list = df_grouped.index.astype(str).tolist()
+        wt_y_list = df_grouped.astype(int).values.tolist()
 
-        return {"traces": traces, "default_x": wt_x_list}
+        return {"y": wt_y_list, "default_x": wt_x_list}
 
     async def _create_simulation_flow_chart(
         self,
@@ -1211,7 +1218,7 @@ class SimulationService:
                 time_range=time_range,
             )
 
-            waiting[CRITERIA_MAP[group_column]] = waiting_data["traces"]
+            waiting[CRITERIA_MAP[group_column]] = waiting_data["y"]
 
             for flow in ["on", "pt"]:
                 # process = checkin / node = A / flow = on / group_column = operating_carrier_name
@@ -1275,31 +1282,43 @@ class SimulationService:
             filtered_sim_df[end_time] - filtered_sim_df[start_time]
         ).dt.total_seconds()
         throughput = int(len(filtered_sim_df)) if filtered_sim_df is not None else 0
-
         total_delay = int((diff_arr.sum() / 60) if diff_arr is not None else 0)
-
-        max_delay = int((diff_arr.max() / 60) if diff_arr is not None else 0)
-
+        # max_delay = int((diff_arr.max() / 60) if diff_arr is not None else 0)
+        max_delay = int(
+            (0 if diff_arr is None or np.isnan(diff_arr.max()) else diff_arr.max() / 60)
+        )
         # 평균 지연 시간 (0으로 나눠지는 것 방지)
         if throughput:
-            average_delay = round((total_delay / throughput), 2)
+            average_delay = int((total_delay / throughput))
         else:
             average_delay = 0
 
         # 평균 처리 시간
         if filtered_sim_df is not None and process_time in filtered_sim_df.columns:
             avg_time = filtered_sim_df[process_time].mean()
-            average_transaction_time = round(avg_time if avg_time is not None else 0, 1)
+            average_transaction_time = int(avg_time) if pd.notna(avg_time) else 0
         else:
             average_transaction_time = 0
 
         kpi = [
-            {"title": "Processed Passengers", "value": throughput, "unit": "pax"},
-            {"title": "Maximum Wait Time", "value": max_delay, "unit": None},
-            {"title": "Average Wait Time", "value": average_delay, "unit": None},
+            {
+                "title": "Processed Passengers",
+                "value": f"{throughput:,}",
+                "unit": "pax",
+            },
+            {
+                "title": "Maximum Wait Time",
+                "value": f"{max_delay // 60:02d}:{max_delay % 60:02d}",
+                "unit": None,
+            },
+            {
+                "title": "Average Wait Time",
+                "value": f"{average_delay // 60:02d}:{average_delay % 60:02d}",
+                "unit": None,
+            },
             {
                 "title": "Average Processing Time",
-                "value": average_transaction_time,
+                "value": f"{average_transaction_time // 60:02d}:{average_transaction_time % 60:02d}",
                 "unit": None,
             },
         ]
@@ -1343,10 +1362,29 @@ class SimulationService:
                 diff_arr = (
                     filtered_sim_df[end_time] - filtered_sim_df[start_time]
                 ).dt.total_seconds()
-                throughput = int(len(filtered_sim_df))
-                total_delay = int(diff_arr.sum() / 60)
-                max_delay = int(diff_arr.max() / 60)
-                average_delay = int((total_delay / throughput) * 100) / 100
+                # throughput = int(len(filtered_sim_df))
+                # total_delay = int(diff_arr.sum() / 60)
+                # max_delay = int(diff_arr.max() / 60)
+                # average_delay = int((total_delay / throughput) * 100) / 100
+
+                throughput = (
+                    int(len(filtered_sim_df)) if filtered_sim_df is not None else 0
+                )
+                total_delay = int((diff_arr.sum() / 60) if diff_arr is not None else 0)
+                # max_delay = int((diff_arr.max() / 60) if diff_arr is not None else 0)
+                max_delay = int(
+                    (
+                        0
+                        if diff_arr is None or np.isnan(diff_arr.max())
+                        else diff_arr.max() / 60
+                    )
+                )
+
+                # 평균 지연 시간 (0으로 나눠지는 것 방지)
+                if throughput:
+                    average_delay = int((total_delay / throughput))
+                else:
+                    average_delay = 0
 
                 throughput_data.append(throughput)
                 max_delay_data.append(max_delay)
@@ -1380,12 +1418,13 @@ class SimulationService:
         # 노드 인덱스 생성
         for process in component_list:
             col_name = f"{process}{suffix}"
+            df = df[df[col_name] != ""].copy()
             for value in df[col_name].unique():
                 if value not in node_dict and pd.notna(value):
                     node_dict[value] = idx
                     # 각 value의 길이를 label로
                     label_count = len(df[df[col_name] == value])
-                    nodes.append(f"{value} ({label_count})")
+                    nodes.append(f"{value} ({label_count:,})")
                     idx += 1
 
         # source, target, value 생성
@@ -1621,13 +1660,11 @@ class SimulationService:
         complete = ow.passengers[f"{last_process}_done_pred"].notna().sum()
         incomplete = ow.passengers[f"{last_process}_done_pred"].isna().sum()
         simulation_completed = [
-            {
-                "title": "completed",
-                "value": int(complete),
-            },
+            {"title": "completed", "value": f"{int(complete):,}", "unit": "Passengers"},
             {
                 "title": "incomplete",
-                "value": int(incomplete),
+                "value": f"{int(incomplete):,}",
+                "unit": "Passengers",
             },
         ]
 
@@ -1903,13 +1940,11 @@ class SimulationService:
         complete = ow.passengers[f"{last_process}_done_pred"].notna().sum()
         incomplete = ow.passengers[f"{last_process}_done_pred"].isna().sum()
         simulation_completed = [
-            {
-                "title": "completed",
-                "value": int(complete),
-            },
+            {"title": "completed", "value": f"{int(complete):,}", "unit": "Passengers"},
             {
                 "title": "incomplete",
-                "value": int(incomplete),
+                "value": f"{int(incomplete):,}",
+                "unit": "Passengers",
             },
         ]
 
@@ -1951,12 +1986,12 @@ class SimulationService:
                             if c_node.name == node:
                                 kpi_que = {
                                     "title": "Queue Capacity Limit",
-                                    "value": c_node.max_queue_length,
+                                    "value": f"{c_node.max_queue_length:,}",
                                     "unit": "pax",
                                 }
                                 kpi_fc = {
                                     "title": "Number of Facilities",
-                                    "value": c_node.facility_count,
+                                    "value": f"{c_node.facility_count:,}",
                                     "unit": "EA",
                                 }
                                 kpi["kpi"].append(kpi_que)
