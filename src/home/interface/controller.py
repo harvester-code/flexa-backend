@@ -18,6 +18,21 @@ status 코드 정리
 
 
 @home_router.get(
+    "/line-queue/{scenario_id}",
+    status_code=200,
+    summary="line-queue를 응답하는 엔드포인트",
+)
+@inject
+async def fetch_line_queue(
+    home_service: HomeService = Depends(Provide[Container.home_service]),
+    session: boto3.Session = Depends(get_boto3_session),
+    scenario_id: str | None = None,
+):
+    result = await home_service.fetch_line_queue(session, scenario_id)
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
+
+
+@home_router.get(
     "/summaries/{scenario_id}",
     status_code=200,
     summary="최상단 Summary result list를 응답하는 엔드포인트",

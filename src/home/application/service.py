@@ -17,6 +17,15 @@ class HomeService:
     ):
         self.home_repo = home_repo
 
+    async def fetch_line_queue(
+        self,
+        session: boto3.Session,
+        scenario_id: str | None,
+    ):
+        pax_df = await self.home_repo.download_from_s3(session, scenario_id)
+        calculator = HomeCalculator(pax_df)
+        return calculator.get_line_queue()
+
     async def fetch_summary(
         self,
         session: boto3.Session,

@@ -16,6 +16,35 @@ class HomeCalculator:
         self.process_list = self._get_process_list()
 
     # ===== 메인 함수들 =====
+    def get_line_queue(self):
+        """시간별 시설 대기열 데이터를 maps.json 형식으로 변환
+
+        Returns:
+            dict: maps.json 형식의 데이터
+        """
+        # 시간별 시설 대기열 데이터프레임 생성
+        time_df = self._create_facility_queue_dataframe()
+
+        # 결과 딕셔너리 초기화
+        result = {}
+
+        # 각 시간대별로 데이터 변환
+        for time in time_df.index:
+            time_str = time.strftime("%Y-%m-%d %H:%M:%S")
+            result[time_str] = []
+
+            # 각 시설별로 데이터 추가
+            for facility in time_df.columns:
+                queue_length = time_df.loc[time, facility]
+                if pd.notna(queue_length):  # NaN이 아닌 경우만 추가
+                    result[time_str].append(
+                        {
+                            "title": facility,
+                            "queue_length": int(queue_length),  # 정수로 변환
+                        }
+                    )
+        return result
+
     def get_summary(self):
         """메인 함수: 요약 데이터를 생성하여 반환"""
         departure_flights = self.pax_df["flight_number"].nunique()
@@ -466,6 +495,37 @@ class HomeCalculator:
             for title, values in all_queue_length.items()
         ]
         return {"waiting_time": avg_waiting_time, "queue_length": avg_queue_length}
+
+    def _create_facility_queue_dataframe(self):
+        """시간별 시설 대기열 데이터프레임 생성
+
+        Returns:
+            pd.DataFrame: 시간별 각 시설의 대기열 길이를 보여주는 데이터프레임
+        """
+        # 시간별 데이터프레임 생성
+        time_df = self._create_time_dataframe()
+
+        # 각 프로세스별로 시설 목록과 대기열 데이터 추가
+        for process in self.process_list:
+            # 해당 프로세스의 모든 시설 목록 가져오기
+            facilities = sorted(self.pax_df[f"{process}_pred"].unique())
+
+            # 각 시설별로 대기열 데이터 추가
+            for facility in facilities:
+                # 해당 시설의 데이터만 필터링
+                facility_df = self.pax_df[
+                    self.pax_df[f"{process}_pred"] == facility
+                ].copy()
+
+                # 시간별로 대기열 평균 계산
+                queue_data = facility_df.groupby(
+                    facility_df[f"{process}_on_pred"].dt.floor(self.time_unit)
+                )[f"{process}_que"].mean()
+
+                # 데이터프레임에 추가 (컬럼명 중복 제거)
+                time_df[f"{facility}"] = queue_data.round(2).fillna(0)
+        time_df.fillna(0, inplace=True)
+        return time_df
 
     def _format_number(self, value):
         """숫자를 천 단위 구분자가 포함된 문자열로 변환"""
