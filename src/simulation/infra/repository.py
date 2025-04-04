@@ -1,7 +1,7 @@
 import awswrangler as wr
 import boto3
 import pandas as pd
-
+import os
 from typing import List
 from sqlalchemy import Connection, update, true, desc, bindparam, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -321,12 +321,13 @@ class SimulationRepository(ISimulationRepository):
     async def upload_to_s3(
         self, session: boto3.Session, sim_df: pd.DataFrame, filename: str
     ):
-
-        wr.s3.to_parquet(
-            df=sim_df,
-            path=f"{S3_SAVE_PATH}/{filename}",
-            boto3_session=session,
-        )
+        env = os.getenv("ENVIRONMENT")
+        if env == "dev" or env == "local":
+            wr.s3.to_parquet(
+                df=sim_df,
+                path=f"{S3_SAVE_PATH}/dev/{filename}",
+                boto3_session=session,
+            )
 
     async def download_from_s3(
         self, session: boto3.Session, filename: str
@@ -341,7 +342,6 @@ class SimulationRepository(ISimulationRepository):
     async def fetch_processing_procedures(self):
         # FIXME: 나중에 운영세팅이 생기면 변경될 코드
         import json
-        import os
 
         env = os.getenv("ENVIRONMENT")
 

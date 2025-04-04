@@ -1929,7 +1929,7 @@ class SimulationService:
         # print(ow.passengers)
         # ow.passengers.to_csv("sim_pax_test.csv", encoding="utf-8-sig", index=False)
 
-        filename = f"{user_id}/{scenario_id}.parquet"
+        filename = f"{scenario_id}.parquet"
         await self.simulation_repo.upload_to_s3(session, ow.passengers, filename)
 
         await asyncio.sleep(0.001)

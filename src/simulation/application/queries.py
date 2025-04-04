@@ -94,3 +94,52 @@ WHERE (F.DEPARTURE_AIRPORT_ID = :airport OR F.DEPARTURE_AIRPORT_IATA = :airport)
   AND DATE(F.SCHEDULED_GATE_DEPARTURE_LOCAL) = :date
   AND F.TOTAL_SEAT_COUNT > 0
 """
+
+SELECT_AIRPORT_FUTURE_DEPARTURE = """
+SELECT 
+
+FROM SCHEDULE S
+
+
+"""
+
+
+def process_schedule(airport, date, conn, acdm_mapping, flight_io):
+    # query
+    query = f"""
+    SELECT 
+        operating_carrier_id,
+        operating_carrier_iata,
+        flight_number,
+        departure_station_code_iata,
+        arrival_station_code_iata,
+        {flight_io}_terminal,
+        passenger_{flight_io}_time_local,
+        total_seats
+    FROM schedule
+    WHERE ({flight_io}_station_code_iata = '{airport}')
+        AND DATE(passenger_{flight_io}_time_local) = DATE('{date}')
+        AND total_seats > 0
+        AND is_codeshare = 0
+    """
+    # df = pd.read_sql_query(query, conn)
+
+    # # processing
+    # df[f"passenger_{flight_io}_time_local"] = pd.to_datetime(
+    #     df[f"passenger_{flight_io}_time_local"]
+    # )
+    # df["total_seats"] = df["total_seats"].astype(float)
+    # df["flight_number"] = df["operating_carrier_iata"] + df["flight_number"].astype(str)
+    # df[f"{flight_io}_terminal"] = df[f"{flight_io}_terminal"].fillna("UNKNOWN")
+    # df = df.rename(
+    #     {
+    #         f"passenger_{flight_io}_time_local": acdm_mapping[
+    #             f"passenger_{flight_io}_time_local"
+    #         ],
+    #         "departure_station_code_iata": "departure_airport_iata",
+    #         "arrival_station_code_iata": "arrival_airport_iata",
+    #         "total_seats": "total_seat_count",
+    #     },
+    #     axis=1,
+    # )
+    # return df
