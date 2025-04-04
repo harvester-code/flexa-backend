@@ -3,7 +3,7 @@ from src.facility.domain.repository import IFacilityRepository
 import boto3
 import pandas as pd
 import numpy as np
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 
 class FacilityService:
@@ -26,14 +26,6 @@ class FacilityService:
         scenario_id: str | None = None,
     ):
 
-        # s3에서 시뮬레이션 데이터 프레임 가져오기
-        # if scenario_id:
-        #     filename = f"{user_id}/{scenario_id}"
-        #     sim_df: pd.DataFrame = await self.facility_repo.download_from_s3(
-        #         session, filename
-        #     )
-
-        # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
         sim_df = await self.facility_repo.download_from_s3(session, scenario_id)
 
         process_columns = sim_df.columns[
@@ -49,6 +41,34 @@ class FacilityService:
             result.append(process_result)
 
         return result
+
+    async def _create_time_range(self, date):
+        """
+        서브 함수
+        시뮬레이션 차트에 나올 시간 범위 생성
+
+        Args:
+            date: flight schedule에서 가져온 date
+
+        Return:
+            pd.date_range
+        """
+
+        date_obj = datetime.strptime(date, "%Y-%m-%d")
+
+        day_before = date_obj - timedelta(days=1)
+        day_after = date_obj + timedelta(days=1)
+
+        day_before_str = day_before.strftime("%Y-%m-%d")
+        day_after_str = day_after.strftime("%Y-%m-%d")
+
+        time_range = pd.date_range(
+            start=pd.Timestamp(f"{day_before_str} 23:00:00"),
+            end=pd.Timestamp(f"{day_after_str} 01:00:00"),
+            freq="10min",
+        )
+
+        return time_range
 
     # ==============================================================
     # NOTE: KPI Summary
@@ -67,14 +87,9 @@ class FacilityService:
         df_grouped = df.groupby([end_time, group_column]).size().unstack(fill_value=0)
         df_grouped = df_grouped.sort_index()
 
-        start_day = df_grouped.index[0].strftime("%Y-%m-%d %H:%M:%S")
-        end_day = df_grouped.index[-1].strftime("%Y-%m-%d %H:%M:%S")
-        all_hours = pd.date_range(
-            start=pd.Timestamp(start_day),
-            end=pd.Timestamp(end_day),
-            freq="10min",
-        )
-        df_grouped = df_grouped.reindex(all_hours, fill_value=0)
+        start_day = df_grouped.index[0].strftime("%Y-%m-%d")
+        time_range = await self._create_time_range(start_day)
+        df_grouped = df_grouped.reindex(time_range, fill_value=0)
         # print(df_grouped["checkin_A"])
         # print(df_grouped)  # 히트맵
         # print(df_grouped.sum(axis=1))  # 차트
@@ -113,14 +128,9 @@ class FacilityService:
             )
         )
 
-        start_day = df_grouped.index[0].strftime("%Y-%m-%d %H:%M:%S")
-        end_day = df_grouped.index[-1].strftime("%Y-%m-%d %H:%M:%S")
-        all_hours = pd.date_range(
-            start=pd.Timestamp(start_day),
-            end=pd.Timestamp(end_day),
-            freq="10min",
-        )
-        df_grouped = df_grouped.reindex(all_hours, fill_value=0)
+        start_day = df_grouped.index[0].strftime("%Y-%m-%d")
+        time_range = await self._create_time_range(start_day)
+        df_grouped = df_grouped.reindex(time_range, fill_value=0)
 
         # print("=================")
         # print(df_grouped)  # 히트맵
@@ -163,14 +173,9 @@ class FacilityService:
             )
         )
 
-        start_day = df_grouped.index[0].strftime("%Y-%m-%d %H:%M:%S")
-        end_day = df_grouped.index[-1].strftime("%Y-%m-%d %H:%M:%S")
-        all_hours = pd.date_range(
-            start=pd.Timestamp(start_day),
-            end=pd.Timestamp(end_day),
-            freq="10min",
-        )
-        df_grouped = df_grouped.reindex(all_hours, fill_value=0)
+        start_day = df_grouped.index[0].strftime("%Y-%m-%d")
+        time_range = await self._create_time_range(start_day)
+        df_grouped = df_grouped.reindex(time_range, fill_value=0)
 
         # print("=================")
         # print(df_grouped)  # 히트맵
@@ -194,14 +199,9 @@ class FacilityService:
         df_grouped[df_grouped > 0] = 1
         df_grouped = df_grouped.sort_index()
 
-        start_day = df_grouped.index[0].strftime("%Y-%m-%d %H:%M:%S")
-        end_day = df_grouped.index[-1].strftime("%Y-%m-%d %H:%M:%S")
-        all_hours = pd.date_range(
-            start=pd.Timestamp(start_day),
-            end=pd.Timestamp(end_day),
-            freq="10min",
-        )
-        df_grouped = df_grouped.reindex(all_hours, fill_value=0)
+        start_day = df_grouped.index[0].strftime("%Y-%m-%d")
+        time_range = await self._create_time_range(start_day)
+        df_grouped = df_grouped.reindex(time_range, fill_value=0)
 
         return df_grouped
 
@@ -238,16 +238,9 @@ class FacilityService:
         scenario_id: str | None = None,
     ):
 
-        # s3에서 시뮬레이션 데이터 프레임 가져오기
-        # if scenario_id:
-        #     filename = f"{user_id}/{scenario_id}"
-        #     sim_df: pd.DataFrame = await self.facility_repo.download_from_s3(
-        #         session, filename
-        #     )
+        sim_df = await self.facility_repo.download_from_s3(session, scenario_id)
 
         kpi_result = {"header": {"columns": [], "subColumns": []}, "body": []}
-        # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
-        sim_df = await self.facility_repo.download_from_s3(session, scenario_id)
         node_list: list = sim_df[f"{process}_pred"].unique().tolist()
 
         description = "A weighted average is a calculation that assigns varying degrees of importance to the numbers in a particular data set."
@@ -301,7 +294,9 @@ class FacilityService:
             tp_result.append(troughput)
 
         tp_mean = np.mean(tp_result)
-        tp_result.insert(0, float(tp_mean))
+        tp_result.insert(0, int(tp_mean))
+
+        tp_result = [f"{tp:,}" for tp in tp_result]
 
         kpi_result["body"].append(
             {"label": "Throughput", "unit": "pax", "values": tp_result}
@@ -334,7 +329,9 @@ class FacilityService:
             ql_result.append(int(queue_length))
 
         ql_mean = np.mean(ql_result)
-        ql_result.insert(0, float(ql_mean))
+        ql_result.insert(0, int(ql_mean))
+
+        ql_result = [f"{ql:,}" for ql in ql_result]
         kpi_result["body"].append(
             {"label": "Queue Length", "unit": "pax", "values": ql_result}
         )
@@ -370,7 +367,7 @@ class FacilityService:
         wt_mean = await self.get_average_time_string(wt_result)
         wt_result.insert(0, wt_mean)
         kpi_result["body"].append(
-            {"label": "Waiting Time", "unit": "min", "values": wt_result}
+            {"label": "Waiting Time", "unit": None, "values": wt_result}
         )
         # ====================================
         # FE
@@ -385,7 +382,8 @@ class FacilityService:
             ratio = round(num_ones / total_rows * 100)
             fe_list.append(ratio)
 
-        fe_list.insert(0, fe_all)
+        fe_mean = np.mean(fe_list)
+        fe_list.insert(0, int(fe_mean))
 
         kpi_result["body"].append(
             {"label": "Facility Efficiency", "unit": "%", "values": fe_list}
@@ -405,15 +403,8 @@ class FacilityService:
         scenario_id: str | None = None,
     ):
 
-        # s3에서 시뮬레이션 데이터 프레임 가져오기
-        # if scenario_id:
-        #     filename = f"{user_id}/{scenario_id}"
-        #     sim_df: pd.DataFrame = await self.facility_repo.download_from_s3(
-        #         session, filename
-        #     )
         chart_result = {}
 
-        # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
         sim_df = await self.facility_repo.download_from_s3(session, scenario_id)
 
         node_list = sim_df[f"{process}_pred"].unique().tolist()
@@ -474,15 +465,8 @@ class FacilityService:
         scenario_id: str | None = None,
     ):
 
-        # s3에서 시뮬레이션 데이터 프레임 가져오기
-        # if scenario_id:
-        #     filename = f"{user_id}/{scenario_id}"
-        #     sim_df: pd.DataFrame = await self.facility_repo.download_from_s3(
-        #         session, filename
-        #     )
         heatmap_result = {}
 
-        # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
         sim_df = await self.facility_repo.download_from_s3(session, scenario_id)
 
         # TP
@@ -575,14 +559,6 @@ class FacilityService:
         scenario_id: str | None = None,
     ):
 
-        # s3에서 시뮬레이션 데이터 프레임 가져오기
-        # if scenario_id:
-        #     filename = f"{user_id}/{scenario_id}"
-        #     sim_df: pd.DataFrame = await self.facility_repo.download_from_s3(
-        #         session, filename
-        #     )
-
-        # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
         sim_df = await self.facility_repo.download_from_s3(session, scenario_id)
 
         pie_result = {}
@@ -609,12 +585,12 @@ class FacilityService:
                 labels.append(column_name)
 
                 table_values.append(
-                    {"rank": i + 1, "title": column_name, "value": que_mean}
+                    {"rank": i + 1, "title": column_name, "value": f"{que_mean:,}"}
                 )
 
             table_result[group_name] = table_values
             pie_result[group_name] = {"labels": labels, "values": values}
-            total_queue_length_result[group_name] = total_queue_length
+            total_queue_length_result[group_name] = f"{total_queue_length:,}"
 
         return {
             "total_queue_length": total_queue_length_result,
@@ -628,9 +604,25 @@ class FacilityService:
     ):
 
         sim_df_x_list = sim_df.index.astype(str).tolist()
-        traces = []
-        group_order = sim_df.sum().sort_values(ascending=False).index.tolist()
 
+        total_groups = sim_df.shape[1]
+        has_etc = total_groups > 9
+
+        if has_etc:
+            top_9_columns = sim_df.sum().nlargest(9).index.tolist()
+            sim_df["etc"] = sim_df.drop(columns=top_9_columns, errors="ignore").sum(
+                axis=1
+            )
+            sim_df = sim_df[top_9_columns + ["etc"]]
+        else:
+            top_9_columns = sim_df.columns.tolist()
+
+        group_order = sim_df.sum().sort_values(ascending=False).index.tolist()
+        if has_etc and "etc" in group_order:
+            group_order.remove("etc")
+            group_order.append("etc")
+
+        traces = []
         for column in sim_df.columns.unique().tolist():
             traces.append(
                 {
@@ -651,14 +643,7 @@ class FacilityService:
         user_id: str | None = None,
         scenario_id: str | None = None,
     ):
-        # s3에서 시뮬레이션 데이터 프레임 가져오기
-        # if scenario_id:
-        #     filename = f"{user_id}/{scenario_id}"
-        #     sim_df: pd.DataFrame = await self.facility_repo.download_from_s3(
-        #         session, filename
-        #     )
 
-        # FIXME: 이후에 실제 시뮬레이션 데이터로 붙을 수 있도록 컨트롤러와 함께 수정
         sim_df = await self.facility_repo.download_from_s3(session, scenario_id)
 
         chart_result = {}
