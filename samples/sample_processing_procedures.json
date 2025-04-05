@@ -1,0 +1,46 @@
+{
+    "process": [
+        {
+            "name": "Check-In",
+            "nodes": [
+                "A",
+                "B",
+                "C",
+                "D",
+                "E",
+                "F",
+                "G",
+                "H",
+                "J",
+                "K"
+            ]
+        },
+        {
+            "name": "Boarding Pass",
+            "nodes": [
+                "DG1",
+                "DG2",
+                "DG3",
+                "DG4"
+            ]
+        },
+        {
+            "name": "Security",
+            "nodes": [
+                "SC1",
+                "SC2",
+                "SC3",
+                "SC4"
+            ]
+        },
+        {
+            "name": "Passport",
+            "nodes": [
+                "PC1",
+                "PC2",
+                "PC3",
+                "PC4"
+            ]
+        }
+    ]
+}

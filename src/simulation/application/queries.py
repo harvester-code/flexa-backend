@@ -1,0 +1,145 @@
+# FIXME: 출발시에도 도착지에 대한 공항 코드 등 필요,
+# 반대로 도착을 기준으로 할 때도 출발지 공항 코드 등 필요
+
+SELECT_AIRPORT_ARRIVAL = """
+SELECT F.ACTUAL_BLOCK_TIME,
+       F.ACTUAL_FLIGHT_DURATION,
+       F.ACTUAL_TAXI_IN_TIME,
+       F.ACTUAL_TAXI_OUT_TIME,
+       F.AIRCRAFT_CODE_IATA,
+       F.AIRCRAFT_CODE_ICAO,
+       F.AIRCRAFT_SERIAL_NUMBER,
+       F.AIRCRAFT_TYPE,
+       F.AIRCRAFT_TYPE_SERIES,
+       F.BAGGAGE_CLAIM,
+       A1.COUNTRY_CODE                                   AS COUNTRY_CODE,
+       F.FLEET_AIRCRAFT_ID,
+       F.FLIGHT_DATE_UTC,
+       F.FLIGHT_ID,
+       CONCAT(F.OPERATING_CARRIER_IATA, F.FLIGHT_NUMBER) AS FLIGHT_NUMBER,
+       CASE
+           WHEN A1.COUNTRY_CODE = A2.COUNTRY_CODE THEN 'Domestic'
+           WHEN A1.COUNTRY_CODE != A2.COUNTRY_CODE THEN 'International'
+           END                                           AS FLIGHT_TYPE,
+       F.IS_CANCELLED,
+       F.IS_DIVERTED,
+       F.OPERATING_CARRIER_IATA,
+       F.OPERATING_CARRIER_ID,
+       F.OPERATING_CARRIER_NAME,
+       SPLIT_PART(A1.TIMEZONE_REGION_NAME, '/', 0)       AS REGION_NAME,
+       F.TAIL_NUMBER,
+       F.TOTAL_SEAT_COUNT,
+
+       F.ACTUAL_GATE_ARRIVAL_LOCAL,
+       F.ACTUAL_RUNWAY_ARRIVAL_LOCAL,
+       F.ARRIVAL_AIRPORT_IATA,
+       F.ARRIVAL_AIRPORT_ID,
+       F.ARRIVAL_GATE,
+       F.ARRIVAL_TERMINAL,
+       F.GATE_ARRIVAL_DELAY,
+       F.SCHEDULED_GATE_ARRIVAL_LOCAL
+
+FROM FLIGHTS_EXTENDED F
+         JOIN AIRPORTS A1 ON A1.AIRPORT_ID = F.DEPARTURE_AIRPORT_ID AND A1.IS_ACTIVE
+         JOIN AIRPORTS A2 ON A2.AIRPORT_ID = F.ARRIVAL_AIRPORT_ID AND A2.IS_ACTIVE
+
+WHERE (F.ARRIVAL_AIRPORT_ID = :airport OR F.ARRIVAL_AIRPORT_IATA = :airport)
+  AND DATE(F.SCHEDULED_GATE_ARRIVAL_LOCAL) = :date
+  AND F.TOTAL_SEAT_COUNT > 0
+"""
+
+SELECT_AIRPORT_DEPARTURE = """
+SELECT F.ACTUAL_BLOCK_TIME,
+       F.ACTUAL_FLIGHT_DURATION,
+       F.ACTUAL_TAXI_IN_TIME,
+       F.ACTUAL_TAXI_OUT_TIME,
+       F.AIRCRAFT_CODE_IATA,
+       F.AIRCRAFT_CODE_ICAO,
+       F.AIRCRAFT_SERIAL_NUMBER,
+       F.AIRCRAFT_TYPE,
+       F.AIRCRAFT_TYPE_SERIES,
+       F.BAGGAGE_CLAIM,
+       A2.COUNTRY_CODE                                   AS COUNTRY_CODE,
+       F.FLEET_AIRCRAFT_ID,
+       F.FLIGHT_DATE_UTC,
+       F.FLIGHT_ID,
+       CONCAT(F.OPERATING_CARRIER_IATA, F.FLIGHT_NUMBER) AS FLIGHT_NUMBER,
+       CASE
+           WHEN A1.COUNTRY_CODE = A2.COUNTRY_CODE THEN 'Domestic'
+           WHEN A1.COUNTRY_CODE != A2.COUNTRY_CODE THEN 'International'
+           END                                           AS FLIGHT_TYPE,
+       F.IS_CANCELLED,
+       F.IS_DIVERTED,
+       F.OPERATING_CARRIER_IATA,
+       F.OPERATING_CARRIER_ID,
+       F.OPERATING_CARRIER_NAME,
+       SPLIT_PART(A2.TIMEZONE_REGION_NAME, '/', 0)       AS REGION_NAME,
+       F.TAIL_NUMBER,
+       F.TOTAL_SEAT_COUNT,
+
+       F.ACTUAL_GATE_DEPARTURE_LOCAL,
+       F.ACTUAL_RUNWAY_DEPARTURE_LOCAL,
+       F.DEPARTURE_AIRPORT_IATA,
+       F.DEPARTURE_AIRPORT_ID,
+       F.DEPARTURE_GATE,
+       F.DEPARTURE_TERMINAL,
+       F.GATE_DEPARTURE_DELAY,
+       F.SCHEDULED_GATE_DEPARTURE_LOCAL
+
+FROM FLIGHTS_EXTENDED F
+         JOIN AIRPORTS A1 ON A1.AIRPORT_ID = F.DEPARTURE_AIRPORT_ID AND A1.IS_ACTIVE
+         JOIN AIRPORTS A2 ON A2.AIRPORT_ID = F.ARRIVAL_AIRPORT_ID AND A2.IS_ACTIVE
+
+WHERE (F.DEPARTURE_AIRPORT_ID = :airport OR F.DEPARTURE_AIRPORT_IATA = :airport)
+  AND DATE(F.SCHEDULED_GATE_DEPARTURE_LOCAL) = :date
+  AND F.TOTAL_SEAT_COUNT > 0
+"""
+
+SELECT_AIRPORT_FUTURE_DEPARTURE = """
+SELECT 
+
+FROM SCHEDULE S
+
+
+"""
+
+
+def process_schedule(airport, date, conn, acdm_mapping, flight_io):
+    # query
+    query = f"""
+    SELECT 
+        operating_carrier_id,
+        operating_carrier_iata,
+        flight_number,
+        departure_station_code_iata,
+        arrival_station_code_iata,
+        {flight_io}_terminal,
+        passenger_{flight_io}_time_local,
+        total_seats
+    FROM schedule
+    WHERE ({flight_io}_station_code_iata = '{airport}')
+        AND DATE(passenger_{flight_io}_time_local) = DATE('{date}')
+        AND total_seats > 0
+        AND is_codeshare = 0
+    """
+    # df = pd.read_sql_query(query, conn)
+
+    # # processing
+    # df[f"passenger_{flight_io}_time_local"] = pd.to_datetime(
+    #     df[f"passenger_{flight_io}_time_local"]
+    # )
+    # df["total_seats"] = df["total_seats"].astype(float)
+    # df["flight_number"] = df["operating_carrier_iata"] + df["flight_number"].astype(str)
+    # df[f"{flight_io}_terminal"] = df[f"{flight_io}_terminal"].fillna("UNKNOWN")
+    # df = df.rename(
+    #     {
+    #         f"passenger_{flight_io}_time_local": acdm_mapping[
+    #             f"passenger_{flight_io}_time_local"
+    #         ],
+    #         "departure_station_code_iata": "departure_airport_iata",
+    #         "arrival_station_code_iata": "arrival_airport_iata",
+    #         "total_seats": "total_seat_count",
+    #     },
+    #     axis=1,
+    # )
+    # return df
