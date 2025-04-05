@@ -19,6 +19,7 @@ from src.simulation.application.core.simulator import DsSimulator
 from src.simulation.application.queries import (
     SELECT_AIRPORT_ARRIVAL,
     SELECT_AIRPORT_DEPARTURE,
+    SELECT_AIRPORT_DEPARTURE_SCHEDULE,
 )
 from src.simulation.domain.repository import ISimulationRepository
 from src.simulation.domain.simulation import ScenarioMetadata, SimulationScenario
@@ -247,12 +248,26 @@ class SimulationService:
     async def fetch_flight_schedule_data(
         self, db: Connection, date: str, airport: str, condition: list | None
     ):
+        from datetime import datetime
 
         flight_io = "departure"
-        query_map = {
-            "arrival": SELECT_AIRPORT_ARRIVAL,
-            "departure": SELECT_AIRPORT_DEPARTURE,
-        }
+
+        # 현재 날짜와 입력된 날짜 비교
+        current_date = datetime.now().date()
+        input_date = datetime.strptime(date, "%Y-%m-%d").date()
+
+        # 미래 날짜인 경우 스케줄 쿼리 사용
+        if input_date > current_date:
+            query_map = {
+                "arrival": SELECT_AIRPORT_ARRIVAL,
+                "departure": SELECT_AIRPORT_DEPARTURE_SCHEDULE,
+            }
+        else:
+            query_map = {
+                "arrival": SELECT_AIRPORT_ARRIVAL,
+                "departure": SELECT_AIRPORT_DEPARTURE,
+            }
+
         base_query = query_map.get(flight_io)
 
         params = {
@@ -1070,7 +1085,7 @@ class SimulationService:
         return {"traces": traces, "default_x": default_x}
 
     async def _create_waiting_time(
-        self, sim_df: pd.DataFrame, process, node, time_range
+        self, sim_df: pd.DataFrame, process, node, group_column, time_range
     ) -> pd.DataFrame:
         """
         서브 함수
@@ -1087,18 +1102,20 @@ class SimulationService:
 
         df[start_time] = pd.to_datetime(df[start_time])
         df[end_time] = pd.to_datetime(df[end_time])
-        df = df[[start_time, end_time]]
+        df = df[[start_time, end_time, group_column]]
 
         df["waiting_time"] = (df[end_time] - df[start_time]).dt.total_seconds()
 
         df.loc[:, end_time] = df[end_time].dt.floor("10min")
+
         df_grouped = df.groupby([end_time], as_index=end_time).agg(
             {"waiting_time": "mean"}
         )
         df_grouped["waiting_time"] = df_grouped["waiting_time"] / 60
         df_grouped = df_grouped.reindex(time_range, fill_value=0)
+
         wt_x_list = df_grouped.index.astype(str).tolist()
-        wt_y_list = df_grouped["waiting_time"].astype(int).tolist()
+        wt_y_list = df_grouped.astype(int).values.tolist()
 
         return {"y": wt_y_list, "default_x": wt_x_list}
 
@@ -1195,13 +1212,7 @@ class SimulationService:
         inbound = {}
         outbound = {}
         queing = {}
-
-        waiting_data = await self._create_waiting_time(
-            sim_df=sim_df,
-            process=process,
-            node=node,
-            time_range=time_range,
-        )
+        waiting = {}
 
         # EX. process = checkin / node = A / flow = on
         for group_column in color_criteria_options:
@@ -1213,6 +1224,16 @@ class SimulationService:
                 time_range=time_range,
             )
             queing[CRITERIA_MAP[group_column]] = queue_data["traces"]
+
+            waiting_data = await self._create_waiting_time(
+                sim_df=sim_df,
+                process=process,
+                node=node,
+                group_column=group_column,
+                time_range=time_range,
+            )
+
+            waiting[CRITERIA_MAP[group_column]] = waiting_data["y"]
 
             for flow in ["on", "pt"]:
                 # process = checkin / node = A / flow = on / group_column = operating_carrier_name
@@ -1246,7 +1267,7 @@ class SimulationService:
             "queing": {"chart_x_data": queue_data["default_x"], "chart_y_data": queing},
             "waiting": {
                 "chart_x_data": waiting_data["default_x"],
-                "chart_y_data": waiting_data["y"],
+                "chart_y_data": waiting,
             },
         }
 
@@ -1923,7 +1944,7 @@ class SimulationService:
         # print(ow.passengers)
         # ow.passengers.to_csv("sim_pax_test.csv", encoding="utf-8-sig", index=False)
 
-        filename = f"{scenario_id}.parquet"
+        filename = f"{user_id}/{scenario_id}.parquet"
         await self.simulation_repo.upload_to_s3(session, ow.passengers, filename)
 
         await asyncio.sleep(0.001)
