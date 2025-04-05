@@ -407,8 +407,11 @@ class FacilityService:
 
         sim_df = await self.facility_repo.download_from_s3(session, scenario_id)
 
-        node_list = sim_df[f"{process}_pred"].unique().tolist()
-
+        node_list = [
+            val
+            for val in sim_df[f"{process}_pred"].unique()
+            if isinstance(val, str) and val.strip() != ""
+        ]
         tp_data = await self._create_throughput(
             sim_df=sim_df, process=process, group_column=f"{process}_pred"
         )
