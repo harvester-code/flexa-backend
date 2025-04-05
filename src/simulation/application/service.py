@@ -256,8 +256,8 @@ class SimulationService:
         current_date = datetime.now().date()
         input_date = datetime.strptime(date, "%Y-%m-%d").date()
 
-        # 미래 날짜인 경우 스케줄 쿼리 사용
-        if input_date > current_date:
+        # 오늘 + 미래 날짜인 경우 스케줄 쿼리 사용
+        if input_date >= current_date:
             query_map = {
                 "arrival": SELECT_AIRPORT_ARRIVAL,
                 "departure": SELECT_AIRPORT_DEPARTURE_SCHEDULE,
