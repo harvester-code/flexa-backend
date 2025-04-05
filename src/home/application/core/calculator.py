@@ -380,9 +380,10 @@ class HomeCalculator:
                 "opened": [1, 1] if not facility_df.empty else [0, 0],
                 "isOpened": not facility_df.empty,
                 "throughput": len(facility_df),
-                "maxQueue": int(
-                    facility_df[f"{process}_que"].max()
+                "maxQueue": (
+                    int(facility_df[f"{process}_que"].fillna(0).max())
                     if not facility_df[f"{process}_que"].empty
+                    and pd.notna(facility_df[f"{process}_que"].fillna(0).max())
                     else 0
                 ),
                 "queueLength": int(
