@@ -327,6 +327,13 @@ class SimulationService:
         )
         df_grouped = df_grouped.sort_index()
 
+        # NOTE: [Vincent] 아래와 같은 케이스에 대응하기 위해서 추가함
+        # df_grouped = Empty DataFrame
+        # Columns: []
+        # Index: []
+        if df_grouped.empty:
+            return None
+
         total_groups = df_grouped.shape[1]
         has_etc = total_groups > 9
 
@@ -353,7 +360,6 @@ class SimulationService:
             group_order.append("etc")
 
         default_x = df_grouped.index.strftime("%H:%M").tolist()
-
         traces = [
             {
                 "name": column,
@@ -429,7 +435,8 @@ class SimulationService:
                 flight_df, group_column
             )
 
-            chart_result[CRITERIA_MAP[group_column]] = chart_data["traces"]
+            if chart_data:
+                chart_result[CRITERIA_MAP[group_column]] = chart_data["traces"]
 
         return {
             "add_conditions": add_conditions,
