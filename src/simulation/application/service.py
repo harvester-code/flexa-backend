@@ -284,11 +284,11 @@ class SimulationService:
                     params["i_d"] = con.value[0]
 
                 if con.criteria == "Terminal":
-                    where_conditions.append("F.departure_terminal = :terminal")
+                    where_conditions.append("DEPARTURE_TERMINAL = :terminal")
                     params["terminal"] = con.value[0]
 
                 if con.criteria == "Airline":
-                    where_conditions.append("F.OPERATING_CARRIER_IATA IN :airline")
+                    where_conditions.append("OPERATING_CARRIER_IATA IN :airline")
                     params["airline"] = tuple(con.value)
 
             if where_conditions:
