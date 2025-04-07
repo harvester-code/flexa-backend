@@ -490,10 +490,10 @@ class DsNode:
         if criteria == component:
             return True
 
-        elif criteria == "Time":
+        elif criteria == "time":
             check_time = (datetime.min + timedelta(seconds=int(check_time))).time()
             operator = condition.operator
-            condition_time = datetime.strptime(condition.value, "%H:%M")
+            condition_time = datetime.strptime(condition.value[0], "%H:%M")
 
             if operator == "start":
                 return check_time >= condition_time.time()
