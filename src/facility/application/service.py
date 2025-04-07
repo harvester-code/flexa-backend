@@ -442,7 +442,7 @@ class FacilityService:
             # WT
             wt = wt_data[node]
             wt_x_list = wt.index.astype(str).tolist()
-            wt_y_list = wt.astype(int).values.tolist()
+            wt_y_list = (wt.astype(int) // 60).tolist()
 
             node_result["waiting_time"] = {"x": wt_x_list, "y": wt_y_list}
 
@@ -514,7 +514,7 @@ class FacilityService:
         wt_column_list = wt.columns.tolist()
         for column in wt_column_list:
             wt_y_list.append(column)
-            wt_z_list.append(wt[column].astype(int).values.tolist())
+            wt_z_list.append((wt[column].astype(int) // 60).tolist())
 
         heatmap_result["waiting_time"] = {
             "x": wt_x_list,
@@ -631,7 +631,7 @@ class FacilityService:
                 {
                     "name": column,
                     "order": group_order.index(column),
-                    "y": sim_df[column].astype(int).values.tolist(),
+                    "y": (sim_df[column].astype(int) // 60).tolist(),
                 }
             )
         group_result[kpi_name] = {"default_x": sim_df_x_list, "traces": traces}
