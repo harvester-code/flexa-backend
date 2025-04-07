@@ -986,16 +986,12 @@ class SimulationService:
         return {"traces": traces, "default_x": default_x}
 
     async def _create_simulation_queue_chart(
-        self,
-        sim_df: pd.DataFrame,
-        process,
-        group_column,
+        self, sim_df: pd.DataFrame, process, group_column, time_range
     ):
         """
         서브 함수
         explode 큐 데이터를 만드는 함수
         """
-        _start = datetime.now()
 
         start_time = f"{process}_on_pred"
         end_time = f"{process}_pt_pred"
@@ -1034,15 +1030,8 @@ class SimulationService:
             df_expanded["Time"] - df_expanded["start_int"], unit="m"
         )
 
-        start_day = df_expanded["Time"].dropna().iloc[0].strftime("%Y-%m-%d %H:%M:%S")
-        end_day = df_expanded["Time"].dropna().iloc[-1].strftime("%Y-%m-%d %H:%M:%S")
-        all_hours = pd.date_range(
-            start=pd.Timestamp(start_day),
-            end=pd.Timestamp(end_day),
-            freq="10min",
-        )
         df_expanded = df_expanded[
-            df_expanded["Time"].isin(all_hours)
+            df_expanded["Time"].isin(time_range)
         ]  # 하루를 넘어가거나, 하루 이전의 값을 사전 제거
 
         # df_grouped 만들기
@@ -1067,7 +1056,7 @@ class SimulationService:
         else:
             top_9_columns = df_grouped.columns.tolist()
 
-        df_grouped = df_grouped.reindex(all_hours, fill_value=0)
+        df_grouped = df_grouped.reindex(time_range, fill_value=0)
 
         group_order = df_grouped.sum().sort_values(ascending=False).index.tolist()
         if has_etc and "etc" in group_order:
@@ -1085,14 +1074,10 @@ class SimulationService:
             for column in df_grouped.columns
         ]
 
-        _end = datetime.now()
-        elapsed_time = (_end - _start).total_seconds()
-        # print(f"{process}_{group_column}의 소요시간 : {elapsed_time:.2f}초")
-
         return {"traces": traces, "default_x": default_x}
 
     async def _create_waiting_time(
-        self, sim_df: pd.DataFrame, process, node, group_column, time_range
+        self, sim_df: pd.DataFrame, process, node, time_range
     ) -> pd.DataFrame:
         """
         서브 함수
@@ -1109,20 +1094,18 @@ class SimulationService:
 
         df[start_time] = pd.to_datetime(df[start_time])
         df[end_time] = pd.to_datetime(df[end_time])
-        df = df[[start_time, end_time, group_column]]
+        df = df[[start_time, end_time]]
 
         df["waiting_time"] = (df[end_time] - df[start_time]).dt.total_seconds()
 
         df.loc[:, end_time] = df[end_time].dt.floor("10min")
-
         df_grouped = df.groupby([end_time], as_index=end_time).agg(
             {"waiting_time": "mean"}
         )
         df_grouped["waiting_time"] = df_grouped["waiting_time"] / 60
         df_grouped = df_grouped.reindex(time_range, fill_value=0)
-
         wt_x_list = df_grouped.index.astype(str).tolist()
-        wt_y_list = df_grouped.astype(int).values.tolist()
+        wt_y_list = df_grouped["waiting_time"].astype(int).tolist()
 
         return {"y": wt_y_list, "default_x": wt_x_list}
 
@@ -1219,28 +1202,24 @@ class SimulationService:
         inbound = {}
         outbound = {}
         queing = {}
-        waiting = {}
+
+        waiting_data = await self._create_waiting_time(
+            sim_df=sim_df,
+            process=process,
+            node=node,
+            time_range=time_range,
+        )
 
         # EX. process = checkin / node = A / flow = on
         for group_column in color_criteria_options:
 
-            queue_data = await self._create_simulation_queue_chart_optimized(
+            queue_data = await self._create_simulation_queue_chart(
                 sim_df=sim_df,
                 process=process,
                 group_column=group_column,
                 time_range=time_range,
             )
             queing[CRITERIA_MAP[group_column]] = queue_data["traces"]
-
-            waiting_data = await self._create_waiting_time(
-                sim_df=sim_df,
-                process=process,
-                node=node,
-                group_column=group_column,
-                time_range=time_range,
-            )
-
-            waiting[CRITERIA_MAP[group_column]] = waiting_data["y"]
 
             for flow in ["on", "pt"]:
                 # process = checkin / node = A / flow = on / group_column = operating_carrier_name
@@ -1274,7 +1253,7 @@ class SimulationService:
             "queing": {"chart_x_data": queue_data["default_x"], "chart_y_data": queing},
             "waiting": {
                 "chart_x_data": waiting_data["default_x"],
-                "chart_y_data": waiting,
+                "chart_y_data": waiting_data["y"],
             },
         }
 
