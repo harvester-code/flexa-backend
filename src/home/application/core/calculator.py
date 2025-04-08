@@ -329,16 +329,24 @@ class HomeCalculator:
             }
         )
 
+    # def _format_waiting_time(self, timedelta):
+    #     """대기 시간을 MM:SS 형식의 문자열로 변환"""
+    #     return f"{int(timedelta.total_seconds() // 60):02d}:{int(timedelta.total_seconds() % 60):02d}"
+
     def _format_waiting_time(self, timedelta):
-        """대기 시간을 MM:SS 형식의 문자열로 변환"""
-        return f"{int(timedelta.total_seconds() // 60):02d}:{int(timedelta.total_seconds() % 60):02d}"
+        """대기 시간을 HH:MM:SS 형식의 문자열로 변환"""
+        total_seconds = int(timedelta.total_seconds())
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
     def _create_alert_data_entry(self, row):
         """각 행을 알림 데이터 형식으로 변환"""
         return {
             "time": row["datetime"].strftime("%H:%M:%S"),
             "waiting_time": row["waiting_time"],
-            "queue_length": str(row["queue_length"]),
+            "queue_length": f"{int(row['queue_length']):,}",
             "node": row["process_name"],
         }
 
