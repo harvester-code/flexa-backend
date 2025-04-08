@@ -785,7 +785,7 @@ class SimulationService:
     # =====================================
 
     async def _calculate_capacity(self, facility_schedule: list, time_unit: int):
-        by_pass = 1e-11
+        by_pass = 1e-10
 
         if by_pass in facility_schedule:
             return None
