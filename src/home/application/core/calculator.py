@@ -131,6 +131,7 @@ class HomeCalculator:
         for process in self.process_list:
             cols_needed = [
                 f"{process}_pred",
+                f"{process}_facility_number",
                 f"{process}_que",
                 f"{process}_pt",
                 f"{process}_on_pred",
@@ -343,7 +344,7 @@ class HomeCalculator:
 
     def _calculate_overview_metrics(self, df, process):
         """프로세스 전체 개요 지표 계산"""
-        opened_count = df[f"{process}_pred"].nunique()
+        opened_count = df[f"{process}_facility_number"].nunique()
         waiting_time = self._calculate_waiting_time(df, process)
         return {
             "opened": [opened_count, opened_count],
@@ -375,9 +376,12 @@ class HomeCalculator:
         for facility in facilities:
             facility_df = df[df[f"{process}_pred"] == facility]
             waiting_time = self._calculate_waiting_time(facility_df, process)
+            opened_count = facility_df[f"{process}_facility_number"].nunique()
             component = {
                 "title": facility,
-                "opened": [1, 1] if not facility_df.empty else [0, 0],
+                "opened": (
+                    [opened_count, opened_count] if not facility_df.empty else [0, 0]
+                ),
                 "isOpened": not facility_df.empty,
                 "throughput": len(facility_df),
                 "maxQueue": (
