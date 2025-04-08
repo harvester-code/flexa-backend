@@ -6,17 +6,17 @@ dev.up:
 dev.down:
 	docker compose -f docker-compose.dev.yaml down
 
-.PHONY: build-development
+.PHONY: build-develop
 build-development: ## Build the development docker image.
 	docker compose -f docker/development/compose.yaml build
 
-.PHONY: start-development
+.PHONY: start-develop
 start-development: ## Start the development docker container.
 	docker compose -f docker/development/compose.yaml up -d
 
-.PHONY: stop-development
+.PHONY: stop-develop
 stop-development: ## Stop the development docker container.
-	docker compose -f docker/development/compose.yaml down
+	docker compose -f docker/development/compose.yaml down && docker rmi flexa-waitfree-api-development
 
 .PHONY: build-staging
 build-staging: ## Build the staging docker image.
@@ -28,16 +28,16 @@ start-staging: ## Start the staging docker container.
 
 .PHONY: stop-staging
 stop-staging: ## Stop the staging docker container.
-	docker compose -f docker/staging/compose.yaml down
+	docker compose -f docker/staging/compose.yaml down && docker rmi flexa-waitfree-api-staging
   
-.PHONY: build-production
+.PHONY: build-prod
 build-production: ## Build the production docker image.
 	docker compose -f docker/production/compose.yaml build
 
-.PHONY: start-production
+.PHONY: start-prod
 start-production: ## Start the production docker container.
 	docker compose -f docker/production/compose.yaml up -d
 
-.PHONY: stop-production
+.PHONY: stop-prod
 stop-production: ## Stop the production docker container.
-	docker compose -f docker/production/compose.yaml down
+	docker compose -f docker/production/compose.yaml down && docker rmi flexa-waitfree-api-production
