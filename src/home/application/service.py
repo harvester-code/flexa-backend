@@ -1,7 +1,8 @@
-from dependency_injector.wiring import inject
-from src.home.domain.repository import IHomeRepository
-from src.home.application.core.calculator import HomeCalculator
 import boto3
+from dependency_injector.wiring import inject
+
+from src.home.application.core.calculator import HomeCalculator
+from src.home.domain.repository import IHomeRepository
 
 
 class HomeService:
