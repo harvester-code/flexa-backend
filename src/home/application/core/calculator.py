@@ -253,7 +253,10 @@ class HomeCalculator:
         return [
             col.replace("_on_pred", "")
             for col in self.pax_df.columns
-            if "on_pred" in col
+            # FIXME:
+            # 기존 로직 (if "on_pred" in col)는 아래와 같은 값에 대해서 정상적으로 대응을 못함.
+            # 컬럼 이름 == "emmigration_pred"
+            if "_on_pred" in col
         ]
 
     def _format_seconds_to_time(self, seconds):
