@@ -1,4 +1,3 @@
-import asyncio
 from datetime import datetime, time, timedelta
 from typing import List
 
@@ -1497,18 +1496,17 @@ class SimulationService:
                     component_node_map[comp.name] = [node.id]
 
         await websocket.send_json({"progress": "5%"})
-        await asyncio.sleep(0.001)
+
         # ============================================================
         # NOTE: 쇼업패턴으로 생성된 여객데이터
         data = await self.fetch_flight_schedule_data(
             db, flight_sch.date, flight_sch.airport, flight_sch.condition
         )
         await websocket.send_json({"progress": "30%"})
-        await asyncio.sleep(0.001)
 
         df_pax = await self._calculate_show_up_pattern(data, destribution_conditions)
         await websocket.send_json({"progress": "31%"})
-        await asyncio.sleep(0.001)
+
         # ============================================================
         # NOTE: dist_key와 td_arr을 생성
         np_pax_col = df_pax.columns.to_numpy()
@@ -1539,7 +1537,7 @@ class SimulationService:
         )
 
         await websocket.send_json({"progress": "33%"})
-        await asyncio.sleep(0.001)
+
         # ============================================================
         # NOTE: dist_map과 graph_list를 생성
 
@@ -1597,7 +1595,7 @@ class SimulationService:
                         node_transition_graph.append([])
 
         await websocket.send_json({"progress": "35%"})
-        await asyncio.sleep(0.001)
+
         # ============================================================
         # NOTE: 메인 코드
         graph = DsGraph(
@@ -1642,7 +1640,6 @@ class SimulationService:
         ow.write_pred()
 
         await websocket.send_json({"progress": "95%"})
-        await asyncio.sleep(0.001)
 
         # =====================================
         # NOTE: 시뮬레이션 결과 데이터 s3 저장
@@ -1653,7 +1650,6 @@ class SimulationService:
         await self.simulation_repo.upload_to_s3(session, ow.passengers, filename)
 
         await websocket.send_json({"progress": "97%"})
-        await asyncio.sleep(0.001)
 
         # =====================================
         # NOTE: 시뮬레이션 결과
@@ -1674,7 +1670,6 @@ class SimulationService:
             df=ow.passengers, component_list=components
         )
         await websocket.send_json({"progress": "98%"})
-        await asyncio.sleep(0.001)
 
         # NOTE: 첫번째 프로세스의 첫번째 노드만 차트로 변환
         # first_process = next(iter(comp_to_idx), None)
@@ -1727,7 +1722,6 @@ class SimulationService:
                 kpi_result.append(kpi)
 
         await websocket.send_json({"progress": "99%"})
-        await asyncio.sleep(0.001)
 
         return {
             "simulation_completed": simulation_completed,
@@ -1784,16 +1778,14 @@ class SimulationService:
                 else:
                     component_node_map[comp.name] = [node.id]
 
-        await asyncio.sleep(0.001)
         # ============================================================
         # NOTE: 쇼업패턴으로 생성된 여객데이터
         data = await self.fetch_flight_schedule_data(
             db, flight_sch.date, flight_sch.airport, flight_sch.condition
         )
-        await asyncio.sleep(0.001)
 
         df_pax = await self._calculate_show_up_pattern(data, destribution_conditions)
-        await asyncio.sleep(0.001)
+
         # ============================================================
         # NOTE: dist_key와 td_arr을 생성
         np_pax_col = df_pax.columns.to_numpy()
@@ -1823,10 +1815,8 @@ class SimulationService:
             [(td.total_seconds()) + v0 for td in (ck_on - np.array(ck_on[0]))]
         )
 
-        await asyncio.sleep(0.001)
         # ============================================================
         # NOTE: dist_map과 graph_list를 생성
-
         # process의 메타데이터 -> graph_list를 만들때 사용
         comp_to_idx = {}
         idx = 0
@@ -1880,7 +1870,6 @@ class SimulationService:
                     for node in range(len(nodes)):
                         node_transition_graph.append([])
 
-        await asyncio.sleep(0.001)
         # ============================================================
         # NOTE: 메인 코드
         graph = DsGraph(
@@ -1923,8 +1912,6 @@ class SimulationService:
         )
         ow.write_pred()
 
-        await asyncio.sleep(0.001)
-
         # =====================================
         # NOTE: 시뮬레이션 결과 데이터 s3 저장
         # print(ow.passengers)
@@ -1932,8 +1919,6 @@ class SimulationService:
 
         filename = f"{scenario_id}.parquet"
         await self.simulation_repo.upload_to_s3(session, ow.passengers, filename)
-
-        await asyncio.sleep(0.001)
 
         # =====================================
         # NOTE: 시뮬레이션 결과

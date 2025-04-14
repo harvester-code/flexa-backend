@@ -1,4 +1,3 @@
-import asyncio
 import heapq
 import math
 import time
@@ -166,7 +165,7 @@ class DsSimulator:
             progress = math.floor(progress_time)
             if progress > previous_progress:
                 await websocket.send_json({"progress": f"{progress}%"})
-                await asyncio.sleep(0.001)
+
                 previous_progress = progress
 
         logger.info(

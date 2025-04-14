@@ -77,7 +77,7 @@ async def run_simulation(
 
                 # ✅ 완료 메시지 전송
                 await websocket.send_json({"progress": "100%"})
-                await asyncio.sleep(0.001)
+
                 await websocket.send_json(
                     {"message": "Simulation completed", "result": result}
                 )
