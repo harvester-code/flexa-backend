@@ -478,6 +478,7 @@ class SimulationService:
             )
             pax_df = pd.concat([pax_df, partial_pax_df], ignore_index=True)
             df.drop(index=partial_df.index, inplace=True)
+
         # pax_df.to_csv(".idea/pax_df.csv", index=False) # 분산처리 데이터검증목적
         return pax_df
 
@@ -1847,6 +1848,7 @@ class SimulationService:
         node_transition_graph = []
         for i, key in enumerate(processes):
             if int(key) >= 2:
+                # A에서 B로 가는 확률이 들어감
                 default_matrix = processes[key].default_matrix
                 nodes = processes[key].nodes
                 dst_idx = comp_to_idx[processes[key].name]
@@ -1854,7 +1856,9 @@ class SimulationService:
                 for destinations in default_matrix.values():
                     graph = []
 
+                    # FIXME: 변수명이 위와 같아서 수정해야함
                     for key, values in destinations.items():
+                        # 여기에 목적지가 들어가야하지 않을까..?
                         if values > 0:
                             graph.append(
                                 [
@@ -1865,6 +1869,7 @@ class SimulationService:
 
                     node_transition_graph.append(graph)
 
+                # NOTE: 마지막 프로세스에 대한 처리
                 if i == len(processes) - 1:
 
                     for node in range(len(nodes)):
@@ -1899,6 +1904,7 @@ class SimulationService:
         SECONDS_IN_THREE_DAYS = 3600 * 24 * 3
         last_passenger_arrival_time = td_arr[-1]
 
+        # HACK: [25.04.07] 아래 코드 패턴은 좋지 못하다고 생각함.
         await sim.run_temp(
             start_time=0,
             end_time=max(SECONDS_IN_THREE_DAYS, last_passenger_arrival_time),
@@ -1934,7 +1940,6 @@ class SimulationService:
             },
         ]
 
-        # =====================================
         # NOTE: 차트 생성
         sankey = await self._generate_simulation_sankey(
             df=ow.passengers, component_list=components

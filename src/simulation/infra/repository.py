@@ -42,6 +42,7 @@ class SimulationRepository(ISimulationRepository):
         items_per_page: int,
     ):
 
+        # FIXME: [25.04.07] 여기서 DB를 호출하는 횟수를 최대한 줄여보자
         async with db.begin():
             result = await db.execute(
                 select(Groups.master_scenario_id).where(Groups.id == int(group_id))
