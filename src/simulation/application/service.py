@@ -2011,6 +2011,7 @@ class SimulationService:
                     "y": data_list,
                 }
                 line_chart_result.append(line_chart)
+        ow.passengers.to_parquet("samples/sim_pax_test.parquet", compression="snappy")
 
         return {
             "simulation_completed": simulation_completed,

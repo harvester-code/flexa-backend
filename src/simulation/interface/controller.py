@@ -428,7 +428,7 @@ async def run_simulation_temp(
     return await simulation_service.run_simulation_temp(
         db,
         session,
-        request.state.user_id,
+        "6c377bfd-6679-48e5-ab27-49ed3ca4611c",
         run_simulation.scenario_id,
         run_simulation.flight_schedule,
         run_simulation.destribution_conditions,
