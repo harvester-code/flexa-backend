@@ -68,15 +68,19 @@ class DsNode:
     def _prod_counter(self, second, nodes, passengers):
         while self.occupied_facilities and self.occupied_facilities[0][0] <= second:
             # 이전 프로세스에서 넘어온 값
-            _, passenger_node_id, facility_number = heapq.heappop(
+
+            #######################################################################################
+            done_time, passenger_node_id, facility_number = heapq.heappop(
                 self.occupied_facilities
             )
-
             self.done_time[passenger_node_id] = second
-            self.unoccupied_facilities[facility_number] = 1
+            self.processing_time[passenger_node_id] += second - done_time ## 박경훈 추가 ##
 
+            self.unoccupied_facilities[facility_number] = 1
             if self.destinations is None:
-                break
+                # break
+                continue ## 박경훈 추가 : break가 아니라 continue로 해야한다. ##
+            #######################################################################################
 
             # 전체 프로세스에서의 승객 ID
             passenger_id = self.passenger_ids[passenger_node_id]
@@ -353,7 +357,7 @@ class DsNode:
             counter_num = self.select_facility(minute)
 
             if counter_num == 0:
-                break
+                break # prod_que는 prod_counter와는 달리 continue를 안해도 된다. 왜냐하면 그당시 줄서있는 사람이 너무나 많기 때문이다. 그당시 카운터가 없었으면 그냥 그시간대는 넘어가는 것으로로
 
             passenger_node_id = self.passenger_queues[0][1]
             passenger_id = self.passenger_ids[passenger_node_id]
@@ -422,7 +426,7 @@ class DsNode:
                     for node in destination_nodes
                 ):
                     self.unoccupied_facilities[counter_num - 1] = 1
-                    break
+                    break # prod_que는 prod_counter와는 달리 continue를 안해도 된다. 왜냐하면 그당시 줄서있는 사람이 너무나 많기 때문이다. 그당시 카운터가 없었으면 그냥 그시간대는 넘어가는 것으로로
 
             # ==================================================
             heapq.heappop(self.passenger_queues)
