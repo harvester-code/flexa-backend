@@ -1,5 +1,5 @@
-import numpy as np
 import pandas as pd
+import numpy as np
 
 
 class HomeCalculator:
@@ -59,9 +59,17 @@ class HomeCalculator:
         queue_length = self._calculate_kpi_values(method="queue_length")
         facility_utilizations = []
         for process in self.process_list:
-            utilization = (
-                self.pax_df[f"{process}_done_pred"].dt.floor("10min").nunique() / 144
-            ) * 100
+            # 제일 빠른 날짜 찾기
+            min_date = self.pax_df[f"{process}_done_pred"].dropna().dt.date.min()
+            # 해당 날짜의 데이터만 필터링하여 10분 단위 슬롯 수 계산
+            first_day_slots = (
+                self.pax_df[self.pax_df[f"{process}_done_pred"].dt.date == min_date][
+                    f"{process}_done_pred"
+                ]
+                .dt.floor("10min")
+                .nunique()
+            )
+            utilization = (first_day_slots / 144) * 100
             facility_utilizations.append(utilization)
         facility_utilization = sum(facility_utilizations) / len(facility_utilizations)
 
@@ -253,10 +261,7 @@ class HomeCalculator:
         return [
             col.replace("_on_pred", "")
             for col in self.pax_df.columns
-            # FIXME:
-            # 기존 로직 (if "on_pred" in col)는 아래와 같은 값에 대해서 정상적으로 대응을 못함.
-            # 컬럼 이름 == "emmigration_pred"
-            if "_on_pred" in col
+            if "on_pred" in col
         ]
 
     def _format_seconds_to_time(self, seconds):
