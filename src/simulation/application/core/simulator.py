@@ -172,7 +172,7 @@ class DsSimulator:
             f"시뮬레이션을 종료합니다. (소요 시간: {round(time.time() - start_at)}초)"
         )
 
-    async def run_temp(self, start_time, end_time, unit=10):
+    async def run_temp(self, start_time, end_time, unit=3):
         logger.info("시뮬레이션을 시작합니다.")
         start_at = time.time()
 
