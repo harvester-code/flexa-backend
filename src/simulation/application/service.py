@@ -998,7 +998,7 @@ class SimulationService:
 
         df = sim_df.loc[sim_df[f"{process}_pred"] == f"{process}_{node}"].copy()
 
-        df_expanded = df[[start_time, end_time, group_column]]
+        df_expanded = df[[start_time, end_time, group_column]].copy()
         df_expanded[start_time] = df_expanded[start_time].dt.round("10min")
         df_expanded[end_time] = df_expanded[end_time].dt.round("10min")
 
