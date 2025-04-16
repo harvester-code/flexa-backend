@@ -74,12 +74,14 @@ class DsNode:
                 self.occupied_facilities
             )
             self.done_time[passenger_node_id] = second
-            self.processing_time[passenger_node_id] += second - done_time ## 박경훈 추가 ##
+            self.processing_time[passenger_node_id] += (
+                second - done_time
+            )  ## 박경훈 추가 ##
 
             self.unoccupied_facilities[facility_number] = 1
             if self.destinations is None:
                 # break
-                continue ## 박경훈 추가 : break가 아니라 continue로 해야한다. ##
+                continue  ## 박경훈 추가 : break가 아니라 continue로 해야한다. ##
             #######################################################################################
 
             # 전체 프로세스에서의 승객 ID
@@ -119,6 +121,7 @@ class DsNode:
                 destination_component = destination.components[0]
                 priority_dod_node_indices = None
                 if dod_component:
+                    priority_matrix = None
                     passenger = passengers.loc[destination_passenger_id]
                     # 기존 코드와 동일
                     for process in self.processes.values():
@@ -226,6 +229,7 @@ class DsNode:
 
         priority_destination_node_indices = None
         if destination_component:
+            priority_matrix = None
             passenger = df_pax.loc[pax_idx]
             # 기존과 같은 방식으로 matrix을 가져온다.
             for process in self.processes.values():
@@ -357,7 +361,7 @@ class DsNode:
             counter_num = self.select_facility(minute)
 
             if counter_num == 0:
-                break # prod_que는 prod_counter와는 달리 continue를 안해도 된다. 왜냐하면 그당시 줄서있는 사람이 너무나 많기 때문이다. 그당시 카운터가 없었으면 그냥 그시간대는 넘어가는 것으로로
+                break  # prod_que는 prod_counter와는 달리 continue를 안해도 된다. 왜냐하면 그당시 줄서있는 사람이 너무나 많기 때문이다. 그당시 카운터가 없었으면 그냥 그시간대는 넘어가는 것으로로
 
             passenger_node_id = self.passenger_queues[0][1]
             passenger_id = self.passenger_ids[passenger_node_id]
@@ -371,6 +375,7 @@ class DsNode:
 
             # 기존 코드와 동일
             if destination_component:
+                priority_matrix = None
                 passenger = passengers.loc[passenger_id]
                 for process in self.processes.values():
                     if process.name == destination_component:
@@ -426,7 +431,7 @@ class DsNode:
                     for node in destination_nodes
                 ):
                     self.unoccupied_facilities[counter_num - 1] = 1
-                    break # prod_que는 prod_counter와는 달리 continue를 안해도 된다. 왜냐하면 그당시 줄서있는 사람이 너무나 많기 때문이다. 그당시 카운터가 없었으면 그냥 그시간대는 넘어가는 것으로로
+                    break  # prod_que는 prod_counter와는 달리 continue를 안해도 된다. 왜냐하면 그당시 줄서있는 사람이 너무나 많기 때문이다. 그당시 카운터가 없었으면 그냥 그시간대는 넘어가는 것으로로
 
             # ==================================================
             heapq.heappop(self.passenger_queues)
