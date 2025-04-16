@@ -201,49 +201,6 @@ class SimulationService:
     # =====================================
     # NOTE: 시뮬레이션 프로세스
 
-    async def fetch_flight_schedule_data_test(
-        self, db: Connection, date: str, airport: str, condition: list | None
-    ):
-
-        flight_io = "departure"
-        query_map = {
-            "arrival": SELECT_AIRPORT_ARRIVAL,
-            "departure": SELECT_AIRPORT_DEPARTURE,
-        }
-        base_query = query_map.get(flight_io)
-
-        params = {
-            "airport": airport,
-            "date": date,
-        }
-
-        # I/D, 항공사, 터미널
-        where_conditions = []
-        if condition:
-            for con in condition:
-                if con.criteria == "I/D":
-                    where_conditions.append("FLIGHT_TYPE = :i_d")
-                    params["i_d"] = con.value[0]
-
-                if con.criteria == "Terminal":
-                    where_conditions.append("F.departure_terminal = :terminal")
-                    params["terminal"] = con.value[0]
-
-                if con.criteria == "Airline":
-                    where_conditions.append("F.OPERATING_CARRIER_IATA IN :airline")
-                    params["airline"] = tuple(con.value)
-
-            if where_conditions:
-                base_query += " AND " + " AND ".join(where_conditions)
-
-        stmt = text(base_query + "AND F.OPERATING_CARRIER_IATA = 'KE' LIMIT 10")
-
-        data = await self.simulation_repo.fetch_flight_schedule_data(
-            db, stmt, params, flight_io
-        )
-
-        return data
-
     async def fetch_flight_schedule_data(
         self, db: Connection, date: str, airport: str, condition: list | None
     ):
@@ -1078,6 +1035,67 @@ class SimulationService:
 
         return {"traces": traces, "default_x": default_x}
 
+    async def _create_queue_length(
+        self, sim_df: pd.DataFrame, process, node, group_column, time_range
+    ):
+        start_time = f"{process}_on_pred"
+        end_time = f"{process}_pt_pred"
+        process_que = f"{process}_que"
+
+        sim_df[start_time] = pd.to_datetime(sim_df[start_time])
+        sim_df[end_time] = pd.to_datetime(sim_df[end_time])
+
+        df = sim_df.loc[sim_df[f"{process}_pred"] == f"{process}_{node}"].copy()
+        df = df[[start_time, end_time, group_column, process_que]].copy()
+
+        df.loc[:, end_time] = df[end_time].dt.floor("10min")
+
+        df_grouped = (
+            df.groupby([end_time, group_column], as_index=False)
+            .agg({process_que: "mean"})
+            .pivot_table(
+                index=end_time,
+                columns=group_column,
+                values=process_que,
+                fill_value=0,
+            )
+        )
+
+        df_grouped = df_grouped.reindex(time_range, fill_value=0)
+
+        total_groups = df_grouped.shape[1]
+        has_etc = total_groups > 9
+
+        if has_etc:
+            top_9_columns = df_grouped.sum().nlargest(9).index.tolist()
+            df_grouped["etc"] = df_grouped.drop(
+                columns=top_9_columns, errors="ignore"
+            ).sum(axis=1)
+            df_grouped = df_grouped[top_9_columns + ["etc"]]
+        else:
+            top_9_columns = df_grouped.columns.tolist()
+
+        df_grouped = df_grouped.reindex(time_range, fill_value=0)
+
+        group_order = df_grouped.sum().sort_values(ascending=False).index.tolist()
+        if has_etc and "etc" in group_order:
+            group_order.remove("etc")
+            group_order.append("etc")
+
+        default_x = df_grouped.index.strftime("%Y-%m-%d %H:%M:%S").tolist()
+
+        traces = [
+            {
+                "name": column,
+                "order": group_order.index(column),
+                "y": df_grouped[column].map(round).tolist(),
+            }
+            for column in df_grouped.columns
+        ]
+        print(traces)
+
+        return {"traces": traces, "default_x": default_x}
+
     async def _create_waiting_time(
         self, sim_df: pd.DataFrame, process, node, time_range
     ) -> pd.DataFrame:
@@ -1215,7 +1233,7 @@ class SimulationService:
         # EX. process = checkin / node = A / flow = on
         for group_column in color_criteria_options:
 
-            queue_data = await self._create_simulation_queue_chart(
+            queue_data = await self._create_queue_length(
                 sim_df=sim_df,
                 process=process,
                 node=node,
@@ -1451,7 +1469,7 @@ class SimulationService:
 
         return sankey
 
-    async def run_simulation_temp(
+    async def run_simulation(
         self,
         db: Connection,
         session: boto3.Session,
