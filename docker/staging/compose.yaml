@@ -8,4 +8,4 @@ services:
     environment:
       - DOPPLER_TOKEN=***REMOVED***
     ports:
-      - "8010:8010"
+      - "8000:8000"
