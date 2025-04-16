@@ -412,12 +412,11 @@ async def generate_simulation_overview(
 @simulation_router.post(
     "/run-simulation/temp",
     status_code=200,
-    summary="웹소켓 사용불가로 일시적으로 사용할 시뮬레이션 엔드포인트",
+    summary="시뮬레이션 실행하는 엔드포인트",
 )
 @inject
 async def run_simulation_temp(
     run_simulation: RunSimulationBody,
-    request: Request,
     simulation_service: SimulationService = Depends(
         Provide[Container.simulation_service]
     ),
@@ -428,129 +427,9 @@ async def run_simulation_temp(
     return await simulation_service.run_simulation_temp(
         db,
         session,
-        request.state.user_id,
         run_simulation.scenario_id,
         run_simulation.flight_schedule,
         run_simulation.destribution_conditions,
         run_simulation.processes,
         run_simulation.components,
     )
-
-
-@simulation_router.post(
-    "/run-simulation/only-algorithm",
-    status_code=200,
-    summary="알고리즘 테스트용. 프론트는 웹소켓을 통해 실행.",
-)
-@inject
-async def run_simulation(
-    run_simulation: RunSimulationBody,
-    request: Request,
-    db: str,
-    simulation_service: SimulationService = Depends(
-        Provide[Container.simulation_service]
-    ),
-    # db: Connection = Depends(get_snowflake_session),
-    session: boto3.Session = Depends(get_boto3_session),
-):
-
-    return await simulation_service.run_simulation_test(
-        db,
-        session,
-        "6c377bfd-6679-48e5-ab27-49ed3ca4611c",
-        run_simulation.scenario_id,
-        run_simulation.flight_schedule,
-        run_simulation.destribution_conditions,
-        run_simulation.processes,
-        run_simulation.components,
-    )
-
-
-# @simulation_router.post(
-#     "/metrics/kpi/scenario-id/{scenario_id}",
-#     status_code=status.HTTP_200_OK,
-#     summary="06_SI_020",
-#     description="06_SI_020에서 시뮬레이션 결과 그래프를 보고 특정 프로세스의 특정 노드를 선택할때 실행되는 엔드포인트",
-# )
-# @inject
-# async def generate_simulation_metrics_kpi(
-#     scenario_id: str,
-#     process: str,
-#     node: str,
-#     request: Request,
-#     simulation_service: SimulationService = Depends(
-#         Provide[Container.simulation_service]
-#     ),
-#     session: boto3.Session = Depends(get_boto3_session),
-# ):
-
-#     if not scenario_id or not process or not node:
-#         raise BadRequestException("Scenario ID and Process and Node is required")
-
-#     return await simulation_service.generate_simulation_metrics_kpi(
-#         session=session,
-#         user_id=request.state.user_id,
-#         scenario_id=scenario_id,
-#         process=process,
-#         node=node,
-#         sim_df=None,
-#     )
-
-
-# @simulation_router.post(
-#     "/charts/bar/node/scenario-id/{scenario_id}",
-#     status_code=status.HTTP_200_OK,
-#     summary="06_SI_020",
-#     description="06_SI_020에서 시뮬레이션 결과 그래프를 보고 특정 프로세스의 특정 노드를 선택할때 실행되는 엔드포인트",
-# )
-# @inject
-# async def generate_simulation_kpi_chart(
-#     scenario_id: str,
-#     process: str,
-#     node: str,
-#     request: Request,
-#     simulation_service: SimulationService = Depends(
-#         Provide[Container.simulation_service]
-#     ),
-#     session: boto3.Session = Depends(get_boto3_session),
-# ):
-
-#     if not scenario_id or not process or not node:
-#         raise BadRequestException("Scenario ID and Process and Node is required")
-
-#     return await simulation_service.generate_simulation_charts_node(
-#         session=session,
-#         user_id=request.state.user_id,
-#         scenario_id=scenario_id,
-#         process=process,
-#         node=node,
-#         sim_df=None,
-#     )
-
-
-# @simulation_router.post(
-#     "/charts/bar/total/scenario-id/{scenario_id}",
-#     status_code=status.HTTP_200_OK,
-#     summary="06_SI_020",
-#     description="06_SI_020에서 시뮬레이션 결과 그래프를 보고 Total탭을 선택할때 실행되는 엔드포인트",
-# )
-# @inject
-# async def generate_simulation_total_chart(
-#     scenario_id: str,
-#     total: SimulationTotalChartBody,
-#     request: Request,
-#     simulation_service: SimulationService = Depends(
-#         Provide[Container.simulation_service]
-#     ),
-#     session: boto3.Session = Depends(get_boto3_session),
-# ):
-
-#     if not scenario_id:
-#         raise BadRequestException("Scenario ID is required")
-
-#     return await simulation_service.generate_simulation_charts_total(
-#         session=session,
-#         user_id=request.state.user_id,
-#         scenario_id=scenario_id,
-#         total=total.total,
-#     )
