@@ -415,7 +415,7 @@ async def generate_simulation_overview(
     summary="시뮬레이션 실행하는 엔드포인트",
 )
 @inject
-async def run_simulation_temp(
+async def run_simulation(
     run_simulation: RunSimulationBody,
     simulation_service: SimulationService = Depends(
         Provide[Container.simulation_service]
@@ -424,7 +424,7 @@ async def run_simulation_temp(
     session: boto3.Session = Depends(get_boto3_session),
 ):
 
-    return await simulation_service.run_simulation_temp(
+    return await simulation_service.run_simulation(
         db,
         session,
         run_simulation.scenario_id,
