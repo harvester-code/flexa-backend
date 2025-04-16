@@ -914,7 +914,7 @@ class SimulationService:
         day_after_str = day_after.strftime("%Y-%m-%d")
 
         time_range = pd.date_range(
-            start=pd.Timestamp(f"{day_before_str} 23:00:00"),
+            start=pd.Timestamp(f"{day_before_str} 20:00:00"),
             end=pd.Timestamp(f"{day_after_str} 01:00:00"),
             freq="10min",
         )
@@ -986,7 +986,7 @@ class SimulationService:
         return {"traces": traces, "default_x": default_x}
 
     async def _create_simulation_queue_chart(
-        self, sim_df: pd.DataFrame, process, group_column, time_range
+        self, sim_df: pd.DataFrame, process, node, group_column, time_range
     ):
         """
         서브 함수
@@ -996,7 +996,9 @@ class SimulationService:
         start_time = f"{process}_on_pred"
         end_time = f"{process}_pt_pred"
 
-        df_expanded = sim_df[[start_time, end_time, group_column]].copy()
+        df = sim_df.loc[sim_df[f"{process}_pred"] == f"{process}_{node}"].copy()
+
+        df_expanded = df[[start_time, end_time, group_column]]
         df_expanded[start_time] = df_expanded[start_time].dt.round("10min")
         df_expanded[end_time] = df_expanded[end_time].dt.round("10min")
 
@@ -1216,6 +1218,7 @@ class SimulationService:
             queue_data = await self._create_simulation_queue_chart(
                 sim_df=sim_df,
                 process=process,
+                node=node,
                 group_column=group_column,
                 time_range=time_range,
             )
@@ -2210,10 +2213,10 @@ class SimulationService:
         # NOTE: 시뮬레이션 결과 데이터 s3 저장
         # print(ow.passengers)
         # ow.passengers.to_csv("sim_pax_test.csv", encoding="utf-8-sig", index=False)
-        ow.passengers.to_parquet("samples/sim_pax_test.parquet", compression="snappy")
+        # ow.passengers.to_parquet("samples/sim_pax_test.parquet", compression="snappy")
 
-        # filename = f"{user_id}/{scenario_id}.parquet"
-        # await self.simulation_repo.upload_to_s3(session, ow.passengers, filename)
+        filename = f"{user_id}/{scenario_id}.parquet"
+        await self.simulation_repo.upload_to_s3(session, ow.passengers, filename)
 
         # =====================================
         # NOTE: 시뮬레이션 결과 데이터를 차트로 변환
