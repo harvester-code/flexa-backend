@@ -417,14 +417,16 @@ class SimulationService:
                     partial_df[COL_FILTER_MAP[condition.criteria]].isin(condition.value)
                 ]
             partial_pax_df = partial_df.loc[
-                partial_df.index.repeat(partial_df["total_seat_count"])
+                partial_df.index.repeat(
+                    (partial_df["total_seat_count"] * 0.85).astype(int)
+                )
             ]
             arrival_times = []
             for _, row in partial_df.iterrows():
                 samples = np.random.normal(
                     loc=filter.mean,
-                    scale=np.sqrt(filter.standard_deviation),
-                    size=int(row["total_seat_count"]),
+                    scale=filter.standard_deviation,
+                    size=int(row["total_seat_count"] * 0.85),
                 )
                 arrival_times.extend(samples)
             partial_pax_df["show_up_time"] = pd.to_datetime(
@@ -460,7 +462,8 @@ class SimulationService:
         return distribution_xy_coords
 
     async def _create_show_up_summary(self, pax_df: pd.DataFrame, group_column: str):
-        pax_df["show_up_time"] = pax_df["show_up_time"].dt.floor("h")
+        time_unit = "10min"
+        pax_df["show_up_time"] = pax_df["show_up_time"].dt.floor(time_unit)
         df_grouped = (
             pax_df.groupby(["show_up_time", group_column]).size().unstack(fill_value=0)
         )
@@ -483,7 +486,7 @@ class SimulationService:
         all_hours = pd.date_range(
             start=pd.Timestamp(start_day),
             end=pd.Timestamp(end_day),
-            freq="h",
+            freq=time_unit,
         )
         df_grouped = df_grouped.reindex(all_hours, fill_value=0)
 
@@ -537,7 +540,7 @@ class SimulationService:
 
         return {
             "total": pax_df.shape[0],
-            "total_sub": f"Flight({total_flights}) x Average_seats({average_seats}) x Load_factor(85.0%)",
+            "total_sub": f"Flight({total_flights:,.0f}) x Average_seats({round(average_seats, 2)}) x Load_factor(85%)",
             "dst_chart": distribution_xy_coords,
             "bar_chart_x_data": chart_data["default_x"],
             "bar_chart_y_data": chart_result,
