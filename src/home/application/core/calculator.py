@@ -242,7 +242,6 @@ class HomeCalculator:
         for i in range(len(target_columns) - 1):
             col1, col2 = target_columns[i], target_columns[i + 1]
             grouped = flow_df.groupby([col1, col2])["count"].sum().reset_index()
-
             for _, row in grouped.iterrows():
                 sources.append(unique_values[col1][row[col1]])
                 targets.append(unique_values[col2][row[col2]])
@@ -362,6 +361,15 @@ class HomeCalculator:
         """프로세스 전체 개요 지표 계산"""
         opened_count = df[f"{process}_facility_number"].nunique()
         waiting_time = self._calculate_waiting_time(df, process)
+
+        # 퍼센타일 또는 평균값 계산을 위한 헬퍼 함수
+        def get_stat(series):
+            if series.empty:
+                return 0
+            if self.percentile is not None:
+                return series.quantile(1 - self.percentile / 100)
+            return series.mean()
+
         return {
             "opened": [opened_count, opened_count],
             "isOpened": opened_count > 0,
@@ -369,21 +377,9 @@ class HomeCalculator:
             "maxQueue": int(
                 df[f"{process}_que"].max() if not df[f"{process}_que"].empty else 0
             ),
-            "queueLength": int(
-                df[f"{process}_que"].quantile(0.95)
-                if not df[f"{process}_que"].empty
-                else 0
-            ),
-            "procTime": self._format_seconds_to_time(
-                df[f"{process}_pt"].quantile(0.95)
-                if not df[f"{process}_pt"].empty
-                else 0
-            ),
-            "waitTime": self._format_timedelta(
-                waiting_time.quantile(0.95)
-                if not waiting_time.empty
-                else pd.Timedelta(0)
-            ),
+            "queueLength": int(get_stat(df[f"{process}_que"])),
+            "procTime": self._format_seconds_to_time(get_stat(df[f"{process}_pt"])),
+            "waitTime": self._format_timedelta(get_stat(waiting_time)),
         }
 
     def _add_facility_components(self, df, process, category_obj):
