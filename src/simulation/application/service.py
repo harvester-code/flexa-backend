@@ -196,7 +196,11 @@ class SimulationService:
             facility_info=facility_info,
         )
 
-        await self.simulation_repo.update_scenario_metadata(db, scenario_metadata)
+        time_now = self.timestamp.time_now()
+
+        await self.simulation_repo.update_scenario_metadata(
+            db, scenario_metadata, time_now
+        )
 
     # =====================================
     # NOTE: 시뮬레이션 프로세스
