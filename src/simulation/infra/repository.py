@@ -1,9 +1,11 @@
+import json
+import os
+from typing import List
+
 import awswrangler as wr
 import boto3
 import pandas as pd
-import os
-from typing import List
-from sqlalchemy import Connection, update, true, desc, bindparam, func
+from sqlalchemy import Connection, bindparam, desc, func, true, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.inspection import inspect
@@ -17,10 +19,10 @@ from src.simulation.domain.simulation import (
     SimulationScenario as SimulationScenarioVO,
 )
 from src.simulation.infra.models import (
-    ScenarioMetadata,
-    SimulationScenario,
     Groups,
     OperationSetting,
+    ScenarioMetadata,
+    SimulationScenario,
 )
 from src.simulation.infra.schema import (
     GeneralDeclarationArrival,
@@ -341,8 +343,6 @@ class SimulationRepository(ISimulationRepository):
         return sim_df
 
     async def fetch_processing_procedures(self):
-        # FIXME: 나중에 운영세팅이 생기면 변경될 코드
-        import json
 
         env = os.getenv("ENVIRONMENT")
 
