@@ -45,7 +45,6 @@ status 코드 정리
 )
 @inject
 async def fetch_process_list(
-    request: Request,
     scenario_id: str,
     facility_service: FacilityService = Depends(Provide[Container.facility_service]),
     session: boto3.Session = Depends(get_boto3_session),
@@ -54,7 +53,7 @@ async def fetch_process_list(
         raise BadRequestException("Scenario ID is required")
 
     data = await facility_service.fetch_process_list(
-        session=session, user_id=request.state.user_id, scenario_id=scenario_id
+        session=session, scenario_id=scenario_id
     )
 
     return SuccessResponse(status_code=status.HTTP_200_OK, data=data)
@@ -69,10 +68,10 @@ async def fetch_process_list(
 )
 @inject
 async def fetch_kpi(
-    request: Request,
     scenario_id: str,
     process: str,
-    stats: str | None = "mean",
+    calculate_type: str = "mean",
+    percentile: int | None = None,
     facility_service: FacilityService = Depends(Provide[Container.facility_service]),
     session: boto3.Session = Depends(get_boto3_session),
 ):
@@ -83,9 +82,9 @@ async def fetch_kpi(
     data = await facility_service.generate_kpi(
         session=session,
         process=process,
-        stats=stats,
-        user_id=request.state.user_id,
         scenario_id=scenario_id,
+        calculate_type=calculate_type,
+        percentile=percentile,
     )
 
     return SuccessResponse(status_code=status.HTTP_200_OK, data=data)
@@ -99,7 +98,6 @@ async def fetch_kpi(
 )
 @inject
 async def fetch_chart(
-    request: Request,
     scenario_id: str,
     process: str,
     facility_service: FacilityService = Depends(Provide[Container.facility_service]),
@@ -111,7 +109,6 @@ async def fetch_chart(
     data = await facility_service.generate_ks_chart(
         session=session,
         process=process,
-        user_id=request.state.user_id,
         scenario_id=scenario_id,
     )
 
@@ -126,7 +123,6 @@ async def fetch_chart(
 )
 @inject
 async def fetch_heatmap(
-    request: Request,
     scenario_id: str,
     process: str,
     facility_service: FacilityService = Depends(Provide[Container.facility_service]),
@@ -138,7 +134,6 @@ async def fetch_heatmap(
     data = await facility_service.generate_heatmap(
         session=session,
         process=process,
-        user_id=request.state.user_id,
         scenario_id=scenario_id,
     )
 
@@ -153,7 +148,6 @@ async def fetch_heatmap(
 )
 @inject
 async def fetch_pie_chart(
-    request: Request,
     scenario_id: str,
     process: str,
     facility_service: FacilityService = Depends(Provide[Container.facility_service]),
@@ -165,7 +159,6 @@ async def fetch_pie_chart(
     data = await facility_service.generate_pie_chart(
         session=session,
         process=process,
-        user_id=request.state.user_id,
         scenario_id=scenario_id,
     )
 
@@ -180,7 +173,6 @@ async def fetch_pie_chart(
 )
 @inject
 async def fetch_pa_chart(
-    request: Request,
     scenario_id: str,
     process: str,
     facility_service: FacilityService = Depends(Provide[Container.facility_service]),
@@ -192,7 +184,6 @@ async def fetch_pa_chart(
     data = await facility_service.generate_pa_chart(
         session=session,
         process=process,
-        user_id=request.state.user_id,
         scenario_id=scenario_id,
     )
 
