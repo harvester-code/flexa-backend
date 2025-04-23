@@ -31,6 +31,8 @@ app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)
 add_middlewares(app)
 add_exception_handlers(app)
 
+API_PREFIX = "/api/v1"
+
 router = APIRouter()
 
 
@@ -39,10 +41,13 @@ async def root():
     return text2art("FLEXA WAITFREE AIRPORT")
 
 
-API_PREFIX = "/api/v1"
+@router.get("/health")
+async def health():
+    return {"status": "ok"}
+
 
 # ================================
-app.include_router(router)
+app.include_router(router, prefix=API_PREFIX)
 app.include_router(simulation_router, prefix=API_PREFIX, tags=["Simulations"])
 app.include_router(home_router, prefix=API_PREFIX, tags=["Homes"])
 app.include_router(facility_router, prefix=API_PREFIX, tags=["Detailed-Facilities"])

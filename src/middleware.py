@@ -19,7 +19,7 @@ ALGORITHM = "HS256"
 AUDIENCE = "authenticated"
 
 # FIXME: 차후 개발이 완성되면 모든 api는 해당 jwt 인증을 거치도록 설정
-EXCLUDED_PATHS = ["/docs", "/redoc", "/openapi.json", "/"]
+EXCLUDED_PATHS = ["/docs", "/redoc", "/openapi.json", "/api/v1/", "/api/v1/health"]
 JWT_DECODER_PATH = [
     "/api/v1/simulations/scenario",
     "/api/v1/simulations/scenario/deactivate",
@@ -41,6 +41,7 @@ async def jwt_decoder(request: Request, call_next):
         {
             "method": request.method,
             "url": str(request.url),
+            "path": str(request.url.path),
             "headers": dict(request.headers),
             "query_params": dict(request.query_params),
             "path_params": request.path_params,
