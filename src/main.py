@@ -1,14 +1,16 @@
 from art import text2art
 from fastapi import APIRouter, FastAPI
-from fastapi.responses import PlainTextResponse
-from starlette.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import PlainTextResponse
+from mangum import Mangum
+from starlette.middleware.cors import CORSMiddleware
+
 from src.admin.interface.controller import admin_router
 from src.containers import Container
-from src.middleware import add_middlewares
 from src.exceptions import add_exception_handlers
 from src.facility.interface.controller import facility_router
 from src.home.interface.controller import home_router
+from src.middleware import add_middlewares
 from src.passenger_flow.controller import passenger_flow_router
 from src.simulation.interface.controller import simulation_router
 from src.simulation.interface.websocket_controller import ws_router
@@ -52,3 +54,5 @@ app.include_router(ws_router, prefix=API_PREFIX, tags=["ws"])
 # app.include_router(airports_router, prefix=API_PREFIX, tags=["Airports"])
 # app.include_router(auth_router, prefix=API_PREFIX, tags=["Auth"])
 # app.include_router(past_simulation_router, prefix=API_PREFIX, tags=["Simulations"])
+
+handler = Mangum(app)
