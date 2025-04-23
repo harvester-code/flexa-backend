@@ -1,43 +1,23 @@
-PROJECT = flexa-waitfree-api
+.PHONY: development-start
+development-start:
+	docker compose -p flexa-waitfree-api-dev -f docker/development/compose.yaml up -d
 
-dev.up:
-	@export $(shell cat .env | xargs) && \
-	doppler run -- docker compose -f docker-compose.dev.yaml up -d
-dev.down:
-	docker compose -f docker-compose.dev.yaml down
+.PHONY: development-stop
+development-stop:
+	docker compose -p flexa-waitfree-api-dev -f docker/development/compose.yaml down
 
-.PHONY: build-develop
-build-develop: ## Build the develop docker image.
-	docker compose -f docker/develop/compose.yaml build
+.PHONY: staging-start
+staging-start:
+	docker compose -p flexa-waitfree-api-stag -f docker/staging/compose.yaml up -d
 
-.PHONY: start-develop
-start-develop: ## Start the develop docker container.
-	docker compose -f docker/develop/compose.yaml up -d
+.PHONY: staging-stop
+staging-stop:
+	docker compose -p flexa-waitfree-api-stag -f docker/staging/compose.yaml down
 
-.PHONY: stop-develop
-stop-develop: ## Stop the develop docker container.
-	docker compose -f docker/develop/compose.yaml down && docker rmi flexa-waitfree-api-develop
+.PHONY: production-start
+production-start:
+	docker compose -p flexa-waitfree-api-prod -f docker/production/compose.yaml up -d
 
-.PHONY: build-staging
-build-staging: ## Build the staging docker image.
-	docker compose -f docker/staging/compose.yaml build
-
-.PHONY: start-staging
-start-staging: ## Start the staging docker container.
-	docker compose -f docker/staging/compose.yaml up -d
-
-.PHONY: stop-staging
-stop-staging: ## Stop the staging docker container.
-	docker compose -f docker/staging/compose.yaml down && docker rmi flexa-waitfree-api-staging
-  
-.PHONY: build-prod
-build-production: ## Build the production docker image.
-	docker compose -f docker/production/compose.yaml build
-
-.PHONY: start-prod
-start-production: ## Start the production docker container.
-	docker compose -f docker/production/compose.yaml up -d
-
-.PHONY: stop-prod
-stop-production: ## Stop the production docker container.
-	docker compose -f docker/production/compose.yaml down && docker rmi flexa-waitfree-api-production
+.PHONY: production-stop
+production-stop:
+	docker compose -p flexa-waitfree-api-prod -f docker/production/compose.yaml down
