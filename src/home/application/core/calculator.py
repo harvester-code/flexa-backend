@@ -59,9 +59,17 @@ class HomeCalculator:
         queue_length = self._calculate_kpi_values(method="queue_length")
         facility_utilizations = []
         for process in self.process_list:
-            utilization = (
-                self.pax_df[f"{process}_done_pred"].dt.floor("10min").nunique() / 144
-            ) * 100
+            # 제일 빠른 날짜 찾기
+            min_date = self.pax_df[f"{process}_done_pred"].dropna().dt.date.min()
+            # 해당 날짜의 데이터만 필터링하여 10분 단위 슬롯 수 계산
+            first_day_slots = (
+                self.pax_df[self.pax_df[f"{process}_done_pred"].dt.date == min_date][
+                    f"{process}_done_pred"
+                ]
+                .dt.floor("10min")
+                .nunique()
+            )
+            utilization = (first_day_slots / 144) * 100
             facility_utilizations.append(utilization)
         facility_utilization = sum(facility_utilizations) / len(facility_utilizations)
 
@@ -131,6 +139,7 @@ class HomeCalculator:
         for process in self.process_list:
             cols_needed = [
                 f"{process}_pred",
+                f"{process}_facility_number",
                 f"{process}_que",
                 f"{process}_pt",
                 f"{process}_on_pred",
@@ -233,7 +242,6 @@ class HomeCalculator:
         for i in range(len(target_columns) - 1):
             col1, col2 = target_columns[i], target_columns[i + 1]
             grouped = flow_df.groupby([col1, col2])["count"].sum().reset_index()
-
             for _, row in grouped.iterrows():
                 sources.append(unique_values[col1][row[col1]])
                 targets.append(unique_values[col2][row[col2]])
@@ -328,23 +336,40 @@ class HomeCalculator:
             }
         )
 
+    # def _format_waiting_time(self, timedelta):
+    #     """대기 시간을 MM:SS 형식의 문자열로 변환"""
+    #     return f"{int(timedelta.total_seconds() // 60):02d}:{int(timedelta.total_seconds() % 60):02d}"
+
     def _format_waiting_time(self, timedelta):
-        """대기 시간을 MM:SS 형식의 문자열로 변환"""
-        return f"{int(timedelta.total_seconds() // 60):02d}:{int(timedelta.total_seconds() % 60):02d}"
+        """대기 시간을 HH:MM:SS 형식의 문자열로 변환"""
+        total_seconds = int(timedelta.total_seconds())
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        seconds = total_seconds % 60
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
     def _create_alert_data_entry(self, row):
         """각 행을 알림 데이터 형식으로 변환"""
         return {
             "time": row["datetime"].strftime("%H:%M:%S"),
             "waiting_time": row["waiting_time"],
-            "queue_length": str(row["queue_length"]),
+            "queue_length": f"{int(row['queue_length']):,}",
             "node": row["process_name"],
         }
 
     def _calculate_overview_metrics(self, df, process):
         """프로세스 전체 개요 지표 계산"""
-        opened_count = df[f"{process}_pred"].nunique()
+        opened_count = df[f"{process}_facility_number"].nunique()
         waiting_time = self._calculate_waiting_time(df, process)
+
+        # 퍼센타일 또는 평균값 계산을 위한 헬퍼 함수
+        def get_stat(series):
+            if series.empty:
+                return 0
+            if self.percentile is not None:
+                return series.quantile(1 - self.percentile / 100)
+            return series.mean()
+
         return {
             "opened": [opened_count, opened_count],
             "isOpened": opened_count > 0,
@@ -352,21 +377,9 @@ class HomeCalculator:
             "maxQueue": int(
                 df[f"{process}_que"].max() if not df[f"{process}_que"].empty else 0
             ),
-            "queueLength": int(
-                df[f"{process}_que"].quantile(0.95)
-                if not df[f"{process}_que"].empty
-                else 0
-            ),
-            "procTime": self._format_seconds_to_time(
-                df[f"{process}_pt"].quantile(0.95)
-                if not df[f"{process}_pt"].empty
-                else 0
-            ),
-            "waitTime": self._format_timedelta(
-                waiting_time.quantile(0.95)
-                if not waiting_time.empty
-                else pd.Timedelta(0)
-            ),
+            "queueLength": int(get_stat(df[f"{process}_que"])),
+            "procTime": self._format_seconds_to_time(get_stat(df[f"{process}_pt"])),
+            "waitTime": self._format_timedelta(get_stat(waiting_time)),
         }
 
     def _add_facility_components(self, df, process, category_obj):
@@ -375,9 +388,12 @@ class HomeCalculator:
         for facility in facilities:
             facility_df = df[df[f"{process}_pred"] == facility]
             waiting_time = self._calculate_waiting_time(facility_df, process)
+            opened_count = facility_df[f"{process}_facility_number"].nunique()
             component = {
                 "title": facility,
-                "opened": [1, 1] if not facility_df.empty else [0, 0],
+                "opened": (
+                    [opened_count, opened_count] if not facility_df.empty else [0, 0]
+                ),
                 "isOpened": not facility_df.empty,
                 "throughput": len(facility_df),
                 "maxQueue": (

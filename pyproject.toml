@@ -1,8 +1,8 @@
 [tool.poetry]
 name = "flexa-waitless-api"
 version = "0.1.0"
-description = ""
-authors = []
+description = "Flexa Waitless API"
+authors = ["DataMKTKorea<infra@datamarketing.co.kr>"]
 readme = "README.md"
 package-mode = false
 

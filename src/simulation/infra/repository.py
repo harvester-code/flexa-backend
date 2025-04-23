@@ -1,9 +1,11 @@
+import json
+import os
+from typing import List
+
 import awswrangler as wr
 import boto3
 import pandas as pd
-import os
-from typing import List
-from sqlalchemy import Connection, update, true, desc, bindparam, func
+from sqlalchemy import Connection, bindparam, desc, func, true, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.inspection import inspect
@@ -17,10 +19,10 @@ from src.simulation.domain.simulation import (
     SimulationScenario as SimulationScenarioVO,
 )
 from src.simulation.infra.models import (
-    ScenarioMetadata,
-    SimulationScenario,
     Groups,
     OperationSetting,
+    ScenarioMetadata,
+    SimulationScenario,
 )
 from src.simulation.infra.schema import (
     GeneralDeclarationArrival,
@@ -42,6 +44,7 @@ class SimulationRepository(ISimulationRepository):
         items_per_page: int,
     ):
 
+        # FIXME: [25.04.07] 여기서 DB를 호출하는 횟수를 최대한 줄여보자
         async with db.begin():
             result = await db.execute(
                 select(Groups.master_scenario_id).where(Groups.id == int(group_id))
@@ -263,25 +266,35 @@ class SimulationRepository(ISimulationRepository):
         return {"scenario_info": scenario_info, "metadata": metadata}
 
     async def update_scenario_metadata(
-        self, db: AsyncSession, scenario_metadata: ScenarioMetadataVO
+        self, db: AsyncSession, scenario_metadata: ScenarioMetadataVO, time_now
     ):
 
-        result = await db.execute(
-            select(ScenarioMetadata).where(
-                ScenarioMetadata.scenario_id == scenario_metadata.scenario_id
+        async with db.begin():
+
+            result = await db.execute(
+                select(ScenarioMetadata).where(
+                    ScenarioMetadata.scenario_id == scenario_metadata.scenario_id
+                )
             )
-        )
 
-        metadata = result.scalars().first()
+            metadata = result.scalars().first()
 
-        if metadata:
-            metadata.overview = scenario_metadata.overview
-            metadata.history = scenario_metadata.history
-            metadata.flight_sch = scenario_metadata.flight_sch
-            metadata.passenger_sch = scenario_metadata.passenger_sch
-            metadata.passenger_attr = scenario_metadata.passenger_attr
-            metadata.facility_conn = scenario_metadata.facility_conn
-            metadata.facility_info = scenario_metadata.facility_info
+            if metadata:
+                metadata.overview = scenario_metadata.overview
+                metadata.history = scenario_metadata.history
+                metadata.flight_sch = scenario_metadata.flight_sch
+                metadata.passenger_sch = scenario_metadata.passenger_sch
+                metadata.passenger_attr = scenario_metadata.passenger_attr
+                metadata.facility_conn = scenario_metadata.facility_conn
+                metadata.facility_info = scenario_metadata.facility_info
+
+                await db.flush()
+
+            result = await db.execute(
+                update(SimulationScenario)
+                .where(SimulationScenario.id == scenario_metadata.scenario_id)
+                .values({SimulationScenario.updated_at: time_now})
+            )
 
             await db.commit()
 
@@ -340,8 +353,6 @@ class SimulationRepository(ISimulationRepository):
         return sim_df
 
     async def fetch_processing_procedures(self):
-        # FIXME: 나중에 운영세팅이 생기면 변경될 코드
-        import json
 
         env = os.getenv("ENVIRONMENT")
 

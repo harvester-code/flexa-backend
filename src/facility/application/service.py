@@ -22,7 +22,6 @@ class FacilityService:
     async def fetch_process_list(
         self,
         session: boto3.Session,
-        user_id: str | None = None,
         scenario_id: str | None = None,
     ):
 
@@ -233,10 +232,11 @@ class FacilityService:
         self,
         session: boto3.Session,
         process: str,
-        stats: str = "mean",
-        user_id: str | None = None,
-        scenario_id: str | None = None,
+        scenario_id: str,
+        calculate_type: str,
+        percentile: int | None = None,
     ):
+        percentile = percentile / 100
 
         sim_df = await self.facility_repo.download_from_s3(session, scenario_id)
 
@@ -256,16 +256,6 @@ class FacilityService:
 
         for node in node_list:
             kpi_result["header"]["subColumns"].append({"label": node})
-
-        quantile_options = {
-            "max": 1,
-            "min": 0,
-            "median": 0.5,
-            "top5": 0.95,
-            "bottom5": 0.05,
-            "mean": "mean",
-        }
-        quantile = quantile_options.get(stats, None)
 
         cols_needed = [
             f"{process}_pred",
@@ -321,10 +311,10 @@ class FacilityService:
         for node in node_list:
             filtered_df = process_df[process_df[f"{process}_pred"] == node]
 
-            if quantile == "mean":
+            if calculate_type == "mean":
                 queue_length = filtered_df[f"{process}_que"].mean()
             else:
-                queue_length = filtered_df[f"{process}_que"].quantile(quantile)
+                queue_length = filtered_df[f"{process}_que"].quantile(percentile)
 
             ql_result.append(int(queue_length))
 
@@ -356,10 +346,10 @@ class FacilityService:
             wt_df = (
                 filtered_df[f"{process}_pt_pred"] - filtered_df[f"{process}_on_pred"]
             )
-            if quantile == "mean":
+            if calculate_type == "mean":
                 waiting_time = wt_df.mean()
             else:
-                waiting_time = wt_df.quantile(quantile)
+                waiting_time = wt_df.quantile(percentile)
 
             # waiting_time = pd.Timedelta(waiting_time).total_seconds()
             wt_result.append(str(waiting_time).split()[-1].split(".")[0])
@@ -399,7 +389,6 @@ class FacilityService:
         self,
         session: boto3.Session,
         process: str,
-        user_id: str | None = None,
         scenario_id: str | None = None,
     ):
 
@@ -442,7 +431,7 @@ class FacilityService:
             # WT
             wt = wt_data[node]
             wt_x_list = wt.index.astype(str).tolist()
-            wt_y_list = wt.astype(int).values.tolist()
+            wt_y_list = (wt.astype(int) // 60).tolist()
 
             node_result["waiting_time"] = {"x": wt_x_list, "y": wt_y_list}
 
@@ -464,7 +453,6 @@ class FacilityService:
         self,
         session: boto3.Session,
         process: str,
-        user_id: str | None = None,
         scenario_id: str | None = None,
     ):
 
@@ -514,7 +502,7 @@ class FacilityService:
         wt_column_list = wt.columns.tolist()
         for column in wt_column_list:
             wt_y_list.append(column)
-            wt_z_list.append(wt[column].astype(int).values.tolist())
+            wt_z_list.append((wt[column].astype(int) // 60).tolist())
 
         heatmap_result["waiting_time"] = {
             "x": wt_x_list,
@@ -558,7 +546,6 @@ class FacilityService:
         self,
         session: boto3.Session,
         process: str,
-        user_id: str | None = None,
         scenario_id: str | None = None,
     ):
 
@@ -576,7 +563,7 @@ class FacilityService:
 
             labels = []
             values = []
-            table_values = []
+            table_body = {"rank": [], "title": [], "values": []}
             total_queue_length = 0
             for i, row in enumerate(group_order):
 
@@ -587,11 +574,34 @@ class FacilityService:
                 values.append(que_mean)
                 labels.append(column_name)
 
-                table_values.append(
-                    {"rank": i + 1, "title": column_name, "value": f"{que_mean:,}"}
-                )
+                table_body["rank"].append(i + 1)
+                table_body["title"].append(column_name)
+                table_body["values"].append(f"{que_mean:,}")
 
-            table_result[group_name] = table_values
+            table_output = {
+                "header": {
+                    "columns": [
+                        {"label": "RANK", "rowSpan": 1},
+                        {"label": f"{group_name.upper()}", "rowSpan": 1},
+                        {"label": "PASSENGER", "rowSpan": 1},
+                    ]
+                },
+                "body": [
+                    {"label": "RANK", "unit": None, "values": table_body["rank"]},
+                    {
+                        "label": f"{group_name.upper()}",
+                        "unit": None,
+                        "values": table_body["title"],
+                    },
+                    {
+                        "label": "PASSENGER",
+                        "unit": None,
+                        "values": table_body["values"],
+                    },
+                ],
+            }
+
+            table_result[group_name] = table_output
             pie_result[group_name] = {"labels": labels, "values": values}
             total_queue_length_result[group_name] = f"{total_queue_length:,}"
 
@@ -631,7 +641,7 @@ class FacilityService:
                 {
                     "name": column,
                     "order": group_order.index(column),
-                    "y": sim_df[column].astype(int).values.tolist(),
+                    "y": (sim_df[column].astype(int) // 60).tolist(),
                 }
             )
         group_result[kpi_name] = {"default_x": sim_df_x_list, "traces": traces}
@@ -643,7 +653,6 @@ class FacilityService:
         self,
         session: boto3.Session,
         process: str,
-        user_id: str | None = None,
         scenario_id: str | None = None,
     ):
 

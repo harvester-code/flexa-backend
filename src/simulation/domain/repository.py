@@ -1,5 +1,4 @@
 from abc import ABCMeta, abstractmethod
-from src.simulation.domain.simulation import ScenarioMetadata, SimulationScenario
 
 
 class ISimulationRepository(metaclass=ABCMeta):

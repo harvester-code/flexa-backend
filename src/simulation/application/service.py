@@ -1,4 +1,3 @@
-import asyncio
 from datetime import datetime, time, timedelta
 from typing import List
 
@@ -19,6 +18,7 @@ from src.simulation.application.core.simulator import DsSimulator
 from src.simulation.application.queries import (
     SELECT_AIRPORT_ARRIVAL,
     SELECT_AIRPORT_DEPARTURE,
+    SELECT_AIRPORT_DEPARTURE_SCHEDULE,
 )
 from src.simulation.domain.repository import ISimulationRepository
 from src.simulation.domain.simulation import ScenarioMetadata, SimulationScenario
@@ -196,63 +196,38 @@ class SimulationService:
             facility_info=facility_info,
         )
 
-        await self.simulation_repo.update_scenario_metadata(db, scenario_metadata)
+        time_now = self.timestamp.time_now()
+
+        await self.simulation_repo.update_scenario_metadata(
+            db, scenario_metadata, time_now
+        )
 
     # =====================================
     # NOTE: 시뮬레이션 프로세스
 
-    async def fetch_flight_schedule_data_test(
-        self, db: Connection, date: str, airport: str, condition: list | None
-    ):
-
-        flight_io = "departure"
-        query_map = {
-            "arrival": SELECT_AIRPORT_ARRIVAL,
-            "departure": SELECT_AIRPORT_DEPARTURE,
-        }
-        base_query = query_map.get(flight_io)
-
-        params = {
-            "airport": airport,
-            "date": date,
-        }
-
-        # I/D, 항공사, 터미널
-        where_conditions = []
-        if condition:
-            for con in condition:
-                if con.criteria == "I/D":
-                    where_conditions.append("FLIGHT_TYPE = :i_d")
-                    params["i_d"] = con.value[0]
-
-                if con.criteria == "Terminal":
-                    where_conditions.append("F.departure_terminal = :terminal")
-                    params["terminal"] = con.value[0]
-
-                if con.criteria == "Airline":
-                    where_conditions.append("F.OPERATING_CARRIER_IATA IN :airline")
-                    params["airline"] = tuple(con.value)
-
-            if where_conditions:
-                base_query += " AND " + " AND ".join(where_conditions)
-
-        stmt = text(base_query + "AND F.OPERATING_CARRIER_IATA = 'KE' LIMIT 10")
-
-        data = await self.simulation_repo.fetch_flight_schedule_data(
-            db, stmt, params, flight_io
-        )
-
-        return data
-
     async def fetch_flight_schedule_data(
         self, db: Connection, date: str, airport: str, condition: list | None
     ):
+        from datetime import datetime
 
         flight_io = "departure"
-        query_map = {
-            "arrival": SELECT_AIRPORT_ARRIVAL,
-            "departure": SELECT_AIRPORT_DEPARTURE,
-        }
+
+        # 현재 날짜와 입력된 날짜 비교
+        current_date = datetime.now().date()
+        input_date = datetime.strptime(date, "%Y-%m-%d").date()
+
+        # 오늘 + 미래 날짜인 경우 스케줄 쿼리 사용
+        if input_date >= current_date:
+            query_map = {
+                "arrival": SELECT_AIRPORT_ARRIVAL,
+                "departure": SELECT_AIRPORT_DEPARTURE_SCHEDULE,
+            }
+        else:
+            query_map = {
+                "arrival": SELECT_AIRPORT_ARRIVAL,
+                "departure": SELECT_AIRPORT_DEPARTURE,
+            }
+
         base_query = query_map.get(flight_io)
 
         params = {
@@ -269,11 +244,11 @@ class SimulationService:
                     params["i_d"] = con.value[0]
 
                 if con.criteria == "Terminal":
-                    where_conditions.append("F.departure_terminal = :terminal")
+                    where_conditions.append("DEPARTURE_TERMINAL = :terminal")
                     params["terminal"] = con.value[0]
 
                 if con.criteria == "Airline":
-                    where_conditions.append("F.OPERATING_CARRIER_IATA IN :airline")
+                    where_conditions.append("OPERATING_CARRIER_IATA IN :airline")
                     params["airline"] = tuple(con.value)
 
             if where_conditions:
@@ -312,6 +287,13 @@ class SimulationService:
         )
         df_grouped = df_grouped.sort_index()
 
+        # NOTE: [Vincent] 아래와 같은 케이스에 대응하기 위해서 추가함
+        # df_grouped = Empty DataFrame
+        # Columns: []
+        # Index: []
+        if df_grouped.empty:
+            return None
+
         total_groups = df_grouped.shape[1]
         has_etc = total_groups > 9
 
@@ -338,7 +320,6 @@ class SimulationService:
             group_order.append("etc")
 
         default_x = df_grouped.index.strftime("%H:%M").tolist()
-
         traces = [
             {
                 "name": column,
@@ -414,7 +395,8 @@ class SimulationService:
                 flight_df, group_column
             )
 
-            chart_result[CRITERIA_MAP[group_column]] = chart_data["traces"]
+            if chart_data:
+                chart_result[CRITERIA_MAP[group_column]] = chart_data["traces"]
 
         return {
             "add_conditions": add_conditions,
@@ -439,14 +421,16 @@ class SimulationService:
                     partial_df[COL_FILTER_MAP[condition.criteria]].isin(condition.value)
                 ]
             partial_pax_df = partial_df.loc[
-                partial_df.index.repeat(partial_df["total_seat_count"])
+                partial_df.index.repeat(
+                    (partial_df["total_seat_count"] * 0.85).astype(int)
+                )
             ]
             arrival_times = []
             for _, row in partial_df.iterrows():
                 samples = np.random.normal(
                     loc=filter.mean,
-                    scale=np.sqrt(filter.standard_deviation),
-                    size=int(row["total_seat_count"]),
+                    scale=filter.standard_deviation,
+                    size=int(row["total_seat_count"] * 0.85),
                 )
                 arrival_times.extend(samples)
             partial_pax_df["show_up_time"] = pd.to_datetime(
@@ -457,6 +441,7 @@ class SimulationService:
             )
             pax_df = pd.concat([pax_df, partial_pax_df], ignore_index=True)
             df.drop(index=partial_df.index, inplace=True)
+
         # pax_df.to_csv(".idea/pax_df.csv", index=False) # 분산처리 데이터검증목적
         return pax_df
 
@@ -481,7 +466,8 @@ class SimulationService:
         return distribution_xy_coords
 
     async def _create_show_up_summary(self, pax_df: pd.DataFrame, group_column: str):
-        pax_df["show_up_time"] = pax_df["show_up_time"].dt.floor("h")
+        time_unit = "10min"
+        pax_df["show_up_time"] = pax_df["show_up_time"].dt.floor(time_unit)
         df_grouped = (
             pax_df.groupby(["show_up_time", group_column]).size().unstack(fill_value=0)
         )
@@ -504,7 +490,7 @@ class SimulationService:
         all_hours = pd.date_range(
             start=pd.Timestamp(start_day),
             end=pd.Timestamp(end_day),
-            freq="h",
+            freq=time_unit,
         )
         df_grouped = df_grouped.reindex(all_hours, fill_value=0)
 
@@ -558,7 +544,7 @@ class SimulationService:
 
         return {
             "total": pax_df.shape[0],
-            "total_sub": f"Flight({total_flights}) x Average_seats({average_seats}) x Load_factor(85.0%)",
+            "total_sub": f"Flight({total_flights:,.0f}) x Average_seats({round(average_seats, 2)}) x Load_factor(85%)",
             "dst_chart": distribution_xy_coords,
             "bar_chart_x_data": chart_data["default_x"],
             "bar_chart_y_data": chart_result,
@@ -763,7 +749,7 @@ class SimulationService:
     # =====================================
 
     async def _calculate_capacity(self, facility_schedule: list, time_unit: int):
-        by_pass = 1e-11
+        by_pass = 1e-10
 
         if by_pass in facility_schedule:
             return None
@@ -892,7 +878,7 @@ class SimulationService:
         day_after_str = day_after.strftime("%Y-%m-%d")
 
         time_range = pd.date_range(
-            start=pd.Timestamp(f"{day_before_str} 23:00:00"),
+            start=pd.Timestamp(f"{day_before_str} 20:00:00"),
             end=pd.Timestamp(f"{day_after_str} 01:00:00"),
             freq="10min",
         )
@@ -964,21 +950,19 @@ class SimulationService:
         return {"traces": traces, "default_x": default_x}
 
     async def _create_simulation_queue_chart(
-        self,
-        sim_df: pd.DataFrame,
-        process,
-        group_column,
+        self, sim_df: pd.DataFrame, process, node, group_column, time_range
     ):
         """
         서브 함수
         explode 큐 데이터를 만드는 함수
         """
-        _start = datetime.now()
 
         start_time = f"{process}_on_pred"
         end_time = f"{process}_pt_pred"
 
-        df_expanded = sim_df[[start_time, end_time, group_column]].copy()
+        df = sim_df.loc[sim_df[f"{process}_pred"] == f"{process}_{node}"].copy()
+
+        df_expanded = df[[start_time, end_time, group_column]].copy()
         df_expanded[start_time] = df_expanded[start_time].dt.round("10min")
         df_expanded[end_time] = df_expanded[end_time].dt.round("10min")
 
@@ -1012,15 +996,8 @@ class SimulationService:
             df_expanded["Time"] - df_expanded["start_int"], unit="m"
         )
 
-        start_day = df_expanded["Time"].dropna().iloc[0].strftime("%Y-%m-%d %H:%M:%S")
-        end_day = df_expanded["Time"].dropna().iloc[-1].strftime("%Y-%m-%d %H:%M:%S")
-        all_hours = pd.date_range(
-            start=pd.Timestamp(start_day),
-            end=pd.Timestamp(end_day),
-            freq="10min",
-        )
         df_expanded = df_expanded[
-            df_expanded["Time"].isin(all_hours)
+            df_expanded["Time"].isin(time_range)
         ]  # 하루를 넘어가거나, 하루 이전의 값을 사전 제거
 
         # df_grouped 만들기
@@ -1045,7 +1022,7 @@ class SimulationService:
         else:
             top_9_columns = df_grouped.columns.tolist()
 
-        df_grouped = df_grouped.reindex(all_hours, fill_value=0)
+        df_grouped = df_grouped.reindex(time_range, fill_value=0)
 
         group_order = df_grouped.sum().sort_values(ascending=False).index.tolist()
         if has_etc and "etc" in group_order:
@@ -1063,9 +1040,66 @@ class SimulationService:
             for column in df_grouped.columns
         ]
 
-        _end = datetime.now()
-        elapsed_time = (_end - _start).total_seconds()
-        # print(f"{process}_{group_column}의 소요시간 : {elapsed_time:.2f}초")
+        return {"traces": traces, "default_x": default_x}
+
+    async def _create_queue_length(
+        self, sim_df: pd.DataFrame, process, node, group_column, time_range
+    ):
+        start_time = f"{process}_on_pred"
+        end_time = f"{process}_pt_pred"
+        process_que = f"{process}_que"
+
+        sim_df[start_time] = pd.to_datetime(sim_df[start_time])
+        sim_df[end_time] = pd.to_datetime(sim_df[end_time])
+
+        df = sim_df.loc[sim_df[f"{process}_pred"] == f"{process}_{node}"].copy()
+        df = df[[start_time, end_time, group_column, process_que]].copy()
+
+        df.loc[:, end_time] = df[end_time].dt.floor("10min")
+
+        df_grouped = (
+            df.groupby([end_time, group_column], as_index=False)
+            .agg({process_que: "mean"})
+            .pivot_table(
+                index=end_time,
+                columns=group_column,
+                values=process_que,
+                fill_value=0,
+            )
+        )
+
+        df_grouped = df_grouped.reindex(time_range, fill_value=0)
+
+        total_groups = df_grouped.shape[1]
+        has_etc = total_groups > 9
+
+        if has_etc:
+            top_9_columns = df_grouped.sum().nlargest(9).index.tolist()
+            df_grouped["etc"] = df_grouped.drop(
+                columns=top_9_columns, errors="ignore"
+            ).sum(axis=1)
+            df_grouped = df_grouped[top_9_columns + ["etc"]]
+        else:
+            top_9_columns = df_grouped.columns.tolist()
+
+        df_grouped = df_grouped.reindex(time_range, fill_value=0)
+
+        group_order = df_grouped.sum().sort_values(ascending=False).index.tolist()
+        if has_etc and "etc" in group_order:
+            group_order.remove("etc")
+            group_order.append("etc")
+
+        default_x = df_grouped.index.strftime("%Y-%m-%d %H:%M:%S").tolist()
+
+        traces = [
+            {
+                "name": column,
+                "order": group_order.index(column),
+                "y": df_grouped[column].map(round).tolist(),
+            }
+            for column in df_grouped.columns
+        ]
+        print(traces)
 
         return {"traces": traces, "default_x": default_x}
 
@@ -1206,9 +1240,10 @@ class SimulationService:
         # EX. process = checkin / node = A / flow = on
         for group_column in color_criteria_options:
 
-            queue_data = await self._create_simulation_queue_chart_optimized(
+            queue_data = await self._create_queue_length(
                 sim_df=sim_df,
                 process=process,
+                node=node,
                 group_column=group_column,
                 time_range=time_range,
             )
@@ -1441,13 +1476,10 @@ class SimulationService:
 
         return sankey
 
-    # TODO: 시뮬레이션 매서드 분리 or 클래스화 필요
     async def run_simulation(
         self,
-        websocket: WebSocket | None,
         db: Connection,
         session: boto3.Session,
-        user_id: str,
         scenario_id: str,
         flight_sch: dict,
         destribution_conditions: list,
@@ -1489,19 +1521,14 @@ class SimulationService:
                 else:
                     component_node_map[comp.name] = [node.id]
 
-        await websocket.send_json({"progress": "5%"})
-        await asyncio.sleep(0.001)
         # ============================================================
         # NOTE: 쇼업패턴으로 생성된 여객데이터
         data = await self.fetch_flight_schedule_data(
             db, flight_sch.date, flight_sch.airport, flight_sch.condition
         )
-        await websocket.send_json({"progress": "30%"})
-        await asyncio.sleep(0.001)
 
         df_pax = await self._calculate_show_up_pattern(data, destribution_conditions)
-        await websocket.send_json({"progress": "31%"})
-        await asyncio.sleep(0.001)
+
         # ============================================================
         # NOTE: dist_key와 td_arr을 생성
         np_pax_col = df_pax.columns.to_numpy()
@@ -1531,11 +1558,8 @@ class SimulationService:
             [(td.total_seconds()) + v0 for td in (ck_on - np.array(ck_on[0]))]
         )
 
-        await websocket.send_json({"progress": "33%"})
-        await asyncio.sleep(0.001)
         # ============================================================
         # NOTE: dist_map과 graph_list를 생성
-
         # process의 메타데이터 -> graph_list를 만들때 사용
         comp_to_idx = {}
         idx = 0
@@ -1566,6 +1590,7 @@ class SimulationService:
         node_transition_graph = []
         for i, key in enumerate(processes):
             if int(key) >= 2:
+                # A에서 B로 가는 확률이 들어감
                 default_matrix = processes[key].default_matrix
                 nodes = processes[key].nodes
                 dst_idx = comp_to_idx[processes[key].name]
@@ -1573,7 +1598,9 @@ class SimulationService:
                 for destinations in default_matrix.values():
                     graph = []
 
+                    # FIXME: 변수명이 위와 같아서 수정해야함
                     for key, values in destinations.items():
+                        # 여기에 목적지가 들어가야하지 않을까..?
                         if values > 0:
                             graph.append(
                                 [
@@ -1584,13 +1611,12 @@ class SimulationService:
 
                     node_transition_graph.append(graph)
 
+                # NOTE: 마지막 프로세스에 대한 처리
                 if i == len(processes) - 1:
 
                     for node in range(len(nodes)):
                         node_transition_graph.append([])
 
-        await websocket.send_json({"progress": "35%"})
-        await asyncio.sleep(0.001)
         # ============================================================
         # NOTE: 메인 코드
         graph = DsGraph(
@@ -1620,289 +1646,7 @@ class SimulationService:
         SECONDS_IN_THREE_DAYS = 3600 * 24 * 3
         last_passenger_arrival_time = td_arr[-1]
 
-        await sim.run(
-            start_time=0,
-            end_time=max(SECONDS_IN_THREE_DAYS, last_passenger_arrival_time),
-            websocket=websocket,
-        )
-
-        ow = DsOutputWrapper(
-            passengers=sorted_df_pax,
-            components=components,
-            nodes=graph.nodes,
-            starting_time=[starting_time_stamp, v0],
-        )
-        ow.write_pred()
-
-        await websocket.send_json({"progress": "95%"})
-        await asyncio.sleep(0.001)
-
-        # =====================================
-        # NOTE: 시뮬레이션 결과 데이터 s3 저장
-        # print(ow.passengers)
-        # ow.passengers.to_csv("sim_pax_test.csv", encoding="utf-8-sig", index=False)
-
-        filename = f"{user_id}/{scenario_id}.parquet"
-        await self.simulation_repo.upload_to_s3(session, ow.passengers, filename)
-
-        await websocket.send_json({"progress": "97%"})
-        await asyncio.sleep(0.001)
-
-        # =====================================
-        # NOTE: 시뮬레이션 결과
-        last_process = next(reversed(comp_to_idx), None)
-        complete = ow.passengers[f"{last_process}_done_pred"].notna().sum()
-        incomplete = ow.passengers[f"{last_process}_done_pred"].isna().sum()
-        simulation_completed = [
-            {"title": "completed", "value": f"{int(complete):,}", "unit": "Passengers"},
-            {
-                "title": "incomplete",
-                "value": f"{int(incomplete):,}",
-                "unit": "Passengers",
-            },
-        ]
-
-        # NOTE: 생키차트
-        sankey = await self._create_simulation_sankey(
-            df=ow.passengers, component_list=components
-        )
-        await websocket.send_json({"progress": "98%"})
-        await asyncio.sleep(0.001)
-
-        # NOTE: 첫번째 프로세스의 첫번째 노드만 차트로 변환
-        # first_process = next(iter(comp_to_idx), None)
-        # node_list = sorted(ow.passengers[f"{first_process}_pred"].unique().tolist())
-        # first_node = node_list[0].replace(f"{first_process}_", "")
-
-        # chart = await self.generate_simulation_charts_node(
-        #     session=session,
-        #     user_id=None,
-        #     scenario_id=None,
-        #     sim_df=ow.passengers,
-        #     process=first_process,
-        #     node=first_node,
-        # )
-
-        # kpi = await self.generate_simulation_metrics_kpi(
-        #     session=session,
-        #     user_id=None,
-        #     scenario_id=None,
-        #     sim_df=ow.passengers,
-        #     process=first_process,
-        #     node=first_node,
-        # )
-
-        # NOTE: 모든 프로세스의 노드를 차트로 변환
-        kpi_result = []
-        chart_result = []
-        for process in comp_to_idx.keys():
-
-            for node in comp_to_idx[process].keys():
-
-                chart = await self.generate_simulation_charts_node(
-                    session=session,
-                    user_id=None,
-                    scenario_id=None,
-                    sim_df=ow.passengers,
-                    process=process,
-                    node=node,
-                )
-                chart_result.append(chart)
-
-                kpi = await self.generate_simulation_metrics_kpi(
-                    session=session,
-                    user_id=None,
-                    scenario_id=None,
-                    sim_df=ow.passengers,
-                    process=process,
-                    node=node,
-                )
-                kpi_result.append(kpi)
-
-        await websocket.send_json({"progress": "99%"})
-        await asyncio.sleep(0.001)
-
-        return {
-            "simulation_completed": simulation_completed,
-            "sankey": sankey,
-            "kpi": kpi_result,
-            "chart": chart_result,
-        }
-
-        # return {"sankey": sankey, "kpi": kpi, "chart": chart}
-
-    async def run_simulation_temp(
-        self,
-        db: Connection,
-        session: boto3.Session,
-        user_id: str,
-        scenario_id: str,
-        flight_sch: dict,
-        destribution_conditions: list,
-        processes: dict,
-        component_list: list,
-    ):
-        # NOTE: 데이터 전처리
-        components = []
-        component_node_pairs = []
-        component_node_map = {}
-        nodes_per_component = []
-        max_queue_length = []
-        facilities_per_node = []
-        facility_schedules = []
-
-        node_transition_graph = []  # graph_list
-
-        for comp in component_list:
-            components.append(comp.name)
-            nodes_per_component.append(len(comp.nodes))
-
-            for node in comp.nodes:
-                component_node_pairs.append([comp.name, node.name])
-                max_queue_length.append(node.max_queue_length)
-                facilities_per_node.append(node.facility_count)
-
-                time_unit = 10  # NOTE: 프론트 화면에서 나중에 10이 아닌 다른 값이 올때 바꿔줘야한다.
-                temp_facility_schedules = np.concatenate(
-                    [
-                        np.tile(np.array(facility_schedule), (time_unit, 1))
-                        for facility_schedule in node.facility_schedules
-                    ],
-                    axis=0,
-                )
-                facility_schedules.append(temp_facility_schedules)
-
-                if comp.name in component_node_map.keys():
-                    component_node_map[comp.name].append(node.id)
-                else:
-                    component_node_map[comp.name] = [node.id]
-
-        await asyncio.sleep(0.001)
-        # ============================================================
-        # NOTE: 쇼업패턴으로 생성된 여객데이터
-        data = await self.fetch_flight_schedule_data(
-            db, flight_sch.date, flight_sch.airport, flight_sch.condition
-        )
-        await asyncio.sleep(0.001)
-
-        df_pax = await self._calculate_show_up_pattern(data, destribution_conditions)
-        await asyncio.sleep(0.001)
-        # ============================================================
-        # NOTE: dist_key와 td_arr을 생성
-        np_pax_col = df_pax.columns.to_numpy()
-        np_pax = df_pax.to_numpy()
-        np_pax_col_name = COL_FILTER_MAP.get(processes["0"].name, None)
-        sorted_idx = np.argsort(np_pax[:, (np_pax_col == "show_up_time")].flatten())
-        mask = (np_pax_col == "show_up_time") | (np_pax_col == np_pax_col_name)
-        np_filtered_pax = np_pax[sorted_idx][:, mask]
-
-        # 정렬된 DataFrame 재생성 -> passengers 매개변수에 사용
-        sorted_np_pax = np_pax[sorted_idx]
-        sorted_df_pax = pd.DataFrame(sorted_np_pax, columns=df_pax.columns)
-
-        # dist_key
-        dist_key = np_filtered_pax[:, 0].flatten()
-        ck_on = np_filtered_pax[:, -1].flatten()
-
-        # td_arr
-        starting_time_stamp = ck_on[0]
-        v0 = (
-            starting_time_stamp.hour * 3600
-            + starting_time_stamp.minute * 60
-            + starting_time_stamp.second
-        )
-
-        td_arr = np.round(
-            [(td.total_seconds()) + v0 for td in (ck_on - np.array(ck_on[0]))]
-        )
-
-        await asyncio.sleep(0.001)
-        # ============================================================
-        # NOTE: dist_map과 graph_list를 생성
-
-        # process의 메타데이터 -> graph_list를 만들때 사용
-        comp_to_idx = {}
-        idx = 0
-        for process_key in list(processes.keys())[1:]:
-            process = processes[process_key]
-            num_li = {}
-            for num in range(len(process.nodes)):
-                node = process.nodes[num]
-                num_li[node] = idx
-                idx += 1
-
-            comp_to_idx[process.name] = num_li
-
-        # dist_map
-        process_1 = processes["1"]
-        dist_map = {}
-
-        for airline, nodes in process_1.default_matrix.items():
-            indices = np.array(
-                [i for i, node in enumerate(process_1.nodes) if nodes[node] > 0]
-            )
-            values = np.array(
-                [nodes[node] for node in process_1.nodes if nodes[node] > 0]
-            )
-            dist_map[airline] = [indices, values]
-
-        # graph_list
-        node_transition_graph = []
-        for i, key in enumerate(processes):
-            if int(key) >= 2:
-                default_matrix = processes[key].default_matrix
-                nodes = processes[key].nodes
-                dst_idx = comp_to_idx[processes[key].name]
-
-                for destinations in default_matrix.values():
-                    graph = []
-
-                    for key, values in destinations.items():
-                        if values > 0:
-                            graph.append(
-                                [
-                                    np.int64(dst_idx[key]),
-                                    np.float64(values),
-                                ]
-                            )
-
-                    node_transition_graph.append(graph)
-
-                if i == len(processes) - 1:
-
-                    for node in range(len(nodes)):
-                        node_transition_graph.append([])
-
-        await asyncio.sleep(0.001)
-        # ============================================================
-        # NOTE: 메인 코드
-        graph = DsGraph(
-            components=components,
-            component_node_pairs=component_node_pairs,
-            component_node_map=component_node_map,
-            nodes_per_component=nodes_per_component,
-            node_transition_graph=node_transition_graph,
-            max_queue_length=max_queue_length,
-            facilities_per_node=facilities_per_node,
-            facility_schedules=facility_schedules,
-            processes=processes,  # 프로세스들의 인풋값
-            comp_to_idx=comp_to_idx,  # 프로세스의 메타데이터
-        )
-
-        # comp_to_idx = {'checkin': {'A': 0, 'B': 1, 'C': 2, 'D': 3}, 'departure_gate': {'DG1': 4, 'DG2': 5}, 'security_check': {'SC1': 6, 'SC2': 7}, 'passport_check': {'PC1': 8, 'PC2': 9}}
-
-        sim = DsSimulator(
-            ds_graph=graph,
-            components=components,
-            showup_times=td_arr,
-            source_per_passengers=dist_key,
-            source_transition_graph=dist_map,
-            passengers=sorted_df_pax,  # <-- SHOW-UP 로직을 돌린다.
-        )
-
-        SECONDS_IN_THREE_DAYS = 3600 * 24 * 3
-        last_passenger_arrival_time = td_arr[-1]
-
+        # HACK: [25.04.07] 아래 코드 패턴은 좋지 못하다고 생각함.
         await sim.run_temp(
             start_time=0,
             end_time=max(SECONDS_IN_THREE_DAYS, last_passenger_arrival_time),
@@ -1916,8 +1660,6 @@ class SimulationService:
         )
         ow.write_pred()
 
-        await asyncio.sleep(0.001)
-
         # =====================================
         # NOTE: 시뮬레이션 결과 데이터 s3 저장
         # print(ow.passengers)
@@ -1925,8 +1667,6 @@ class SimulationService:
 
         filename = f"{scenario_id}.parquet"
         await self.simulation_repo.upload_to_s3(session, ow.passengers, filename)
-
-        await asyncio.sleep(0.001)
 
         # =====================================
         # NOTE: 시뮬레이션 결과
@@ -1942,7 +1682,6 @@ class SimulationService:
             },
         ]
 
-        # =====================================
         # NOTE: 차트 생성
         sankey = await self._generate_simulation_sankey(
             df=ow.passengers, component_list=components
@@ -2023,242 +1762,3 @@ class SimulationService:
             "line_chart": line_chart_result,
             "total": total,
         }
-
-    async def run_simulation_test(
-        self,
-        db: Connection,
-        session: boto3.Session,
-        user_id: str,
-        scenario_id: str,
-        flight_sch: dict,
-        destribution_conditions: list,
-        processes: dict,
-        component_list: list,
-    ):
-        # FIXME: 테스트용 확인 코드
-        # print(f"시작시간 : {datetime.now()}")
-        # ============================================================
-        # NOTE: 데이터 전처리
-        components = []
-        component_node_pairs = []
-        component_node_map = {}
-        nodes_per_component = []
-        max_queue_length = []
-        facilities_per_node = []
-        facility_schedules = []
-
-        node_transition_graph = []  # graph_list
-
-        for comp in component_list:
-            components.append(comp.name)
-            nodes_per_component.append(len(comp.nodes))
-
-            for node in comp.nodes:
-                component_node_pairs.append([comp.name, node.name])
-                max_queue_length.append(node.max_queue_length)
-                facilities_per_node.append(node.facility_count)
-
-                # FIXME: 일시적으로 1440줄 만들도록 설정.
-                facility_schedules.append(np.array([node.facility_schedules[0]] * 1440))
-                # NOTE: time_unit = 10 일때로 바뀐 코드(효율성 x)
-                # temp_facility_schedules = []
-                # for facility_schedule in node.facility_schedules:
-                #     for _ in range(10):
-                #         temp_facility_schedules.append(facility_schedule)
-
-                if comp.name in component_node_map.keys():
-                    component_node_map[comp.name].append(node.id)
-                else:
-                    component_node_map[comp.name] = [node.id]
-
-        # ============================================================
-        # NOTE: 쇼업패턴으로 생성된 여객데이터
-        data = await self.fetch_flight_schedule_data_test(
-            db, flight_sch.date, flight_sch.airport, flight_sch.condition
-        )
-
-        df_pax = await self._calculate_show_up_pattern(data, destribution_conditions)
-        # ============================================================
-        # NOTE: dist_key와 td_arr을 생성
-        np_pax_col = df_pax.columns.to_numpy()
-        np_pax = df_pax.to_numpy()
-
-        np_pax_col_name = COL_FILTER_MAP.get(processes["0"].name, None)
-        sorted_idx = np.argsort(np_pax[:, (np_pax_col == "show_up_time")].flatten())
-        mask = (np_pax_col == "show_up_time") | (np_pax_col == np_pax_col_name)
-        np_filtered_pax = np_pax[sorted_idx][:, mask]
-
-        # 정렬된 DataFrame 재생성 -> passengers 매개변수에 사용
-        sorted_np_pax = np_pax[sorted_idx]
-        sorted_df_pax = pd.DataFrame(sorted_np_pax, columns=df_pax.columns)
-
-        # dist_key
-        dist_key = np_filtered_pax[:, 0].flatten()
-        ck_on = np_filtered_pax[:, -1].flatten()
-
-        # td_arr
-        starting_time_stamp = ck_on[0]
-        v0 = (
-            starting_time_stamp.hour * 3600
-            + starting_time_stamp.minute * 60
-            + starting_time_stamp.second
-        )
-
-        td_arr = np.round(
-            [(td.total_seconds()) + v0 for td in (ck_on - np.array(ck_on[0]))]
-        )
-
-        # ============================================================
-        # NOTE: dist_map과 graph_list를 생성
-
-        # process의 메타데이터 -> graph_list를 만들때 사용
-        comp_to_idx = {}
-        idx = 0
-        for process_key in list(processes.keys())[1:]:
-            process = processes[process_key]
-            num_li = {}
-            for num in range(len(process.nodes)):
-                node = process.nodes[num]
-                num_li[node] = idx
-                idx += 1
-
-            comp_to_idx[process.name] = num_li
-
-        # dist_map
-        process_1 = processes["1"]
-        dist_map = {}
-
-        for airline, nodes in process_1.default_matrix.items():
-            indices = np.array(
-                [i for i, node in enumerate(process_1.nodes) if nodes[node] > 0]
-            )
-            values = np.array(
-                [nodes[node] for node in process_1.nodes if nodes[node] > 0]
-            )
-            dist_map[airline] = [indices, values]
-
-        # graph_list
-        node_transition_graph = []
-        for i, key in enumerate(processes):
-            if int(key) >= 2:
-                default_matrix = processes[key].default_matrix
-                nodes = processes[key].nodes
-                dst_idx = comp_to_idx[processes[key].name]
-
-                for destinations in default_matrix.values():
-                    graph = []
-
-                    for key, values in destinations.items():
-                        if values > 0:
-                            graph.append(
-                                [
-                                    np.int64(dst_idx[key]),
-                                    np.float64(values),
-                                ]
-                            )
-
-                    node_transition_graph.append(graph)
-
-                if i == len(processes) - 1:
-
-                    for node in range(len(nodes)):
-                        node_transition_graph.append([])
-
-        # ============================================================
-        # NOTE: 메인 코드
-        try:
-            graph = DsGraph(
-                components=components,
-                component_node_pairs=component_node_pairs,
-                component_node_map=component_node_map,
-                nodes_per_component=nodes_per_component,
-                node_transition_graph=node_transition_graph,
-                max_queue_length=max_queue_length,
-                facilities_per_node=facilities_per_node,
-                facility_schedules=facility_schedules,
-                processes=processes,  # 프로세스들의 인풋값
-                comp_to_idx=comp_to_idx,  # 프로세스의 메타데이터
-            )
-        except Exception as e:
-            raise
-
-        # comp_to_idx = {'checkin': {'A': 0, 'B': 1, 'C': 2, 'D': 3}, 'departure_gate': {'DG1': 4, 'DG2': 5}, 'security_check': {'SC1': 6, 'SC2': 7}, 'passport_check': {'PC1': 8, 'PC2': 9}}
-
-        sim = DsSimulator(
-            ds_graph=graph,
-            components=components,
-            showup_times=td_arr,
-            source_per_passengers=dist_key,
-            source_transition_graph=dist_map,
-            passengers=sorted_df_pax,  # <-- SHOW-UP 로직을 돌린다.
-        )
-
-        SECONDS_IN_THREE_DAYS = 3600 * 24 * 3
-        last_passenger_arrival_time = td_arr[-1]
-
-        await sim.run_test(
-            start_time=0,
-            end_time=max(SECONDS_IN_THREE_DAYS, last_passenger_arrival_time),
-        )
-
-        ow = DsOutputWrapper(
-            passengers=sorted_df_pax,
-            components=components,
-            nodes=graph.nodes,
-            starting_time=[starting_time_stamp, v0],
-        )
-        ow.write_pred()
-
-        # =====================================
-        # NOTE: 시뮬레이션 결과 데이터 s3 저장
-        # print(ow.passengers)
-        # ow.passengers.to_csv("sim_pax_test.csv", encoding="utf-8-sig", index=False)
-        ow.passengers.to_parquet("samples/sim_pax_test.parquet", compression="snappy")
-
-        # filename = f"{user_id}/{scenario_id}.parquet"
-        # await self.simulation_repo.upload_to_s3(session, ow.passengers, filename)
-
-        # =====================================
-        # NOTE: 시뮬레이션 결과 데이터를 차트로 변환
-        sankey = await self._generate_simulation_sankey(
-            df=ow.passengers, component_list=components
-        )
-        total = await self._generate_simulation_charts_total(
-            sim_df=ow.passengers, total=comp_to_idx
-        )
-
-        # first_process = next(iter(comp_to_idx), None)
-        # node_list = sorted(ow.passengers[f"{first_process}_pred"].unique().tolist())
-        # first_node = node_list[0].replace(f"{first_process}_", "")
-        sch_date = flight_sch.date
-        kpi_result = []
-        chart_result = []
-
-        for process, nodes in comp_to_idx.items():
-
-            for node in nodes.keys():
-
-                chart = await self._generate_simulation_charts_node(
-                    sim_df=ow.passengers,
-                    process=process,
-                    node=node,
-                    date=sch_date,
-                )
-                chart_result.append(chart)
-
-                kpi = await self._generate_simulation_metrics_kpi(
-                    sim_df=ow.passengers,
-                    process=process,
-                    node=node,
-                )
-                kpi_result.append(kpi)
-
-        # FIXME: 테스트용 확인코드
-        # print(f"완료시간 : {datetime.now()}")
-        return {
-            "sankey": sankey,
-            "kpi": kpi_result,
-            "chart": chart_result,
-            "total": total,
-        }
-        # return "Success"

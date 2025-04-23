@@ -1,4 +1,3 @@
-import asyncio
 import heapq
 import math
 import time
@@ -166,14 +165,14 @@ class DsSimulator:
             progress = math.floor(progress_time)
             if progress > previous_progress:
                 await websocket.send_json({"progress": f"{progress}%"})
-                await asyncio.sleep(0.001)
+
                 previous_progress = progress
 
         logger.info(
             f"시뮬레이션을 종료합니다. (소요 시간: {round(time.time() - start_at)}초)"
         )
 
-    async def run_temp(self, start_time, end_time, unit=10):
+    async def run_temp(self, start_time, end_time, unit=3):
         logger.info("시뮬레이션을 시작합니다.")
         start_at = time.time()
 

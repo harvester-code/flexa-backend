@@ -44,7 +44,7 @@ class DsOutputWrapper:
                 passenger_ids, self.passengers.columns.get_loc(col_label)
             ] = node.node_label
 
-    def add_column_info(self, node, arr, col_label):
+    def _add_column_info(self, node, arr, col_label):
         if col_label not in self.passengers.columns:
             self.passengers.loc[:, col_label] = pd.NaT
 
@@ -60,6 +60,9 @@ class DsOutputWrapper:
         for n in self.nodes:
             n.passenger_ids = np.array(n.passenger_ids)
 
+            # FIXME: 현재 로직에 문제점 발견!
+            # ===> 만약 사용자가 Security에 SC_West, SC_East로 입력하면 이게 의도한 것과 다르게 된다.
+            # 즉, 뒤에서 끊지 말고가 아니라. 이걸 문자로 끊으면 안될거 같음
             new_col_on = "_".join(n.node_label.split("_")[:-1]) + "_on_pred"
             new_col_done = "_".join(n.node_label.split("_")[:-1]) + "_done_pred"
             new_pt = "_".join(n.node_label.split("_")[:-1]) + "_pt"
@@ -67,11 +70,12 @@ class DsOutputWrapper:
             new_fac = "_".join(n.node_label.split("_")[:-1]) + "_facility_number"
             new_col_fac = "_".join(n.node_label.split("_")[:-1]) + "_pred"
 
+            # NOTE: 아래 로직을 통해서 self.passengers의 데이터프레임에 컬럼을 추가한다.
             self._add_column_dt(n, n.on_time, new_col_on, method="normal")
             self._add_column_dt(n, n.done_time, new_col_done, method="normal")
             self._add_column_dt(n, n.processing_time, new_pt, method="delta")
-            self.add_column_info(n, n.que_history, new_que)
-            self.add_column_info(n, n.facility_numbers, new_fac)
+            self._add_column_info(n, n.que_history, new_que)
+            self._add_column_info(n, n.facility_numbers, new_fac)
             self._add_column_string(n, new_col_fac)
 
         for component in self.components:
@@ -82,4 +86,5 @@ class DsOutputWrapper:
                 self.passengers[f"{component}_pt"], unit="s"
             )
 
+            # FIXME: 변수명 개선하기
             self.passengers[column1] = self.passengers[column2] - processing_time

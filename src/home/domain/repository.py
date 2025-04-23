@@ -1,5 +1,5 @@
 from abc import ABCMeta, abstractmethod
-from fastapi import Request
+
 import boto3
 
 

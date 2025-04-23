@@ -59,3 +59,5 @@ samples/sim_pax_test.parquet
 
 # .env
 .env
+.env.*
+!.env.example
