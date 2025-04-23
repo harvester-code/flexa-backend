@@ -2,6 +2,7 @@ import os
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, status
 from jose import JWTError, jwt
+from loguru import logger
 from starlette.responses import JSONResponse
 
 
@@ -36,6 +37,15 @@ JWT_DECODER_PATH = [
 
 
 async def jwt_decoder(request: Request, call_next):
+    logger.info(
+        {
+            "method": request.method,
+            "url": str(request.url),
+            "headers": dict(request.headers),
+            "query_params": dict(request.query_params),
+            "path_params": request.path_params,
+        }
+    )
 
     if request.method == "OPTIONS":
         return await call_next(request)
