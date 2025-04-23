@@ -1,0 +1,11 @@
+services:
+  flexa-waitfree-api-develop:
+    build:
+      context: ../../
+      dockerfile: docker/develop/Dockerfile
+    image: flexa-waitfree-api-develop
+    container_name: flexa-waitfree-api-develop
+    environment:
+      - DOPPLER_TOKEN=***REMOVED***
+    ports:
+      - "8010:8010"

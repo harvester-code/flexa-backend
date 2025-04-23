@@ -7,16 +7,16 @@ dev.down:
 	docker compose -f docker-compose.dev.yaml down
 
 .PHONY: build-develop
-build-development: ## Build the development docker image.
-	docker compose -f docker/development/compose.yaml build
+build-develop: ## Build the develop docker image.
+	docker compose -f docker/develop/compose.yaml build
 
 .PHONY: start-develop
-start-development: ## Start the development docker container.
-	docker compose -f docker/development/compose.yaml up -d
+start-develop: ## Start the develop docker container.
+	docker compose -f docker/develop/compose.yaml up -d
 
 .PHONY: stop-develop
-stop-development: ## Stop the development docker container.
-	docker compose -f docker/development/compose.yaml down && docker rmi flexa-waitfree-api-development
+stop-develop: ## Stop the develop docker container.
+	docker compose -f docker/develop/compose.yaml down && docker rmi flexa-waitfree-api-develop
 
 .PHONY: build-staging
 build-staging: ## Build the staging docker image.
