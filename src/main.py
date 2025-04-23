@@ -2,6 +2,7 @@ from art import text2art
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import PlainTextResponse
+from loguru import logger
 from mangum import Mangum
 from starlette.middleware.cors import CORSMiddleware
 
@@ -55,4 +56,7 @@ app.include_router(ws_router, prefix=API_PREFIX, tags=["ws"])
 # app.include_router(auth_router, prefix=API_PREFIX, tags=["Auth"])
 # app.include_router(past_simulation_router, prefix=API_PREFIX, tags=["Simulations"])
 
-handler = Mangum(app)
+try:
+    handler = Mangum(app)
+except Exception as e:
+    logger.error(f"Error initializing Mangum: {e}")
