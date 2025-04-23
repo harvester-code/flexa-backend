@@ -20,8 +20,14 @@ app = FastAPI()
 app.container = Container()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://flexa.datamarketingcampus.com",
+    ],
     allow_credentials=True,
+    # NOTE: 아래 코드는 오직 개발/테스트용
+    # allow_origins=["*"],
+    # allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
