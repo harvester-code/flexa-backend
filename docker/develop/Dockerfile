@@ -30,6 +30,6 @@ COPY --from=builder ${PYTHON_VENV} ${PYTHON_VENV}
 
 COPY . /code
 
-EXPOSE 8000
+EXPOSE 8010
 
 CMD [ "doppler", "run", "--", "fastapi", "run", "code/src/main.py", "--host", "0.0.0.0", "--port", "8010"]
