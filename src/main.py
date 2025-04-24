@@ -22,7 +22,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "https://flexa.datamarketingcampus.com",
+        "https://www.flexa.expert",
     ],
     allow_credentials=True,
     # NOTE: 아래 코드는 오직 개발/테스트용
