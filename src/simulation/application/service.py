@@ -554,7 +554,7 @@ class SimulationService:
 
         return {
             "total": pax_df.shape[0],
-            "total_sub": total_sub_result,
+            "total_sub_obj": total_sub_result,
             "dst_chart": distribution_xy_coords,
             "bar_chart_x_data": chart_data["default_x"],
             "bar_chart_y_data": chart_result,
