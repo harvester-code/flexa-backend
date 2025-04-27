@@ -542,9 +542,19 @@ class SimulationService:
             chart_data = await self._create_show_up_summary(pax_df, group_column)
             chart_result[CRITERIA_MAP[group_column]] = chart_data["traces"]
 
+        total_sub_result = [
+            {"title": "Flights", "value": f"{total_flights:,.0f}", "unit": None},
+            {
+                "title": "Average Seats per Flight",
+                "value": f"{round(average_seats, 2)}",
+                "unit": None,
+            },
+            {"title": "Load factor", "value": "85", "unit": "%"},
+        ]
+
         return {
             "total": pax_df.shape[0],
-            "total_sub": f"Flight({total_flights:,.0f}) x Average_seats({round(average_seats, 2)}) x Load_factor(85%)",
+            "total_sub": total_sub_result,
             "dst_chart": distribution_xy_coords,
             "bar_chart_x_data": chart_data["default_x"],
             "bar_chart_y_data": chart_result,
@@ -1115,7 +1125,7 @@ class SimulationService:
         """
 
         start_time = f"{process}_on_pred"
-        end_time = f"{process}_pt_pred"
+        end_time = f"{process}_done_pred"
 
         df = sim_df.loc[sim_df[f"{process}_pred"] == f"{process}_{node}"].copy()
 
@@ -1125,8 +1135,8 @@ class SimulationService:
 
         df["waiting_time"] = (df[end_time] - df[start_time]).dt.total_seconds()
 
-        df.loc[:, end_time] = df[end_time].dt.floor("10min")
-        df_grouped = df.groupby([end_time], as_index=end_time).agg(
+        df.loc[:, start_time] = df[start_time].dt.floor("10min")
+        df_grouped = df.groupby([start_time], as_index=start_time).agg(
             {"waiting_time": "mean"}
         )
         df_grouped["waiting_time"] = df_grouped["waiting_time"] / 60
@@ -1240,7 +1250,7 @@ class SimulationService:
         # EX. process = checkin / node = A / flow = on
         for group_column in color_criteria_options:
 
-            queue_data = await self._create_queue_length(
+            queue_data = await self._create_simulation_queue_chart(
                 sim_df=sim_df,
                 process=process,
                 node=node,
@@ -1746,6 +1756,8 @@ class SimulationService:
                 data_list = [
                     data if data is not None else max_data * 2 for data in data_list
                 ]
+
+                data_list = data_list[20 * 6 :] + data_list + data_list[: 1 * 6]
 
                 line_chart = {
                     "process": process.name,
