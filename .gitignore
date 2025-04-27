@@ -61,3 +61,6 @@ samples/sim_pax_test.parquet
 .env
 .env.*
 !.env.example
+
+# dev server
+Dockerfile.dev
