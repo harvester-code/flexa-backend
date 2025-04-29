@@ -1,11 +1,12 @@
+import os
 from datetime import datetime, time, timedelta
 from typing import List
 
 import boto3
 import numpy as np
 import pandas as pd
+import pendulum
 from dependency_injector.wiring import inject
-from fastapi import WebSocket
 from sqlalchemy import Connection, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from ulid import ULID
@@ -22,6 +23,7 @@ from src.simulation.application.queries import (
 )
 from src.simulation.domain.repository import ISimulationRepository
 from src.simulation.domain.simulation import ScenarioMetadata, SimulationScenario
+from src.storages import check_s3_object_exists
 
 
 class SimulationService:
@@ -202,65 +204,107 @@ class SimulationService:
             db, scenario_metadata, time_now
         )
 
-    # =====================================
+    # ==========================================================================
     # NOTE: 시뮬레이션 프로세스
 
     async def fetch_flight_schedule_data(
-        self, db: Connection, date: str, airport: str, condition: list | None
+        self,
+        db: Connection,
+        date: str,
+        airport: str,
+        condition: list | None,
+        scenario_id: str,
+        storage: str = "s3",  # NOTE: "s3" | "snowflake"
     ):
-        from datetime import datetime
+        """항공기 스케줄 데이터 조회
 
-        flight_io = "departure"
+        Args:
+            db (Connection): 데이터베이스 연결 객체.
+            date (str): 항공 스케줄 데이터를 조회할 날짜 (형식: 'YYYY-MM-DD').
+            airport (str): 조회할 공항 코드 (IATA 코드).
+            condition (list | None): 필터링 조건 리스트. 각 조건은 필드와 값으로 구성됨.
 
-        # 현재 날짜와 입력된 날짜 비교
-        current_date = datetime.now().date()
-        input_date = datetime.strptime(date, "%Y-%m-%d").date()
+        Returns:
+            list[dict]: 조회된 항공 스케줄 데이터. 각 항목은 항공편 정보를 포함하는 딕셔너리.
+        """
 
-        # 오늘 + 미래 날짜인 경우 스케줄 쿼리 사용
-        if input_date >= current_date:
-            query_map = {
-                "arrival": SELECT_AIRPORT_ARRIVAL,
-                "departure": SELECT_AIRPORT_DEPARTURE_SCHEDULE,
-            }
-        else:
-            query_map = {
-                "arrival": SELECT_AIRPORT_ARRIVAL,
-                "departure": SELECT_AIRPORT_DEPARTURE,
-            }
+        flight_schedule_data = None
 
-        base_query = query_map.get(flight_io)
+        # ======================================================
+        # NOTE: S3 데이터 확인
+        if storage == "s3":
+            object_exists = check_s3_object_exists(
+                bucket_name="flexa-dev-ap-northeast-2-data-storage",
+                object_key=f"simulations/flight-schedule-data/{scenario_id}.parquet",
+            )
 
-        params = {
-            "airport": airport,
-            "date": date,
-        }
+            if not object_exists:
+                return flight_schedule_data
 
-        # I/D, 항공사, 터미널
-        where_conditions = []
-        if condition:
-            for con in condition:
-                if con.criteria == "I/D":
-                    where_conditions.append("FLIGHT_TYPE = :i_d")
-                    params["i_d"] = con.value[0]
+            flight_schedule_data = pd.read_parquet(
+                path=f"s3://flexa-dev-ap-northeast-2-data-storage/simulations/flight-schedule-data/{scenario_id}.parquet",
+                engine="pyarrow",
+                storage_options={
+                    "key": os.getenv("AWS_ACCESS_KEY"),
+                    "secret": os.getenv("AWS_SECRET_ACCESS_KEY"),
+                },
+            )
+            return flight_schedule_data.to_dict(orient="records")
 
-                if con.criteria == "Terminal":
-                    where_conditions.append("DEPARTURE_TERMINAL = :terminal")
-                    params["terminal"] = con.value[0]
+        # ======================================================
+        # NOTE: SNOWFLAKE 데이터 확인
+        if storage == "snowflake":
+            FLIGHT_IO = "departure"
 
-                if con.criteria == "Airline":
-                    where_conditions.append("OPERATING_CARRIER_IATA IN :airline")
-                    params["airline"] = tuple(con.value)
+            # 현재 날짜와 입력된 날짜 비교
+            current_date = pendulum.today(tz="Asia/Seoul").date()
+            input_date = pendulum.from_format(date, "YYYY-MM-DD").date()
 
-            if where_conditions:
-                base_query += " AND " + " AND ".join(where_conditions)
+            # 오늘 + 미래 날짜인 경우 스케줄 쿼리 사용
+            if input_date >= current_date:
+                query_map = {
+                    "arrival": SELECT_AIRPORT_ARRIVAL,
+                    "departure": SELECT_AIRPORT_DEPARTURE_SCHEDULE,
+                }
+            else:
+                query_map = {
+                    "arrival": SELECT_AIRPORT_ARRIVAL,
+                    "departure": SELECT_AIRPORT_DEPARTURE,
+                }
 
-        stmt = text(base_query)
+            base_query = query_map.get(FLIGHT_IO)
 
-        data = await self.simulation_repo.fetch_flight_schedule_data(
-            db, stmt, params, flight_io
-        )
+            params = {"airport": airport, "date": date}
 
-        return data
+            # I/D, 항공사, 터미널
+            where_conditions = []
+            if condition:
+                for con in condition:
+                    if con.criteria == "I/D":
+                        where_conditions.append("FLIGHT_TYPE = :i_d")
+                        params["i_d"] = con.value[0]
+
+                    if con.criteria == "Terminal":
+                        where_conditions.append("DEPARTURE_TERMINAL = :terminal")
+                        params["terminal"] = con.value[0]
+
+                    if con.criteria == "Airline":
+                        where_conditions.append("OPERATING_CARRIER_IATA IN :airline")
+                        params["airline"] = tuple(con.value)
+
+                if where_conditions:
+                    base_query += " AND " + " AND ".join(where_conditions)
+
+            stmt = text(base_query)
+
+            flight_schedule_data = (
+                await self.simulation_repo.fetch_flight_schedule_data(
+                    db, stmt, params, FLIGHT_IO
+                )
+            )
+            return flight_schedule_data
+
+        return flight_schedule_data
 
     async def update_simulation_scenario_target_date(
         self, db: AsyncSession, scenario_id: str, target_date: str
@@ -337,6 +381,7 @@ class SimulationService:
         date: str,
         airport: str,
         condition: list | None,
+        scenario_id: str,
     ):
         """
         최초에 불러올때는 add condition에 사용될 데이터와, 그래프를 만들때 사용할 데이터를 둘다 챙겨야함
@@ -346,8 +391,27 @@ class SimulationService:
         현재 출도착은 출발을 고정으로 가져온다.
         """
 
-        data = await self.fetch_flight_schedule_data(db, date, airport, condition)
-        flight_df = pd.DataFrame(data)
+        # ==============================================================
+        # NOTE: SNOWFLAKE 데이터 조회
+        flight_schedule_data = await self.fetch_flight_schedule_data(
+            db, date, airport, condition, scenario_id, storage="snowflake"
+        )
+
+        # ==============================================================
+        # NOTE: S3에 데이터 저장
+        flight_schedule_df = pd.DataFrame(flight_schedule_data)
+        flight_schedule_df.to_parquet(
+            path=f"s3://flexa-dev-ap-northeast-2-data-storage/simulations/flight-schedule-data/{scenario_id}.parquet",
+            engine="pyarrow",
+            storage_options={
+                "key": os.getenv("AWS_ACCESS_KEY"),
+                "secret": os.getenv("AWS_SECRET_ACCESS_KEY"),
+            },
+        )
+
+        # ==============================================================
+        # NOTE: 데이터를 전처리한다.
+        flight_df = pd.DataFrame(flight_schedule_data)
 
         # Condition
         # I/D, 항공사, 터미널
@@ -399,9 +463,9 @@ class SimulationService:
                 chart_result[CRITERIA_MAP[group_column]] = chart_data["traces"]
 
         return {
+            "total": flight_df.shape[0],
             "add_conditions": add_conditions,
             "add_priorities": add_priorities,
-            "total": flight_df.shape[0],
             "chart_x_data": chart_data["default_x"],
             "chart_y_data": chart_result,
         }

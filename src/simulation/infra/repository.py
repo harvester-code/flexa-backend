@@ -303,17 +303,16 @@ class SimulationRepository(ISimulationRepository):
 
     async def fetch_flight_schedule_data(
         self, conn: Connection, stmt, params, flight_io
-    ):
-
+    ) -> List[dict]:
         schema_map = {
             "arrival": GeneralDeclarationArrival,
             "departure": GeneralDeclarationDeparture,
         }
+
         if params.get("airline"):
             stmt = stmt.bindparams(bindparam("airline", expanding=True))
 
         result = conn.execute(stmt, params)
-
         rows = [dict(schema_map.get(flight_io)(**row._mapping)) for row in result]
         return rows
 
@@ -323,7 +322,6 @@ class SimulationRepository(ISimulationRepository):
         scenario_id: str,
         target_datetime,
     ):
-
         await db.execute(
             update(SimulationScenario)
             .where(SimulationScenario.id == scenario_id)
