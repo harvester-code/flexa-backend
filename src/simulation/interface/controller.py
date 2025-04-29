@@ -346,13 +346,14 @@ async def fetch_processing_procedures(
 
 
 @simulation_router.post(
-    "/facility-conns",
+    "/facility-conns/scenario-id/{scenario_id}",
     status_code=status.HTTP_200_OK,
     summary="06_SI_013",
     description="06_SI_013에서 최종 Apply 버튼을 눌렀을 때 facility info에서 사용할 바차트 데이터가 나오는 엔드포인트",
 )
 @inject
 async def generate_facility_conn(
+    scenario_id: str,
     facility_conn: FacilityConnBody,
     simulation_service: SimulationService = Depends(
         Provide[Container.simulation_service]
@@ -361,10 +362,7 @@ async def generate_facility_conn(
 ):
 
     return await simulation_service.generate_facility_conn(
-        db,
-        facility_conn.flight_schedule,
-        facility_conn.destribution_conditions,
-        facility_conn.processes,
+        facility_conn.processes, scenario_id
     )
 
 
@@ -388,13 +386,14 @@ async def generate_set_opening_hours(
 
 
 @simulation_router.post(
-    "/run-simulation/overview",
+    "/run-simulation/overview/scenario-id/{scenario_id}",
     status_code=status.HTTP_200_OK,
     summary="06_SI_018",
     description="06_SI_018로 들어올때 overview 화면에서 필요한 데이터를 응답하는 엔드포인트",
 )
 @inject
 async def generate_simulation_overview(
+    scenario_id: str,
     run_simulation: RunSimulationBody,
     simulation_service: SimulationService = Depends(
         Provide[Container.simulation_service]
@@ -408,6 +407,7 @@ async def generate_simulation_overview(
         run_simulation.destribution_conditions,
         run_simulation.processes,
         run_simulation.components,
+        scenario_id=scenario_id,
     )
 
 

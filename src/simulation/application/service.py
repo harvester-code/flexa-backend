@@ -204,9 +204,6 @@ class SimulationService:
             db, scenario_metadata, time_now
         )
 
-    # ==========================================================================
-    # NOTE: 시뮬레이션 프로세스
-
     async def fetch_flight_schedule_data(
         self,
         db: Connection,
@@ -305,6 +302,30 @@ class SimulationService:
             return flight_schedule_data
 
         return flight_schedule_data
+
+    async def fetch_show_up_passenger_data(self, scenario_id: str):
+        showup_passenger_df = None
+
+        # ======================================================
+        # NOTE: S3 데이터 확인
+        object_exists = check_s3_object_exists(
+            bucket_name="flexa-dev-ap-northeast-2-data-storage",
+            object_key=f"simulations/show-up-passenger-data/{scenario_id}.parquet",
+        )
+
+        if not object_exists:
+            return showup_passenger_df
+
+        showup_passenger_df = pd.read_parquet(
+            path=f"s3://flexa-dev-ap-northeast-2-data-storage/simulations/show-up-passenger-data/{scenario_id}.parquet",
+            engine="pyarrow",
+            storage_options={
+                "key": os.getenv("AWS_ACCESS_KEY"),
+                "secret": os.getenv("AWS_SECRET_ACCESS_KEY"),
+            },
+        )
+        # TODO: fetch_flight_schedule_data와 같이 반환 타입 맞추기
+        return showup_passenger_df
 
     async def update_simulation_scenario_target_date(
         self, db: AsyncSession, scenario_id: str, target_date: str
@@ -470,7 +491,6 @@ class SimulationService:
             "chart_y_data": chart_result,
         }
 
-    # =====================================
     async def _calculate_show_up_pattern(
         self, data: list, destribution_conditions: list
     ):
@@ -627,7 +647,7 @@ class SimulationService:
         )
         # NOTE: S3에 데이터 저장
         pax_df.to_parquet(
-            path=f"s3://flexa-dev-ap-northeast-2-data-storage/simulations/showup-passenger-data/{scenario_id}.parquet",
+            path=f"s3://flexa-dev-ap-northeast-2-data-storage/simulations/show-up-passenger-data/{scenario_id}.parquet",
             engine="pyarrow",
             storage_options={
                 "key": os.getenv("AWS_ACCESS_KEY"),
@@ -655,12 +675,10 @@ class SimulationService:
             "bar_chart_y_data": chart_result,
         }
 
-    # =====================================
     # FIXME: 운영세팅이 완료되면 변경될 코드
     async def fetch_processing_procedures(self):
         return await self.simulation_repo.fetch_processing_procedures()
 
-    # =====================================
     def _calculate_sample_node(self, row, edited_df):
         """
         Sample a node based on the probabilities from the choice matrix.
@@ -826,18 +844,8 @@ class SimulationService:
 
         return df_pax
 
-    async def generate_facility_conn(
-        self,
-        db: Connection,
-        flight_sch: dict,
-        destribution_conditions: list,
-        processes: dict,
-    ):
-        data = await self.fetch_flight_schedule_data(
-            db, flight_sch.date, flight_sch.airport, flight_sch.condition
-        )
-
-        pax_df = await self._calculate_show_up_pattern(data, destribution_conditions)
+    async def generate_facility_conn(self, processes: dict, scenario_id: str):
+        pax_df = await self.fetch_show_up_passenger_data(scenario_id=scenario_id)
         pax_df = await self._calculate_add_columns(processes, pax_df)
 
         capacity = {}
@@ -848,8 +856,6 @@ class SimulationService:
             capacity[process.name] = capacity_data
 
         return capacity
-
-    # =====================================
 
     async def _calculate_capacity(self, facility_schedule: list, time_unit: int):
         by_pass = 1e-10
@@ -883,7 +889,6 @@ class SimulationService:
 
         return {"x": time_list, "y": data_list}
 
-    # =====================================
     async def generate_simulation_overview(
         self,
         db: Connection,
@@ -891,24 +896,26 @@ class SimulationService:
         destribution_conditions: list,
         processes: dict,
         components: list,
+        scenario_id: str,
     ):
-        data = await self.fetch_flight_schedule_data(
-            db, flight_sch.date, flight_sch.airport, flight_sch.condition
+        flight_schedule_data = await self.fetch_flight_schedule_data(
+            db,
+            flight_sch.date,
+            flight_sch.airport,
+            flight_sch.condition,
+            scenario_id=scenario_id,
         )
 
-        pax_df = await self._calculate_show_up_pattern(data, destribution_conditions)
+        pax_df = await self.fetch_show_up_passenger_data(scenario_id=scenario_id)
         pax_df = await self._calculate_add_columns(processes, pax_df)
 
-        sanky = await self._create_facility_conn_sankey(processes, pax_df)
-
+        # ===========================================================
+        # NOTE: Overview 데이터 생성
         pax_df["passenger_pattern"] = (
             pax_df["scheduled_gate_departure_local"] - pax_df["show_up_time"]
         ).dt.total_seconds() / 60
-        passenger_pattern = pax_df["passenger_pattern"].mean()
 
-        standard_deviations = []
-        for condition in destribution_conditions:
-            standard_deviations.append(condition.standard_deviation)
+        passenger_pattern = pax_df["passenger_pattern"].mean()
 
         matric = [
             {"name": "Date", "value": flight_sch.date},
@@ -926,7 +933,7 @@ class SimulationService:
             },
             {
                 "name": "Flights",
-                "value": f"{len(data):,} flights",
+                "value": f"{len(flight_schedule_data):,} flights",
             },
             {
                 "name": "Passengers",
@@ -957,9 +964,12 @@ class SimulationService:
 
             matric.append({"name": name, "value": value})
 
+        # ===========================================================
+        # NOTE: Sankey 차트 데이터 생성
+        sanky = await self._create_facility_conn_sankey(processes, pax_df)
+
         return {"matric": matric, "sanky": sanky}
 
-    # =====================================
     async def _create_time_range(self, date: str):
         """
         서브 함수
@@ -1392,7 +1402,6 @@ class SimulationService:
 
         return result
 
-    # =====================================
     async def _generate_simulation_metrics_kpi(
         self,
         process: str,
@@ -1535,7 +1544,6 @@ class SimulationService:
 
         return result
 
-    # =====================================
     async def _generate_simulation_sankey(
         self, df: pd.DataFrame, component_list, suffix="_pred"
     ) -> dict:
