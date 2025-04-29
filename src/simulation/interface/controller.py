@@ -306,24 +306,25 @@ async def fetch_flight_schedule(
 
 
 @simulation_router.post(
-    "/passenger-schedules",
+    "/passenger-schedules/scenario-id/{scenario_id}",
     status_code=status.HTTP_200_OK,
     summary="06_SI_009",
     description="06_SI_009에서 Apply 버튼을 눌렀을 때 실행되는 엔드포인트",
 )
 @inject
 async def generate_passenger_schedule(
+    scenario_id: str,
     passenger_schedule: PassengerScheduleBody,
     simulation_service: SimulationService = Depends(
         Provide[Container.simulation_service]
     ),
     db: Connection = Depends(get_snowflake_session),
 ):
-
     return await simulation_service.generate_passenger_schedule(
-        db,
-        passenger_schedule.flight_schedule,
-        passenger_schedule.destribution_conditions,
+        db=db,
+        flight_sch=passenger_schedule.flight_schedule,
+        destribution_conditions=passenger_schedule.destribution_conditions,
+        scenario_id=scenario_id,
     )
 
 

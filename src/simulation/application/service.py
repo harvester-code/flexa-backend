@@ -410,7 +410,7 @@ class SimulationService:
         )
 
         # ==============================================================
-        # NOTE: 데이터를 전처리한다.
+        # NOTE: 데이터 전처리
         flight_df = pd.DataFrame(flight_schedule_data)
 
         # Condition
@@ -577,25 +577,66 @@ class SimulationService:
         return {"default_x": default_x, "traces": traces}
 
     async def generate_passenger_schedule(
-        self, db: Connection, flight_sch: dict, destribution_conditions: list
+        self,
+        db: Connection,
+        flight_sch: dict,
+        destribution_conditions: list,
+        scenario_id: str,
     ):
-
-        data = await self.fetch_flight_schedule_data(
-            db,
-            flight_sch.date,
-            flight_sch.airport,
-            flight_sch.condition,
+        flight_schedule_data = await self.fetch_flight_schedule_data(
+            db=db,
+            date=flight_sch.date,
+            airport=flight_sch.airport,
+            condition=flight_sch.condition,
+            scenario_id=scenario_id,
         )
-        df = pd.DataFrame(data)
-        total_flights = len(df)
-        average_seats = df["total_seat_count"].mean()
+        flight_schedule_df = pd.DataFrame(flight_schedule_data)
 
-        pax_df = await self._calculate_show_up_pattern(data, destribution_conditions)
+        # ==============================================================
+        # NOTE: ///
+        average_seats = flight_schedule_df["total_seat_count"].mean()
+        total_flights = len(flight_schedule_df)
+        total_sub_result = [
+            {
+                "title": "Flights",
+                "value": f"{total_flights:,.0f}",
+                "unit": None,
+            },
+            {
+                "title": "Average Seats per Flight",
+                "value": f"{round(average_seats, 2)}",
+                "unit": None,
+            },
+            {
+                "title": "Load factor",
+                "value": "85",
+                "unit": "%",
+            },
+        ]
 
+        # ==============================================================
+        # NOTE: ///
         distribution_xy_coords = await self._create_normal_distribution(
             destribution_conditions
         )
 
+        # ==============================================================
+        # NOTE: 여객 데이터 생성
+        pax_df = await self._calculate_show_up_pattern(
+            flight_schedule_data, destribution_conditions
+        )
+        # NOTE: S3에 데이터 저장
+        pax_df.to_parquet(
+            path=f"s3://flexa-dev-ap-northeast-2-data-storage/simulations/showup-passenger-data/{scenario_id}.parquet",
+            engine="pyarrow",
+            storage_options={
+                "key": os.getenv("AWS_ACCESS_KEY"),
+                "secret": os.getenv("AWS_SECRET_ACCESS_KEY"),
+            },
+        )
+
+        # ==============================================================
+        # NOTE: 차트 데이터 생성
         chart_result = {}
         for group_column in [
             "operating_carrier_name",
@@ -605,16 +646,6 @@ class SimulationService:
         ]:
             chart_data = await self._create_show_up_summary(pax_df, group_column)
             chart_result[CRITERIA_MAP[group_column]] = chart_data["traces"]
-
-        total_sub_result = [
-            {"title": "Flights", "value": f"{total_flights:,.0f}", "unit": None},
-            {
-                "title": "Average Seats per Flight",
-                "value": f"{round(average_seats, 2)}",
-                "unit": None,
-            },
-            {"title": "Load factor", "value": "85", "unit": "%"},
-        ]
 
         return {
             "total": pax_df.shape[0],
@@ -628,7 +659,6 @@ class SimulationService:
     # FIXME: 운영세팅이 완료되면 변경될 코드
     async def fetch_processing_procedures(self):
         data = await self.simulation_repo.fetch_processing_procedures()
-
         return data
 
     # =====================================
