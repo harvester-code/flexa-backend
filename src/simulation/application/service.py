@@ -1140,7 +1140,7 @@ class SimulationService:
             {"waiting_time": "mean"}
         )
         df_grouped["waiting_time"] = df_grouped["waiting_time"] / 60
-        df_grouped = df_grouped.reindex(time_range, fill_value=0)
+        df_grouped = df_grouped.reindex(time_range, fill_value=None)
         wt_x_list = df_grouped.index.astype(str).tolist()
         wt_y_list = [
             int(x) if pd.notna(x) else None for x in df_grouped["waiting_time"].tolist()
