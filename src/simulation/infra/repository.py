@@ -351,21 +351,16 @@ class SimulationRepository(ISimulationRepository):
         return sim_df
 
     async def fetch_processing_procedures(self):
+        default_procedures = {
+            "process": [
+                {
+                    "name": "Check-In",
+                    "nodes": ["A", "B", "C", "D", "E", "F", "G", "H", "J", "K"],
+                },
+                {"name": "Boarding Pass", "nodes": ["DG1", "DG2", "DG3", "DG4"]},
+                {"name": "Security", "nodes": ["SC1", "SC2", "SC3", "SC4"]},
+                {"name": "Passport", "nodes": ["PC1", "PC2", "PC3", "PC4"]},
+            ]
+        }
 
-        env = os.getenv("ENVIRONMENT")
-
-        if env == "local":
-            json_path = "samples/sample_processing_procedures.json"
-
-        elif env == "dev":
-            json_path = "/code/samples/sample_processing_procedures.json"
-
-        sample_data = os.path.join(os.getcwd(), json_path)
-        with open(
-            sample_data,
-            "r",
-            encoding="utf-8",
-        ) as file:
-            data = json.load(file)
-
-        return data
+        return default_procedures

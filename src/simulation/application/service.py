@@ -658,8 +658,7 @@ class SimulationService:
     # =====================================
     # FIXME: 운영세팅이 완료되면 변경될 코드
     async def fetch_processing_procedures(self):
-        data = await self.simulation_repo.fetch_processing_procedures()
-        return data
+        return await self.simulation_repo.fetch_processing_procedures()
 
     # =====================================
     def _calculate_sample_node(self, row, edited_df):
