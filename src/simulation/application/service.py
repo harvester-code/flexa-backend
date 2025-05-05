@@ -752,7 +752,7 @@ class SimulationService:
             total_capa = total_capa.drop("show_up_time", axis=1)
 
             node_data[node] = {
-                "total": total_capa["count"].sum(),
+                "total": int(total_capa["count"].sum()),
                 "y": total_capa["count"].tolist(),
             }
 
