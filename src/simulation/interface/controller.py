@@ -6,7 +6,7 @@ from sqlalchemy import Connection
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.containers import Container
-from src.database import aget_supabase_session, get_boto3_session, get_snowflake_session
+from src.database import aget_supabase_session, get_snowflake_session
 from src.exceptions import BadRequestException
 from src.simulation.application.service import SimulationService
 from src.simulation.interface.schema import (
@@ -14,12 +14,12 @@ from src.simulation.interface.schema import (
     FacilityConnBody,
     FlightScheduleBody,
     PassengerScheduleBody,
+    RunSimulationBody,
     ScenarioDeactivateBody,
     ScenarioMetadataBody,
     ScenarioUpdateBody,
     SetOpeningHoursBody,
     SimulationScenarioBody,
-    RunSimulationBody,
 )
 
 simulation_router = APIRouter(prefix="/simulations")

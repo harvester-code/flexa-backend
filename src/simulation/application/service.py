@@ -45,10 +45,7 @@ class SimulationService:
     # TODO: 그래프 만드는 코드들이 서로 비슷한데 합칠수는 없을까?
 
     @inject
-    def __init__(
-        self,
-        simulation_repo: ISimulationRepository,
-    ):
+    def __init__(self, simulation_repo: SimulationRepository):
         self.simulation_repo = simulation_repo
         self.timestamp = TimeStamp()
 
@@ -1109,9 +1106,8 @@ class SimulationService:
             df_expanded["Time"] - df_expanded["start_int"], unit="m"
         )
 
-        df_expanded = df_expanded[
-            df_expanded["Time"].isin(time_range)
-        ]  # 하루를 넘어가거나, 하루 이전의 값을 사전 제거
+        # 하루를 넘어가거나, 하루 이전의 값을 사전 제거
+        df_expanded = df_expanded[df_expanded["Time"].isin(time_range)]
 
         # df_grouped 만들기
         df_grouped = (
