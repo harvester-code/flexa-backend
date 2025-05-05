@@ -1,9 +1,10 @@
 import boto3
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, status
+
 from src.containers import Container
-from src.home.application.service import HomeService
 from src.database import get_boto3_session
+from src.home.application.service import HomeService
 from src.response import SuccessResponse
 
 home_router = APIRouter(prefix="/homes")
