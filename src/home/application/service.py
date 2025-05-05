@@ -25,7 +25,7 @@ class HomeService:
     ):
         pax_df = await self.home_repo.download_from_s3(session, scenario_id)
         calculator = HomeCalculator(pax_df)
-        return calculator.get_line_queue()
+        return calculator.get_terminal_overview_line_queue()
 
     async def fetch_summary(
         self,
