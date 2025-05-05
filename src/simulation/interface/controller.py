@@ -1,6 +1,7 @@
-import boto3
+from operator import itemgetter
+
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, status
 from sqlalchemy import Connection
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -412,26 +413,24 @@ async def generate_simulation_overview(
 
 
 @simulation_router.post(
-    "/run-simulation/temp",
-    status_code=200,
-    summary="시뮬레이션 실행하는 엔드포인트",
+    "/request-simulation/scenario-id/{scenario_id}", status_code=status.HTTP_200_OK
 )
 @inject
-async def run_simulation(
-    run_simulation: RunSimulationBody,
-    simulation_service: SimulationService = Depends(
-        Provide[Container.simulation_service]
-    ),
-    db: Connection = Depends(get_snowflake_session),
-    session: boto3.Session = Depends(get_boto3_session),
+async def request_simulation(
+    scenario_id: str,
+    payload: RunSimulationBody,
+    background_tasks: BackgroundTasks,
+    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
 ):
 
-    return await simulation_service.run_simulation(
-        db,
-        session,
-        run_simulation.scenario_id,
-        run_simulation.flight_schedule,
-        run_simulation.destribution_conditions,
-        run_simulation.processes,
-        run_simulation.components,
+    components, processes, flight_schedule = itemgetter(
+        "components", "processes", "flight_schedule"
+    )(payload.model_dump())
+
+    return await sim_service.execute_simulation_by_scenario(
+        schedule_date=flight_schedule.get("date"),
+        scenario_id=scenario_id,
+        components=components,
+        processes=processes,
+        background_tasks=background_tasks,
     )
