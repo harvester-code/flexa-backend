@@ -1,40 +1,27 @@
-ARG FUNCTION_DIR="/function"
+FROM ghcr.io/astral-sh/uv:0.7.2 AS uv
 
-FROM python:3.11-bookworm AS builder
+FROM public.ecr.aws/lambda/python:3.13 AS builder
 
-ARG FUNCTION_DIR
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_NO_INSTALLER_METADATA=1 \
+    UV_LINK_MODE=copy
 
-ENV POETRY_NO_INTERACTION=1 \
-    POETRY_VIRTUALENVS_IN_PROJECT=1 \
-    POETRY_VIRTUALENVS_CREATE=1 \
-    POETRY_CACHE_DIR=/tmp/poetry_cache
+RUN --mount=from=uv,source=/uv,target=/bin/uv \
+    --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv export --frozen --no-emit-workspace --no-dev --no-editable -o requirements.txt && \
+    uv pip install -r requirements.txt --target "${LAMBDA_TASK_ROOT}"
 
-RUN pip install poetry==1.8.5
+FROM public.ecr.aws/lambda/python:3.13
 
-WORKDIR ${FUNCTION_DIR}
+RUN dnf swap -y curl-minimal curl-full && \
+    dnf swap -y gnupg2-minimal gnupg2-full && \
+    curl -Ls --tlsv1.2 --proto "=https" --retry 3 https://cli.doppler.com/install.sh | sh
 
-COPY pyproject.toml poetry.lock ./
+COPY --from=builder ${LAMBDA_TASK_ROOT} ${LAMBDA_TASK_ROOT}
 
-RUN --mount=type=cache,target=$POETRY_CACHE_DIR poetry install --no-root
+COPY ./src ${LAMBDA_TASK_ROOT}/app
 
-FROM python:3.11-slim-bookworm AS runtime
-
-ARG FUNCTION_DIR
-
-ENV PYTHON_VENV=${FUNCTION_DIR}/.venv \
-    PATH="${FUNCTION_DIR}/.venv/bin:$PATH"
-
-RUN apt-get update && apt-get install -y apt-transport-https ca-certificates curl gnupg && \
-    curl -sLf --retry 3 --tlsv1.2 --proto "=https" 'https://packages.doppler.com/public/cli/gpg.DE2A7741A397C129.key' | gpg --dearmor -o /usr/share/keyrings/doppler-archive-keyring.gpg && \
-    echo "deb [signed-by=/usr/share/keyrings/doppler-archive-keyring.gpg] https://packages.doppler.com/public/cli/deb/debian any-version main" | tee /etc/apt/sources.list.d/doppler-cli.list && \
-    apt-get update && \
-    apt-get -y install doppler
-
-WORKDIR ${FUNCTION_DIR}
-
-COPY --from=builder ${PYTHON_VENV} ${PYTHON_VENV}
-
-COPY . .
-
-ENTRYPOINT [ "doppler", "run", "--", "python", "-m", "awslambdaric" ]
-CMD [ "src.main.handler" ]
+ENTRYPOINT [ "doppler", "run", "--" ]
+CMD [ "app.main.handler" ]
