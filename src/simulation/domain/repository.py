@@ -60,13 +60,5 @@ class ISimulationRepository(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def upload_to_s3(self):
-        raise NotImplementedError
-
-    @abstractmethod
-    def download_from_s3(self):
-        raise NotImplementedError
-
-    @abstractmethod
     def fetch_processing_procedures(self):
         raise NotImplementedError

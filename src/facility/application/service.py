@@ -688,10 +688,3 @@ class FacilityService:
             chart_result[group_name] = group_result
 
         return chart_result
-
-    # ============================================================
-    async def test(self, session: boto3.Session, process):
-
-        data = pd.read_parquet("samples/sim_pax.parquet")
-
-        await self.create_pie_chart(data, process)

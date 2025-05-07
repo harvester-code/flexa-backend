@@ -11,10 +11,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from supabase._async.client import AsyncClient, create_client
 
+
 # ============================================================
-S3_SAVE_PATH = "s3://flexa-dev-ap-northeast-2-data-storage/simulations"
-
-
 def get_boto3_session() -> boto3.Session:
     return boto3.Session(region_name="ap-northeast-2")
 

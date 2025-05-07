@@ -1,6 +1,6 @@
 import boto3
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, status
 
 from src.containers import Container
 from src.database import get_boto3_session
@@ -17,24 +17,6 @@ status 코드 정리
 204: 요청이 성공적으로 처리되었지만, 응답 본문이 필요 없을 경우
 400: 요청이 올바르지 않을 경우
 """
-
-
-# @facility_router.get(
-#     "/sample",
-#     summary="샘플코드",
-# )
-# @inject
-# async def fetch_scenario(
-#     # process: str,
-#     facility_service: FacilityService = Depends(Provide[Container.facility_service]),
-#     db: AsyncSession = Depends(aget_supabase_session),
-#     session: boto3.Session = Depends(get_boto3_session),
-# ):
-
-#     # await facility_service.test(session=session, process=process)
-#     data = await facility_service.fetch_process_list(session=session)
-
-#     return "테스트 성공"
 
 
 @facility_router.get(
