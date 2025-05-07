@@ -92,11 +92,13 @@ class HomeCalculator:
                 {"title": "Queue Length", "value": queue_length},
                 {
                     "title": "Facility Utilization",
-                    "value": f"{facility_utilization:.1f}%",
+                    "value": int(round(facility_utilization)),
+                    "unit": "%",
                 },
             ],
         }
-        return self._format_json_numbers(data)
+        # return self._format_json_numbers(data)
+        return data
 
     def get_alert_issues(self, top_n=8, time_interval="30min"):
         """대기 시간 알림 데이터 생성 메인 함수"""
@@ -132,7 +134,8 @@ class HomeCalculator:
                 self._create_alert_data_entry(row) for _, row in process_data.iterrows()
             ]
 
-        return self._format_json_numbers(alert_json)
+        # return self._format_json_numbers(alert_json)
+        return alert_json
 
     def get_facility_details(self):
         """시설별 세부 데이터를 계산하고 반환"""
@@ -151,7 +154,8 @@ class HomeCalculator:
             category_obj = {"category": process, "overview": overview, "components": []}
             self._add_facility_components(process_df, process, category_obj)
             result.append(category_obj)
-        return self._format_json_numbers(result)
+        # return self._format_json_numbers(result)
+        return result
 
     def get_flow_chart_data(self):
         """시간별 대기열 및 대기 시간 데이터 생성"""
@@ -209,7 +213,8 @@ class HomeCalculator:
             }
             result[process] = process_data
 
-        return self._format_json_numbers(result)
+        # return self._format_json_numbers(result)
+        return result
 
     def get_histogram_data(self):
         """시설별 통계 데이터 생성"""
@@ -220,8 +225,11 @@ class HomeCalculator:
                 "queue_length": self._calculate_queue_length_distribution(process),
             }
         all_facility_data = self._calculate_average_distribution([result])
+        # value가 혹시 float으로 남아있을 경우 int로 변환
+        for key in ["waiting_time", "queue_length"]:
+            for item in all_facility_data[key]:
+                item["value"] = int(item["value"])
         result["all_facilities"] = all_facility_data
-
         return result
 
     def get_sankey_diagram_data(self):
@@ -336,20 +344,8 @@ class HomeCalculator:
             }
         )
 
-    # def _format_waiting_time(self, timedelta):
-    #     """대기 시간을 MM:SS 형식의 문자열로 변환"""
-    #     return f"{int(timedelta.total_seconds() // 60):02d}:{int(timedelta.total_seconds() % 60):02d}"
-
-    # def _format_waiting_time(self, timedelta):
-    #     """대기 시간을 HH:MM:SS 형식의 문자열로 변환"""
-    #     total_seconds = int(timedelta.total_seconds())
-    #     hours = total_seconds // 3600
-    #     minutes = (total_seconds % 3600) // 60
-    #     seconds = total_seconds % 60
-    #     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-
     def _format_waiting_time(self, time_value):
-        """대기 시간을 동적으로 포맷팅"""
+        """대기 시간을 hour, minute, second로 분리하여 딕셔너리로 반환"""
         try:
             # timedelta 객체인 경우
             total_seconds = int(time_value.total_seconds())
@@ -359,26 +355,14 @@ class HomeCalculator:
         hours = total_seconds // 3600
         minutes = (total_seconds % 3600) // 60
         seconds = total_seconds % 60
-
-        # 각 단위별 문자열 생성
-        time_parts = []
-
-        if hours > 0:
-            time_parts.append(f"{hours:02d}h")
-
-        if hours > 0 or minutes > 0:
-            time_parts.append(f"{minutes:02d}m")
-
-        time_parts.append(f"{seconds:02d}s")
-
-        return " ".join(time_parts)
+        return {"hour": hours, "minute": minutes, "second": seconds}
 
     def _create_alert_data_entry(self, row):
         """각 행을 알림 데이터 형식으로 변환"""
         return {
             "time": row["datetime"].strftime("%H:%M:%S"),
             "waiting_time": row["waiting_time"],
-            "queue_length": f"{int(row['queue_length']):,}",
+            "queue_length": row["queue_length"],
             "node": row["process_name"],
         }
 
@@ -482,9 +466,10 @@ class HomeCalculator:
         time_groups = pd.cut(
             waiting_time_minutes, bins=bins, labels=labels, right=False
         )
-        percentages = (time_groups.value_counts(normalize=True) * 100).round(1)
+        percentages = (time_groups.value_counts(normalize=True) * 100).round(0)
         return [
-            {"title": label, "value": f"{percentages[label]:.0f}%"} for label in labels
+            {"title": label, "value": int(percentages[label]), "unit": "%"}
+            for label in labels
         ]
 
     def _calculate_queue_length_distribution(self, process):
@@ -495,10 +480,11 @@ class HomeCalculator:
             self.pax_df[f"{process}_que"], bins=bins, labels=labels, right=False
         )
         percentages = (
-            (queue_groups.value_counts(normalize=True) * 100).round(1).sort_index()
+            (queue_groups.value_counts(normalize=True) * 100).round(0).sort_index()
         )
         return [
-            {"title": label, "value": f"{percentages[label]:.0f}%"} for label in labels
+            {"title": label, "value": int(percentages[label]), "unit": "%"}
+            for label in labels
         ]
 
     def _calculate_average_distribution(self, histogram_data):
@@ -509,18 +495,26 @@ class HomeCalculator:
             # facility의 첫 번째 (유일한) 키-값 쌍을 가져옴
             process_data = list(facility.values())[0]
             for wt in process_data["waiting_time"]:
-                value = float(wt["value"].replace("%", ""))
+                value = float(wt["value"])
                 all_waiting_time.setdefault(wt["title"], []).append(value)
             for ql in process_data["queue_length"]:
-                value = float(ql["value"].replace("%", ""))
+                value = float(ql["value"])
                 all_queue_length.setdefault(ql["title"], []).append(value)
 
         avg_waiting_time = [
-            {"title": title, "value": f"{sum(values)/len(values):.0f}%"}
+            {
+                "title": title,
+                "value": int(round(sum(values) / len(values))),
+                "unit": "%",
+            }
             for title, values in all_waiting_time.items()
         ]
         avg_queue_length = [
-            {"title": title, "value": f"{sum(values)/len(values):.0f}%"}
+            {
+                "title": title,
+                "value": int(round(sum(values) / len(values))),
+                "unit": "%",
+            }
             for title, values in all_queue_length.items()
         ]
         return {"waiting_time": avg_waiting_time, "queue_length": avg_queue_length}
