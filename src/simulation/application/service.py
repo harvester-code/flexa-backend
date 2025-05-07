@@ -238,10 +238,6 @@ class SimulationService:
             flight_schedule_data = pd.read_parquet(
                 path=f"s3://flexa-dev-ap-northeast-2-data-storage/simulations/flight-schedule-data/{scenario_id}.parquet",
                 engine="pyarrow",
-                storage_options={
-                    "key": os.getenv("AWS_ACCESS_KEY"),
-                    "secret": os.getenv("AWS_SECRET_ACCESS_KEY"),
-                },
             )
             return flight_schedule_data.to_dict(orient="records")
 
@@ -316,10 +312,6 @@ class SimulationService:
         showup_passenger_df = pd.read_parquet(
             path=f"s3://flexa-dev-ap-northeast-2-data-storage/simulations/show-up-passenger-data/{scenario_id}.parquet",
             engine="pyarrow",
-            storage_options={
-                "key": os.getenv("AWS_ACCESS_KEY"),
-                "secret": os.getenv("AWS_SECRET_ACCESS_KEY"),
-            },
         )
         # TODO: fetch_flight_schedule_data와 같이 반환 타입 맞추기
         return showup_passenger_df
@@ -421,10 +413,6 @@ class SimulationService:
         flight_schedule_df.to_parquet(
             path=f"s3://flexa-dev-ap-northeast-2-data-storage/simulations/flight-schedule-data/{scenario_id}.parquet",
             engine="pyarrow",
-            storage_options={
-                "key": os.getenv("AWS_ACCESS_KEY"),
-                "secret": os.getenv("AWS_SECRET_ACCESS_KEY"),
-            },
         )
 
         # ==============================================================
@@ -646,10 +634,6 @@ class SimulationService:
         pax_df.to_parquet(
             path=f"s3://flexa-dev-ap-northeast-2-data-storage/simulations/show-up-passenger-data/{scenario_id}.parquet",
             engine="pyarrow",
-            storage_options={
-                "key": os.getenv("AWS_ACCESS_KEY"),
-                "secret": os.getenv("AWS_SECRET_ACCESS_KEY"),
-            },
         )
 
         # ==============================================================
@@ -1599,7 +1583,10 @@ class SimulationService:
         object_key = f"simulations/facility-information-data/{scenario_id}.json"
 
         # TODO: SQS처럼 infra폴더에 별도로 모듈화
-        s3 = boto3.client("s3")
+        s3 = boto3.client(
+            "s3",
+            region_name="ap-northeast-2",
+        )
         s3.put_object(
             ContentType="application/json",
             Bucket=bucket_name,
