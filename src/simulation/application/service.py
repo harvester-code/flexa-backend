@@ -237,9 +237,9 @@ class SimulationService:
             if not object_exists:
                 return flight_schedule_data
 
-            flight_schedule_data = pd.read_parquet(
+            flight_schedule_data = wr.s3.read_parquet(
                 path=f"s3://flexa-dev-ap-northeast-2-data-storage/simulations/flight-schedule-data/{scenario_id}.parquet",
-                engine="pyarrow",
+                boto3_session=boto3.Session(region_name="ap-northeast-2"),
             )
             return flight_schedule_data.to_dict(orient="records")
 
@@ -311,11 +311,11 @@ class SimulationService:
         if not object_exists:
             return showup_passenger_df
 
-        showup_passenger_df = pd.read_parquet(
-            path=f"s3://flexa-dev-ap-northeast-2-data-storage/simulations/show-up-passenger-data/{scenario_id}.parquet",
-            engine="pyarrow",
-        )
         # TODO: fetch_flight_schedule_data와 같이 반환 타입 맞추기
+        showup_passenger_df = wr.s3.read_parquet(
+            path=f"s3://flexa-dev-ap-northeast-2-data-storage/simulations/show-up-passenger-data/{scenario_id}.parquet",
+            boto3_session=boto3.Session(region_name="ap-northeast-2"),
+        )
         return showup_passenger_df
 
     async def update_simulation_scenario_target_date(
