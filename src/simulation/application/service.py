@@ -7,6 +7,7 @@ import boto3
 import numpy as np
 import pandas as pd
 import pendulum
+from botocore.config import Config
 from dependency_injector.wiring import inject
 from fastapi import BackgroundTasks
 from sqlalchemy import Connection, text
@@ -409,10 +410,13 @@ class SimulationService:
 
         # ==============================================================
         # NOTE: S3에 데이터 저장
+        storage_options = {"client_kwargs": {"region_name": "ap-northeast-2"}}
+
         flight_schedule_df = pd.DataFrame(flight_schedule_data)
         flight_schedule_df.to_parquet(
             path=f"s3://flexa-dev-ap-northeast-2-data-storage/simulations/flight-schedule-data/{scenario_id}.parquet",
             engine="pyarrow",
+            storage_options=storage_options,
         )
 
         # ==============================================================
@@ -631,9 +635,12 @@ class SimulationService:
             flight_schedule_data, destribution_conditions
         )
         # NOTE: S3에 데이터 저장
+        storage_options = {"client_kwargs": {"region_name": "ap-northeast-2"}}
+
         pax_df.to_parquet(
             path=f"s3://flexa-dev-ap-northeast-2-data-storage/simulations/show-up-passenger-data/{scenario_id}.parquet",
             engine="pyarrow",
+            storage_options=storage_options,
         )
 
         # ==============================================================
@@ -1583,10 +1590,7 @@ class SimulationService:
         object_key = f"simulations/facility-information-data/{scenario_id}.json"
 
         # TODO: SQS처럼 infra폴더에 별도로 모듈화
-        s3 = boto3.client(
-            "s3",
-            region_name="ap-northeast-2",
-        )
+        s3 = boto3.client("s3", config=Config({"region_name": "ap-northeast-2"}))
         s3.put_object(
             ContentType="application/json",
             Bucket=bucket_name,
