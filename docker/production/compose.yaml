@@ -1,8 +1,0 @@
-services:
-  flexa-waitfree-api-prod:
-    image: 531915313382.dkr.ecr.ap-northeast-2.amazonaws.com/coop/flexa-waitfree-api:release-1.0.0
-    container_name: flexa-waitfree-api-prod
-    env_file:
-      - ../../.env.production
-    ports:
-      - 8888:8000

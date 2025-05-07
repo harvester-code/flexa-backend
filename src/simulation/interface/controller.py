@@ -1,11 +1,12 @@
-import boto3
+from operator import itemgetter
+
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, status
 from sqlalchemy import Connection
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.containers import Container
-from src.database import aget_supabase_session, get_boto3_session, get_snowflake_session
+from src.database import aget_supabase_session, get_snowflake_session
 from src.exceptions import BadRequestException
 from src.simulation.application.service import SimulationService
 from src.simulation.interface.schema import (
@@ -13,12 +14,12 @@ from src.simulation.interface.schema import (
     FacilityConnBody,
     FlightScheduleBody,
     PassengerScheduleBody,
+    RunSimulationBody,
     ScenarioDeactivateBody,
     ScenarioMetadataBody,
     ScenarioUpdateBody,
     SetOpeningHoursBody,
     SimulationScenarioBody,
-    RunSimulationBody,
 )
 
 simulation_router = APIRouter(prefix="/simulations")
@@ -47,16 +48,14 @@ async def fetch_scenario(
     request: Request,
     group_id: str,
     page: int,
-    simulation_service: SimulationService = Depends(
-        Provide[Container.simulation_service]
-    ),
+    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
 
     if not group_id:
         raise BadRequestException("Group ID is required")
 
-    return await simulation_service.fetch_simulation_scenario(
+    return await sim_service.fetch_simulation_scenario(
         db=db,
         user_id=request.state.user_id,
         group_id=group_id,
@@ -74,15 +73,13 @@ async def fetch_scenario(
 @inject
 async def fetch_simulation_location(
     group_id: str,
-    simulation_service: SimulationService = Depends(
-        Provide[Container.simulation_service]
-    ),
+    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
     if not group_id:
         raise BadRequestException("Group ID is required")
 
-    return await simulation_service.fetch_simulation_location(db=db, group_id=group_id)
+    return await sim_service.fetch_simulation_location(db=db, group_id=group_id)
 
 
 @simulation_router.post(
@@ -95,13 +92,11 @@ async def fetch_simulation_location(
 async def create_scenario(
     scenario: SimulationScenarioBody,
     request: Request,
-    simulation_service: SimulationService = Depends(
-        Provide[Container.simulation_service]
-    ),
+    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
 
-    return await simulation_service.create_simulation_scenario(
+    return await sim_service.create_simulation_scenario(
         db=db,
         user_id=request.state.user_id,
         name=scenario.simulation_name,
@@ -122,15 +117,13 @@ async def create_scenario(
 async def update_scenario(
     scenario_id: str,
     scenario: ScenarioUpdateBody,
-    simulation_service: SimulationService = Depends(
-        Provide[Container.simulation_service]
-    ),
+    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
     if not scenario_id:
         raise BadRequestException("Scenario ID is required")
 
-    await simulation_service.update_simulation_scenario(
+    await sim_service.update_simulation_scenario(
         db=db,
         id=scenario_id,
         name=scenario.simulation_name,
@@ -147,16 +140,11 @@ async def update_scenario(
 @inject
 async def deactivate_scenario(
     scenario_ids: ScenarioDeactivateBody,
-    simulation_service: SimulationService = Depends(
-        Provide[Container.simulation_service]
-    ),
+    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
 
-    await simulation_service.deactivate_simulation_scenario(
-        db=db,
-        ids=scenario_ids,
-    )
+    await sim_service.deactivate_simulation_scenario(db=db, ids=scenario_ids)
 
 
 @simulation_router.post(
@@ -170,15 +158,13 @@ async def duplicate_scenario(
     request: Request,
     scenario_id: str,
     scenario: DuplicateScenarioBody,
-    simulation_service: SimulationService = Depends(
-        Provide[Container.simulation_service]
-    ),
+    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
     if not scenario_id:
         raise BadRequestException("Scenario ID is required")
 
-    await simulation_service.duplicate_simulation_scenario(
+    await sim_service.duplicate_simulation_scenario(
         db=db,
         user_id=request.state.user_id,
         old_scenario_id=scenario_id,
@@ -196,16 +182,14 @@ async def duplicate_scenario(
 async def update_master_scenario(
     group_id: str,
     scenario_id: str,
-    simulation_service: SimulationService = Depends(
-        Provide[Container.simulation_service]
-    ),
+    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
 
     if not group_id or not scenario_id:
         raise BadRequestException("Group ID and Scenario ID is required")
 
-    return await simulation_service.update_master_scenario(
+    return await sim_service.update_master_scenario(
         db=db, group_id=group_id, scenario_id=scenario_id
     )
 
@@ -223,18 +207,14 @@ async def update_master_scenario(
 @inject
 async def fetch_scenario_metadata(
     scenario_id: str,
-    simulation_service: SimulationService = Depends(
-        Provide[Container.simulation_service]
-    ),
+    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
 
     if not scenario_id:
         raise BadRequestException("Scenario ID is required")
 
-    return await simulation_service.fetch_scenario_metadata(
-        db=db, scenario_id=scenario_id
-    )
+    return await sim_service.fetch_scenario_metadata(db=db, scenario_id=scenario_id)
 
 
 @simulation_router.put(
@@ -247,15 +227,13 @@ async def fetch_scenario_metadata(
 async def update_scenario_metadata(
     scenario_id: str,
     metadata: ScenarioMetadataBody,
-    simulation_service: SimulationService = Depends(
-        Provide[Container.simulation_service]
-    ),
+    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
     if not scenario_id:
         raise BadRequestException("Scenario ID is required")
 
-    return await simulation_service.update_scenario_metadata(
+    return await sim_service.update_scenario_metadata(
         db,
         scenario_id,
         metadata.overview,
@@ -280,9 +258,7 @@ async def update_scenario_metadata(
 async def fetch_flight_schedule(
     scenario_id: str,
     flight_schedule: FlightScheduleBody,
-    simulation_service: SimulationService = Depends(
-        Provide[Container.simulation_service]
-    ),
+    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     snowflake_db: Connection = Depends(get_snowflake_session),
     supabase_db: AsyncSession = Depends(aget_supabase_session),
 ):
@@ -290,14 +266,15 @@ async def fetch_flight_schedule(
     if not scenario_id:
         raise BadRequestException("Scenario ID is required")
 
-    flight_sch = await simulation_service.generate_flight_schedule(
+    flight_sch = await sim_service.generate_flight_schedule(
         snowflake_db,
         flight_schedule.date,
         flight_schedule.airport,
         flight_schedule.condition,
+        scenario_id=scenario_id,
     )
 
-    await simulation_service.update_simulation_scenario_target_date(
+    await sim_service.update_simulation_scenario_target_date(
         supabase_db, scenario_id, flight_schedule.date
     )
 
@@ -305,24 +282,23 @@ async def fetch_flight_schedule(
 
 
 @simulation_router.post(
-    "/passenger-schedules",
+    "/passenger-schedules/scenario-id/{scenario_id}",
     status_code=status.HTTP_200_OK,
     summary="06_SI_009",
     description="06_SI_009에서 Apply 버튼을 눌렀을 때 실행되는 엔드포인트",
 )
 @inject
 async def generate_passenger_schedule(
+    scenario_id: str,
     passenger_schedule: PassengerScheduleBody,
-    simulation_service: SimulationService = Depends(
-        Provide[Container.simulation_service]
-    ),
+    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     db: Connection = Depends(get_snowflake_session),
 ):
-
-    return await simulation_service.generate_passenger_schedule(
-        db,
-        passenger_schedule.flight_schedule,
-        passenger_schedule.destribution_conditions,
+    return await sim_service.generate_passenger_schedule(
+        db=db,
+        flight_sch=passenger_schedule.flight_schedule,
+        destribution_conditions=passenger_schedule.destribution_conditions,
+        scenario_id=scenario_id,
     )
 
 
@@ -334,35 +310,29 @@ async def generate_passenger_schedule(
 )
 @inject
 async def fetch_processing_procedures(
-    simulation_service: SimulationService = Depends(
-        Provide[Container.simulation_service]
-    ),
+    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     db: Connection = Depends(get_snowflake_session),
 ):
 
-    return await simulation_service.fetch_processing_procedures()
+    return await sim_service.fetch_processing_procedures()
 
 
 @simulation_router.post(
-    "/facility-conns",
+    "/facility-conns/scenario-id/{scenario_id}",
     status_code=status.HTTP_200_OK,
     summary="06_SI_013",
     description="06_SI_013에서 최종 Apply 버튼을 눌렀을 때 facility info에서 사용할 바차트 데이터가 나오는 엔드포인트",
 )
 @inject
 async def generate_facility_conn(
+    scenario_id: str,
     facility_conn: FacilityConnBody,
-    simulation_service: SimulationService = Depends(
-        Provide[Container.simulation_service]
-    ),
+    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     db: Connection = Depends(get_snowflake_session),
 ):
 
-    return await simulation_service.generate_facility_conn(
-        db,
-        facility_conn.flight_schedule,
-        facility_conn.destribution_conditions,
-        facility_conn.processes,
+    return await sim_service.generate_facility_conn(
+        facility_conn.processes, scenario_id
     )
 
 
@@ -375,61 +345,55 @@ async def generate_facility_conn(
 @inject
 async def generate_set_opening_hours(
     facility_info: SetOpeningHoursBody,
-    simulation_service: SimulationService = Depends(
-        Provide[Container.simulation_service]
-    ),
+    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
 ):
 
-    return await simulation_service.generate_set_opening_hours(
-        facility_info=facility_info
-    )
+    return await sim_service.generate_set_opening_hours(facility_info=facility_info)
 
 
 @simulation_router.post(
-    "/run-simulation/overview",
+    "/run-simulation/overview/scenario-id/{scenario_id}",
     status_code=status.HTTP_200_OK,
     summary="06_SI_018",
     description="06_SI_018로 들어올때 overview 화면에서 필요한 데이터를 응답하는 엔드포인트",
 )
 @inject
 async def generate_simulation_overview(
+    scenario_id: str,
     run_simulation: RunSimulationBody,
-    simulation_service: SimulationService = Depends(
-        Provide[Container.simulation_service]
-    ),
+    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     db: Connection = Depends(get_snowflake_session),
 ):
 
-    return await simulation_service.generate_simulation_overview(
+    return await sim_service.generate_simulation_overview(
         db,
         run_simulation.flight_schedule,
         run_simulation.destribution_conditions,
         run_simulation.processes,
         run_simulation.components,
+        scenario_id=scenario_id,
     )
 
 
 @simulation_router.post(
-    "/run-simulation/temp",
-    status_code=200,
-    summary="시뮬레이션 실행하는 엔드포인트",
+    "/request-simulation/scenario-id/{scenario_id}", status_code=status.HTTP_200_OK
 )
 @inject
-async def run_simulation(
-    run_simulation: RunSimulationBody,
-    simulation_service: SimulationService = Depends(
-        Provide[Container.simulation_service]
-    ),
-    db: Connection = Depends(get_snowflake_session),
-    session: boto3.Session = Depends(get_boto3_session),
+async def request_simulation(
+    scenario_id: str,
+    payload: RunSimulationBody,
+    background_tasks: BackgroundTasks,
+    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
 ):
 
-    return await simulation_service.run_simulation(
-        db,
-        session,
-        run_simulation.scenario_id,
-        run_simulation.flight_schedule,
-        run_simulation.destribution_conditions,
-        run_simulation.processes,
-        run_simulation.components,
+    components, processes, flight_schedule = itemgetter(
+        "components", "processes", "flight_schedule"
+    )(payload.model_dump())
+
+    return await sim_service.execute_simulation_by_scenario(
+        schedule_date=flight_schedule.get("date"),
+        scenario_id=scenario_id,
+        components=components,
+        processes=processes,
+        background_tasks=background_tasks,
     )

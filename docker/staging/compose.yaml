@@ -1,8 +1,0 @@
-services:
-  flexa-waitfree-api-stag:
-    image: 531915313382.dkr.ecr.ap-northeast-2.amazonaws.com/coop/flexa-waitfree-api:v1.0.0-rc.1
-    container_name: flexa-waitfree-api-stag
-    env_file:
-      - ../../.env.staging
-    ports:
-      - 8080:8000

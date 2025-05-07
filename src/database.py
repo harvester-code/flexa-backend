@@ -2,7 +2,6 @@ import os
 from typing import AsyncGenerator
 
 import boto3
-from boto3 import client
 from fastapi import HTTPException, status
 from snowflake.sqlalchemy import URL
 from sqlalchemy import create_engine
@@ -14,16 +13,6 @@ from supabase._async.client import AsyncClient, create_client
 
 # ============================================================
 S3_SAVE_PATH = "s3://flexa-dev-ap-northeast-2-data-storage/simulations"
-
-
-def get_s3_client():
-    s3_client = client(
-        "s3",
-        aws_access_key_id=os.getenv("AWS_ACCESS_KEY"),
-        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-        region_name="ap-northeast-2",
-    )
-    return s3_client
 
 
 def get_boto3_session() -> boto3.Session:

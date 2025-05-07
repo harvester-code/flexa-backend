@@ -1,5 +1,5 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 
 class HomeCalculator:
@@ -16,7 +16,7 @@ class HomeCalculator:
         self.process_list = self._get_process_list()
 
     # ===== 메인 함수들 =====
-    def get_line_queue(self):
+    def get_terminal_overview_line_queue(self):
         """시간별 시설 대기열 데이터를 maps.json 형식으로 변환
 
         Returns:
@@ -55,7 +55,8 @@ class HomeCalculator:
         total_pax = len(self.pax_df)
         throughput = int(self.pax_df[f"{self.process_list[-1]}_pt_pred"].notna().sum())
         waiting_time = self._calculate_kpi_values(method="waiting_time")
-        waiting_time = f"{waiting_time // 60:02d}:{waiting_time % 60:02d}"
+        waiting_time = self._format_waiting_time(waiting_time)
+        # waiting_time = f"{waiting_time // 60:02d}:{waiting_time % 60:02d}"
         queue_length = self._calculate_kpi_values(method="queue_length")
         facility_utilizations = []
         for process in self.process_list:
@@ -264,21 +265,20 @@ class HomeCalculator:
         ]
 
     def _format_seconds_to_time(self, seconds):
-        """초 단위 값을 HH:MM:SS 형식으로 변환"""
+        """초 단위 값을 'XXh YYm ZZs' 형식으로 변환"""
         if pd.isna(seconds):
-            return "00:00:00"
-        hours, remainder = divmod(int(seconds), 3600)
-        minutes, seconds = divmod(remainder, 60)
-        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+            return "0s"
+        return self._format_waiting_time(seconds)
 
     def _format_timedelta(self, td):
-        """Timedelta를 HH:MM:SS 형식으로 변환"""
+        """Timedelta를 'XXh YYm ZZs' 형식으로 변환"""
         if pd.isna(td):
-            return "00:00:00"
+            return "0s"
         try:
-            return str(td).split()[-1].split(".")[0]
+            total_seconds = int(td.total_seconds())
+            return self._format_waiting_time(total_seconds)
         except:
-            return "00:00:00"
+            return "0s"
 
     def _calculate_waiting_time(self, process_df, process):
         """대기 시간 계산 (Timedelta 반환)"""
@@ -340,13 +340,38 @@ class HomeCalculator:
     #     """대기 시간을 MM:SS 형식의 문자열로 변환"""
     #     return f"{int(timedelta.total_seconds() // 60):02d}:{int(timedelta.total_seconds() % 60):02d}"
 
-    def _format_waiting_time(self, timedelta):
-        """대기 시간을 HH:MM:SS 형식의 문자열로 변환"""
-        total_seconds = int(timedelta.total_seconds())
+    # def _format_waiting_time(self, timedelta):
+    #     """대기 시간을 HH:MM:SS 형식의 문자열로 변환"""
+    #     total_seconds = int(timedelta.total_seconds())
+    #     hours = total_seconds // 3600
+    #     minutes = (total_seconds % 3600) // 60
+    #     seconds = total_seconds % 60
+    #     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+    def _format_waiting_time(self, time_value):
+        """대기 시간을 동적으로 포맷팅"""
+        try:
+            # timedelta 객체인 경우
+            total_seconds = int(time_value.total_seconds())
+        except AttributeError:
+            # 정수(초)인 경우
+            total_seconds = int(time_value)
         hours = total_seconds // 3600
         minutes = (total_seconds % 3600) // 60
         seconds = total_seconds % 60
-        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+        # 각 단위별 문자열 생성
+        time_parts = []
+
+        if hours > 0:
+            time_parts.append(f"{hours:02d}h")
+
+        if hours > 0 or minutes > 0:
+            time_parts.append(f"{minutes:02d}m")
+
+        time_parts.append(f"{seconds:02d}s")
+
+        return " ".join(time_parts)
 
     def _create_alert_data_entry(self, row):
         """각 행을 알림 데이터 형식으로 변환"""
@@ -384,11 +409,20 @@ class HomeCalculator:
 
     def _add_facility_components(self, df, process, category_obj):
         """시설별 컴포넌트를 계산하고 category_obj에 추가"""
-        facilities = df[f"{process}_pred"].unique()
+        facilities = sorted(df[f"{process}_pred"].unique())
         for facility in facilities:
             facility_df = df[df[f"{process}_pred"] == facility]
             waiting_time = self._calculate_waiting_time(facility_df, process)
             opened_count = facility_df[f"{process}_facility_number"].nunique()
+
+            # 퍼센타일 또는 평균 계산을 위한 헬퍼 함수
+            def get_stat(series):
+                if series.empty:
+                    return 0
+                if self.percentile is not None:
+                    return series.quantile(1 - self.percentile / 100)
+                return series.mean()
+
             component = {
                 "title": facility,
                 "opened": (
@@ -402,21 +436,11 @@ class HomeCalculator:
                     and pd.notna(facility_df[f"{process}_que"].fillna(0).max())
                     else 0
                 ),
-                "queueLength": int(
-                    facility_df[f"{process}_que"].quantile(0.95)
-                    if not facility_df[f"{process}_que"].empty
-                    else 0
-                ),
+                "queueLength": int(get_stat(facility_df[f"{process}_que"])),
                 "procTime": self._format_seconds_to_time(
-                    facility_df[f"{process}_pt"].quantile(0.95)
-                    if not facility_df[f"{process}_pt"].empty
-                    else 0
+                    get_stat(facility_df[f"{process}_pt"])
                 ),
-                "waitTime": self._format_timedelta(
-                    waiting_time.quantile(0.95)
-                    if not waiting_time.empty
-                    else pd.Timedelta(0)
-                ),
+                "waitTime": self._format_timedelta(get_stat(waiting_time)),
             }
             category_obj["components"].append(component)
 

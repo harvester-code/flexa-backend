@@ -2,7 +2,7 @@ import boto3
 from dependency_injector.wiring import inject
 
 from src.home.application.core.calculator import HomeCalculator
-from src.home.domain.repository import IHomeRepository
+from src.home.infra.repository import HomeRepository
 
 
 class HomeService:
@@ -12,10 +12,7 @@ class HomeService:
     """
 
     @inject
-    def __init__(
-        self,
-        home_repo: IHomeRepository,
-    ):
+    def __init__(self, home_repo: HomeRepository):
         self.home_repo = home_repo
 
     async def fetch_line_queue(
@@ -25,7 +22,7 @@ class HomeService:
     ):
         pax_df = await self.home_repo.download_from_s3(session, scenario_id)
         calculator = HomeCalculator(pax_df)
-        return calculator.get_line_queue()
+        return calculator.get_terminal_overview_line_queue()
 
     async def fetch_summary(
         self,
