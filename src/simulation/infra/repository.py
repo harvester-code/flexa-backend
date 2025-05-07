@@ -1,16 +1,10 @@
-import json
-import os
 from typing import List
 
-import awswrangler as wr
-import boto3
-import pandas as pd
 from sqlalchemy import Connection, bindparam, desc, func, true, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.inspection import inspect
 
-from src.database import S3_SAVE_PATH
 from src.simulation.domain.repository import ISimulationRepository
 from src.simulation.domain.simulation import (
     ScenarioMetadata as ScenarioMetadataVO,
@@ -328,27 +322,6 @@ class SimulationRepository(ISimulationRepository):
             .values({SimulationScenario.simulation_date: target_datetime})
         )
         await db.commit()
-
-    async def upload_to_s3(
-        self, session: boto3.Session, sim_df: pd.DataFrame, filename: str
-    ):
-        env = os.getenv("ENVIRONMENT")
-        if env == "dev" or env == "local":
-            wr.s3.to_parquet(
-                df=sim_df,
-                path=f"{S3_SAVE_PATH}/dev/{filename}",
-                boto3_session=session,
-            )
-
-    async def download_from_s3(
-        self, session: boto3.Session, filename: str
-    ) -> pd.DataFrame:
-
-        sim_df = wr.s3.read_parquet(
-            path=f"{S3_SAVE_PATH}/{filename}", boto3_session=session
-        )
-
-        return sim_df
 
     async def fetch_processing_procedures(self):
         default_procedures = {

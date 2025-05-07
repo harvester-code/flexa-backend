@@ -1,17 +1,10 @@
-import awswrangler as wr
-import boto3
-import pandas as pd
-
-from typing import Union, List
-from sqlalchemy import Connection, update, true, desc, bindparam
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.inspection import inspect
 
-from src.database import S3_SAVE_PATH
-from src.admin.domain.repository import IAdminRepository
 from src.admin.domain.admin import OperationSetting as OperationSettingVO
-from src.admin.infra.models import OperationSetting, Groups
+from src.admin.domain.repository import IAdminRepository
+from src.admin.infra.models import Groups, OperationSetting
 
 
 class AdminRepository(IAdminRepository):
