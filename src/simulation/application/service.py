@@ -224,6 +224,7 @@ class SimulationService:
             list[dict]: 조회된 항공 스케줄 데이터. 각 항목은 항공편 정보를 포함하는 딕셔너리.
         """
 
+        boto3_session = boto3.Session(region_name="ap-northeast-2")
         flight_schedule_data = None
 
         # ======================================================
@@ -237,9 +238,11 @@ class SimulationService:
             if not object_exists:
                 return flight_schedule_data
 
+            print(boto3_session.get_credentials().get_frozen_credentials())
+
             flight_schedule_data = wr.s3.read_parquet(
                 path=f"s3://flexa-dev-ap-northeast-2-data-storage/simulations/flight-schedule-data/{scenario_id}.parquet",
-                boto3_session=boto3.Session(region_name="ap-northeast-2"),
+                boto3_session=boto3_session,
             )
             return flight_schedule_data.to_dict(orient="records")
 
@@ -299,6 +302,7 @@ class SimulationService:
         return flight_schedule_data
 
     async def fetch_show_up_passenger_data(self, scenario_id: str):
+        boto3_session = boto3.Session(region_name="ap-northeast-2")
         showup_passenger_df = None
 
         # ======================================================
@@ -312,9 +316,11 @@ class SimulationService:
             return showup_passenger_df
 
         # TODO: fetch_flight_schedule_data와 같이 반환 타입 맞추기
+        print(boto3_session.get_credentials().get_frozen_credentials())
+
         showup_passenger_df = wr.s3.read_parquet(
             path=f"s3://flexa-dev-ap-northeast-2-data-storage/simulations/show-up-passenger-data/{scenario_id}.parquet",
-            boto3_session=boto3.Session(region_name="ap-northeast-2"),
+            boto3_session=boto3_session,
         )
         return showup_passenger_df
 
