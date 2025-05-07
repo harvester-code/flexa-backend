@@ -21,7 +21,7 @@ RUN dnf swap -y curl-minimal curl-full && \
 
 COPY --from=builder ${LAMBDA_TASK_ROOT} ${LAMBDA_TASK_ROOT}
 
-COPY ./src ${LAMBDA_TASK_ROOT}/app
+COPY ./src ${LAMBDA_TASK_ROOT}/src
 
 ENTRYPOINT [ "doppler", "run", "--", "python", "-m", "awslambdaric" ]
-CMD [ "app.main.handler" ]
+CMD [ "src.main.handler" ]
