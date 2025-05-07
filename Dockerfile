@@ -23,5 +23,5 @@ COPY --from=builder ${LAMBDA_TASK_ROOT} ${LAMBDA_TASK_ROOT}
 
 COPY ./src ${LAMBDA_TASK_ROOT}/app
 
-ENTRYPOINT [ "doppler", "run", "--" ]
+ENTRYPOINT [ "doppler", "run", "--", "python", "-m", "awslambdaric" ]
 CMD [ "app.main.handler" ]
