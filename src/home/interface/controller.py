@@ -1,9 +1,7 @@
-import boto3
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, status
 
 from src.containers import Container
-from src.database import get_boto3_session
 from src.home.application.service import HomeService
 from src.response import SuccessResponse
 
@@ -26,10 +24,9 @@ status 코드 정리
 @inject
 async def fetch_line_queue(
     home_service: HomeService = Depends(Provide[Container.home_service]),
-    session: boto3.Session = Depends(get_boto3_session),
     scenario_id: str | None = None,
 ):
-    result = await home_service.fetch_line_queue(session, scenario_id)
+    result = await home_service.fetch_line_queue(scenario_id)
     return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
 
 
@@ -41,14 +38,11 @@ async def fetch_line_queue(
 @inject
 async def fetch_summary(
     home_service: HomeService = Depends(Provide[Container.home_service]),
-    session: boto3.Session = Depends(get_boto3_session),
     scenario_id: str | None = None,
     calculate_type: str = "mean",
     percentile: int | None = None,
 ):
-    result = await home_service.fetch_summary(
-        session, scenario_id, calculate_type, percentile
-    )
+    result = await home_service.fetch_summary(scenario_id, calculate_type, percentile)
     return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
 
 
@@ -60,10 +54,9 @@ async def fetch_summary(
 @inject
 async def fetch_alert_issues(
     home_service: HomeService = Depends(Provide[Container.home_service]),
-    session: boto3.Session = Depends(get_boto3_session),
     scenario_id: str | None = None,
 ):
-    result = await home_service.fetch_alert_issues(session, scenario_id)
+    result = await home_service.fetch_alert_issues(scenario_id)
     return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
 
 
@@ -75,13 +68,12 @@ async def fetch_alert_issues(
 @inject
 async def fetch_facility_details(
     home_service: HomeService = Depends(Provide[Container.home_service]),
-    session: boto3.Session = Depends(get_boto3_session),
     scenario_id: str | None = None,
     calculate_type: str = "mean",
     percentile: int | None = None,
 ):
     result = await home_service.fetch_facility_details(
-        session, scenario_id, calculate_type, percentile
+        scenario_id, calculate_type, percentile
     )
     return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
 
@@ -94,10 +86,9 @@ async def fetch_facility_details(
 @inject
 async def fetch_flow_chart(
     home_service: HomeService = Depends(Provide[Container.home_service]),
-    session: boto3.Session = Depends(get_boto3_session),
     scenario_id: str | None = None,
 ):
-    result = await home_service.fetch_flow_chart(session, scenario_id)
+    result = await home_service.fetch_flow_chart(scenario_id)
     return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
 
 
@@ -109,10 +100,9 @@ async def fetch_flow_chart(
 @inject
 async def fetch_histogram(
     home_service: HomeService = Depends(Provide[Container.home_service]),
-    session: boto3.Session = Depends(get_boto3_session),
     scenario_id: str | None = None,
 ):
-    result = await home_service.fetch_histogram(session, scenario_id)
+    result = await home_service.fetch_histogram(scenario_id)
     return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
 
 
@@ -124,8 +114,7 @@ async def fetch_histogram(
 @inject
 async def fetch_sankey_diagram(
     home_service: HomeService = Depends(Provide[Container.home_service]),
-    session: boto3.Session = Depends(get_boto3_session),
     scenario_id: str | None = None,
 ):
-    result = await home_service.fetch_sankey_diagram(session, scenario_id)
+    result = await home_service.fetch_sankey_diagram(scenario_id)
     return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
