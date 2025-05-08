@@ -897,7 +897,7 @@ class SimulationService:
         # NOTE: Overview 데이터 생성
         pax_df["passenger_pattern"] = (
             pax_df["scheduled_gate_departure_local"] - pax_df["show_up_time"]
-        ).dt.total_seconds() / 60
+        ).dt.total_seconds() // 60
 
         passenger_pattern = pax_df["passenger_pattern"].mean()
 
@@ -924,8 +924,8 @@ class SimulationService:
                 "value": f"{len(pax_df):,} pax",
             },
             {
-                "name": "Pax Show-up Pattern",
-                "value": f"{round(passenger_pattern):,} mins",
+                "name": "Avg Pax show-up Time",
+                "value": f"{passenger_pattern:,} mins",
             },
             {
                 "name": "Generation Method",
