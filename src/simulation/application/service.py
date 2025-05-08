@@ -1586,7 +1586,12 @@ class SimulationService:
         object_key = f"simulations/facility-information-data/{scenario_id}.json"
 
         # TODO: SQS처럼 infra폴더에 별도로 모듈화
-        s3 = boto3.client("s3", config=Config(region_name="ap-northeast-2"))
+        s3 = boto3.client(
+            "s3",
+            config=Config(region_name="ap-northeast-2"),
+            aws_access_key_id=os.getenv("AWS_ACCESS_KEY"),
+            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+        )
         s3.put_object(
             ContentType="application/json",
             Bucket=bucket_name,
