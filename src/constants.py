@@ -19,3 +19,9 @@ CRITERIA_MAP = {
     "country_code": "Country",
     "region_name": "Region",
 }
+
+ALLOW_ORIGINS_MAP = {
+    "local": ["*"],
+    "dev": ["https://dev.flexa.expert"],
+    "prod": ["https://www.flexa.expert"],
+}
