@@ -22,6 +22,6 @@ CRITERIA_MAP = {
 
 ALLOW_ORIGINS_MAP = {
     "local": ["*"],
-    "dev": ["https://dev.flexa.expert"],
+    "dev": ["https://preview.flexa.expert"],
     "prod": ["https://www.flexa.expert"],
 }
