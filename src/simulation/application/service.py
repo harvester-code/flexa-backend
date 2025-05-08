@@ -15,6 +15,7 @@ from sqlalchemy import Connection, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from ulid import ULID
 
+from src.boto3_session import boto3_session
 from src.common import TimeStamp
 from src.constants import COL_FILTER_MAP, CRITERIA_MAP
 from src.simulation.application.queries import (
@@ -239,6 +240,7 @@ class SimulationService:
 
             flight_schedule_data = wr.s3.read_parquet(
                 path=f"s3://flexa-dev-ap-northeast-2-data-storage/simulations/flight-schedule-data/{scenario_id}.parquet",
+                boto3_session=boto3_session,
             )
             return flight_schedule_data.to_dict(orient="records")
 
@@ -314,6 +316,7 @@ class SimulationService:
 
         showup_passenger_df = wr.s3.read_parquet(
             path=f"s3://flexa-dev-ap-northeast-2-data-storage/simulations/show-up-passenger-data/{scenario_id}.parquet",
+            boto3_session=boto3_session,
         )
         return showup_passenger_df
 

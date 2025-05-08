@@ -1,5 +1,6 @@
 import awswrangler as wr
 
+from src.boto3_session import boto3_session
 from src.home.domain.repository import IHomeRepository
 
 
@@ -8,4 +9,5 @@ class HomeRepository(IHomeRepository):
 
         return wr.s3.read_parquet(
             path=f"s3://flexa-dev-ap-northeast-2-data-storage/simulations/simulation-results-raw-data/{scenario_id}.parquet",
+            boto3_session=boto3_session,
         )
