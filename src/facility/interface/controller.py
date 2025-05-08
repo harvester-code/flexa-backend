@@ -1,9 +1,7 @@
-import boto3
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, status
 
 from src.containers import Container
-from src.database import get_boto3_session
 from src.exceptions import BadRequestException
 from src.facility.application.service import FacilityService
 from src.response import SuccessResponse
@@ -29,14 +27,11 @@ status 코드 정리
 async def fetch_process_list(
     scenario_id: str,
     facility_service: FacilityService = Depends(Provide[Container.facility_service]),
-    session: boto3.Session = Depends(get_boto3_session),
 ):
     if not scenario_id:
         raise BadRequestException("Scenario ID is required")
 
-    data = await facility_service.fetch_process_list(
-        session=session, scenario_id=scenario_id
-    )
+    data = await facility_service.fetch_process_list(scenario_id=scenario_id)
 
     return SuccessResponse(status_code=status.HTTP_200_OK, data=data)
 
@@ -55,14 +50,12 @@ async def fetch_kpi(
     calculate_type: str = "mean",
     percentile: int | None = None,
     facility_service: FacilityService = Depends(Provide[Container.facility_service]),
-    session: boto3.Session = Depends(get_boto3_session),
 ):
 
     if not scenario_id or not process:
         raise BadRequestException("Scenario ID and Process is required")
 
     data = await facility_service.generate_kpi(
-        session=session,
         process=process,
         scenario_id=scenario_id,
         calculate_type=calculate_type,
@@ -83,15 +76,12 @@ async def fetch_chart(
     scenario_id: str,
     process: str,
     facility_service: FacilityService = Depends(Provide[Container.facility_service]),
-    session: boto3.Session = Depends(get_boto3_session),
 ):
     if not scenario_id or not process:
         raise BadRequestException("Scenario ID and Process is required")
 
     data = await facility_service.generate_ks_chart(
-        session=session,
-        process=process,
-        scenario_id=scenario_id,
+        process=process, scenario_id=scenario_id
     )
 
     return SuccessResponse(status_code=status.HTTP_200_OK, data=data)
@@ -108,15 +98,12 @@ async def fetch_heatmap(
     scenario_id: str,
     process: str,
     facility_service: FacilityService = Depends(Provide[Container.facility_service]),
-    session: boto3.Session = Depends(get_boto3_session),
 ):
     if not scenario_id or not process:
         raise BadRequestException("Scenario ID and Process is required")
 
     data = await facility_service.generate_heatmap(
-        session=session,
-        process=process,
-        scenario_id=scenario_id,
+        process=process, scenario_id=scenario_id
     )
 
     return SuccessResponse(status_code=status.HTTP_200_OK, data=data)
@@ -133,15 +120,12 @@ async def fetch_pie_chart(
     scenario_id: str,
     process: str,
     facility_service: FacilityService = Depends(Provide[Container.facility_service]),
-    session: boto3.Session = Depends(get_boto3_session),
 ):
     if not scenario_id or not process:
         raise BadRequestException("Scenario ID and Process is required")
 
     data = await facility_service.generate_pie_chart(
-        session=session,
-        process=process,
-        scenario_id=scenario_id,
+        process=process, scenario_id=scenario_id
     )
 
     return SuccessResponse(status_code=status.HTTP_200_OK, data=data)
@@ -158,15 +142,12 @@ async def fetch_pa_chart(
     scenario_id: str,
     process: str,
     facility_service: FacilityService = Depends(Provide[Container.facility_service]),
-    session: boto3.Session = Depends(get_boto3_session),
 ):
     if not scenario_id or not process:
         raise BadRequestException("Scenario ID and Process is required")
 
     data = await facility_service.generate_pa_chart(
-        session=session,
-        process=process,
-        scenario_id=scenario_id,
+        process=process, scenario_id=scenario_id
     )
 
     return SuccessResponse(status_code=status.HTTP_200_OK, data=data)

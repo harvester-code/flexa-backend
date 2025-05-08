@@ -1,9 +1,10 @@
-from dependency_injector.wiring import inject
-from src.facility.domain.repository import IFacilityRepository
-import boto3
-import pandas as pd
+from datetime import datetime, timedelta
+
 import numpy as np
-from datetime import timedelta, datetime
+import pandas as pd
+from dependency_injector.wiring import inject
+
+from src.facility.infra.repository import FacilityRepository
 
 
 class FacilityService:
@@ -13,19 +14,12 @@ class FacilityService:
     """
 
     @inject
-    def __init__(
-        self,
-        facility_repo: IFacilityRepository,
-    ):
+    def __init__(self, facility_repo: FacilityRepository):
         self.facility_repo = facility_repo
 
-    async def fetch_process_list(
-        self,
-        session: boto3.Session,
-        scenario_id: str | None = None,
-    ):
+    async def fetch_process_list(self, scenario_id: str | None = None):
 
-        sim_df = await self.facility_repo.download_from_s3(session, scenario_id)
+        sim_df = await self.facility_repo.download_from_s3(scenario_id)
 
         process_columns = sim_df.columns[
             sim_df.columns.str.contains("pt_pred", case=False)
@@ -230,7 +224,6 @@ class FacilityService:
     # NOTE: KPI
     async def generate_kpi(
         self,
-        session: boto3.Session,
         process: str,
         scenario_id: str,
         calculate_type: str,
@@ -238,7 +231,7 @@ class FacilityService:
     ):
         percentile = percentile / 100
 
-        sim_df = await self.facility_repo.download_from_s3(session, scenario_id)
+        sim_df = await self.facility_repo.download_from_s3(scenario_id)
 
         kpi_result = {"header": {"columns": [], "subColumns": []}, "body": []}
         node_list: list = sim_df[f"{process}_pred"].unique().tolist()
@@ -387,14 +380,13 @@ class FacilityService:
     # NOTE: KPI Summary Chart
     async def generate_ks_chart(
         self,
-        session: boto3.Session,
         process: str,
         scenario_id: str | None = None,
     ):
 
         chart_result = {}
 
-        sim_df = await self.facility_repo.download_from_s3(session, scenario_id)
+        sim_df = await self.facility_repo.download_from_s3(scenario_id)
 
         node_list = [
             val
@@ -451,14 +443,13 @@ class FacilityService:
     # NOTE: HeatMap
     async def generate_heatmap(
         self,
-        session: boto3.Session,
         process: str,
         scenario_id: str | None = None,
     ):
 
         heatmap_result = {}
 
-        sim_df = await self.facility_repo.download_from_s3(session, scenario_id)
+        sim_df = await self.facility_repo.download_from_s3(scenario_id)
 
         # TP
         tp = await self._create_throughput(
@@ -542,14 +533,9 @@ class FacilityService:
         return sim_df, group_order
 
     # NOTE: Pie Chart
-    async def generate_pie_chart(
-        self,
-        session: boto3.Session,
-        process: str,
-        scenario_id: str | None = None,
-    ):
+    async def generate_pie_chart(self, process: str, scenario_id: str | None = None):
 
-        sim_df = await self.facility_repo.download_from_s3(session, scenario_id)
+        sim_df = await self.facility_repo.download_from_s3(scenario_id)
 
         pie_result = {}
         table_result = {}
@@ -649,14 +635,9 @@ class FacilityService:
         return group_result
 
     # NOTE: Passenger Analysis Chart
-    async def generate_pa_chart(
-        self,
-        session: boto3.Session,
-        process: str,
-        scenario_id: str | None = None,
-    ):
+    async def generate_pa_chart(self, process: str, scenario_id: str | None = None):
 
-        sim_df = await self.facility_repo.download_from_s3(session, scenario_id)
+        sim_df = await self.facility_repo.download_from_s3(scenario_id)
 
         chart_result = {}
         for group_name, group_column in self.get_criteria_options(process).items():

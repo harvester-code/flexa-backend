@@ -1,7 +1,6 @@
 import os
 from typing import AsyncGenerator
 
-import boto3
 from fastapi import HTTPException, status
 from snowflake.sqlalchemy import URL
 from sqlalchemy import create_engine
@@ -10,12 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from supabase._async.client import AsyncClient, create_client
-
-
-# ============================================================
-def get_boto3_session() -> boto3.Session:
-    return boto3.Session(region_name="ap-northeast-2")
-
 
 # ============================================================
 SNOWFLAKE_ENGINE = create_engine(

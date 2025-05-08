@@ -1,17 +1,14 @@
 import asyncio
 import json
 
-import boto3
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 
-from src.middleware import websocket_jwt_decoder
 from src.containers import Container
-from src.database import get_boto3_session, get_snowflake_session
+from src.database import get_snowflake_session
+from src.middleware import websocket_jwt_decoder
 from src.simulation.application.service import SimulationService
-from src.simulation.interface.schema import (
-    RunSimulationBody,
-)
+from src.simulation.interface.schema import RunSimulationBody
 
 ws_router = APIRouter()
 
@@ -43,7 +40,6 @@ async def run_simulation(
         Provide[Container.simulation_service]
     ),
     db=Depends(get_snowflake_session),
-    session: boto3.Session = Depends(get_boto3_session),
 ):
     if await websocket_jwt_decoder(websocket) is None:  # 인증 실패 시
         return
@@ -66,7 +62,6 @@ async def run_simulation(
                 result = await simulation_service.run_simulation(
                     websocket,
                     db,
-                    session,
                     user_id,
                     run_simulation_data.scenario_id,
                     run_simulation_data.flight_schedule,
