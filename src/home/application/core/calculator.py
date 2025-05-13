@@ -301,7 +301,7 @@ class HomeCalculator:
 
     def _create_time_dataframe(self):
         """시간별 데이터프레임 생성"""
-        days = self.pax_df["show_up_time"].dt.date.unique()
+        days = self.pax_df["show_up_time"].dt.date.unique()[-1:]
         time_ranges = [
             pd.date_range(
                 start=f"{date} 00:00:00", end=f"{date} 23:50:00", freq=self.time_unit
