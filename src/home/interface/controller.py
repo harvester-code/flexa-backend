@@ -118,3 +118,4 @@ async def fetch_sankey_diagram(
 ):
     result = await home_service.fetch_sankey_diagram(scenario_id)
     return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
+

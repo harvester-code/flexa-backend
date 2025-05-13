@@ -1,15 +1,18 @@
 import numpy as np
 import pandas as pd
+from typing import Optional, Dict, Any
 
 
 class HomeCalculator:
     def __init__(
         self,
         pax_df: pd.DataFrame,
+        facility_info: Optional[Dict[str, Any]] = None,
         calculate_type: str = "mean",
         percentile: int | None = None,
     ):
         self.pax_df = pax_df
+        self.facility_info = facility_info
         self.calculate_type = calculate_type
         self.percentile = percentile
         self.time_unit = "10min"
@@ -56,7 +59,6 @@ class HomeCalculator:
         throughput = int(self.pax_df[f"{self.process_list[-1]}_pt_pred"].notna().sum())
         waiting_time = self._calculate_kpi_values(method="waiting_time")
         waiting_time = self._format_waiting_time(waiting_time)
-        # waiting_time = f"{waiting_time // 60:02d}:{waiting_time % 60:02d}"
         queue_length = self._calculate_kpi_values(method="queue_length")
         facility_utilizations = []
         for process in self.process_list:
@@ -73,7 +75,7 @@ class HomeCalculator:
             utilization = (first_day_slots / 144) * 100
             facility_utilizations.append(utilization)
         facility_utilization = sum(facility_utilizations) / len(facility_utilizations)
-
+        print(self.facility_info["processes"])
         data = {
             "normal": [
                 {"title": "Departure Flights", "value": departure_flights},
