@@ -1195,7 +1195,6 @@ class SimulationService:
             }
             for column in df_grouped.columns
         ]
-        print(traces)
 
         return {"traces": traces, "default_x": default_x}
 

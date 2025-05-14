@@ -75,7 +75,7 @@ class HomeCalculator:
             utilization = (first_day_slots / 144) * 100
             facility_utilizations.append(utilization)
         facility_utilization = sum(facility_utilizations) / len(facility_utilizations)
-        print(self.facility_info["processes"])
+
         data = {
             "normal": [
                 {"title": "Departure Flights", "value": departure_flights},
