@@ -297,7 +297,7 @@ class HomeCalculator:
     def _calculate_waiting_time_minutes(self, process_df, process):
         """대기 시간 계산 (분 단위 반환)"""
         waiting_time = self._calculate_waiting_time(process_df, process)
-        return waiting_time.dt.total_seconds() / 60
+        return waiting_time.dt.total_seconds()
 
     def _create_time_dataframe(self):
         """시간별 데이터프레임 생성"""
@@ -316,17 +316,25 @@ class HomeCalculator:
     # ===== 보조 함수들 =====
     def _calculate_kpi_values(self, method):
         """KPI 값 계산"""
-        all_pax_data = []
         if method == "waiting_time":
-            for process in self.process_list:
-                process_time = self._calculate_waiting_time_minutes(
-                    self.pax_df, process
-                )
-                all_pax_data.extend(process_time.dropna().tolist())
+            process_times = [
+                self._calculate_waiting_time_minutes(self.pax_df, process)
+                for process in self.process_list
+            ]
+            process_times_df = pd.concat(process_times, axis=1)
+            # NaN이 하나라도 있는 행은 제거
+            process_times_df = process_times_df.dropna()
+            all_pax_data = process_times_df.sum(axis=1).tolist()
         elif method == "queue_length":
-            for process in self.process_list:
-                queue_length = self.pax_df[f"{process}_que"]
-                all_pax_data.extend(queue_length.dropna().tolist())
+            queue_lengths = [
+                self.pax_df[f"{process}_que"] for process in self.process_list
+            ]
+            queue_lengths_df = pd.concat(queue_lengths, axis=1)
+            queue_lengths_df = queue_lengths_df.dropna()
+            all_pax_data = queue_lengths_df.sum(axis=1).tolist()
+        else:
+            all_pax_data = []
+
         if not all_pax_data:
             return np.nan
         if self.percentile is None:
