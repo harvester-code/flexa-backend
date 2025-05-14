@@ -39,5 +39,5 @@ jobs:
           REPOSITORY: coop/flexa-waitfree-api
           IMAGE_TAG: ${{ github.ref_name }}
         run: |
-          docker build -f docker/production/Dockerfile -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
+          docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
