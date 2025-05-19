@@ -19,6 +19,7 @@ class HomeCalculator:
         self.percentile = percentile
         self.time_unit = "10min"
         self.process_list = self._get_process_list()
+        # FIXME: 25.05.19 - 아래 코드가 필요할 때만 호출되게 변경 필요.
         self.facility_ratio = self.make_facility_ratio()
 
     # ===== 메인 함수들 =====
