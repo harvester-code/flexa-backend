@@ -1,6 +1,8 @@
+import math
+from typing import Any, Dict, Optional
+
 import numpy as np
 import pandas as pd
-from typing import Optional, Dict, Any
 
 
 class HomeCalculator:
