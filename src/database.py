@@ -41,6 +41,7 @@ def get_snowflake_session():
 
 
 # ============================================================
+# FIXME: https://supabase.com/docs/reference/python/initializing 참고해서 다시 작성하기
 SUPABASE_USERNAME = os.getenv("SUPABASE_USERNAME")
 SUPABASE_PASSWORD = os.getenv("SUPABASE_PASSWORD")
 SUPABASE_HOST = os.getenv("SUPABASE_HOST")
