@@ -1577,6 +1577,7 @@ class SimulationService:
         scenario_id: str,
         components: list,
         processes: dict,
+        db: AsyncSession,
         background_tasks: BackgroundTasks,
     ):
         # ====================================================================
@@ -1604,6 +1605,14 @@ class SimulationService:
             send_message_to_sqs,
             queue_url=os.getenv("AWS_SQS_URL"),
             message_body={"schedule_date": schedule_date, "scenario_id": scenario_id},
+        )
+
+        # ====================================================================
+        # NOTE: 시뮬레이션 시나리오 상태 저장
+        await self.simulation_repo.upsert_scenario_status(
+            db=db,
+            scenario_id=scenario_id,
+            created_at=self.timestamp.time_now(),
         )
 
         return {"status": "success", "message": "Simulation started successfully."}

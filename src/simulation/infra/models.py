@@ -1,9 +1,9 @@
 from datetime import datetime
+from typing import List
 
 from sqlalchemy import Boolean, DateTime, Integer, String
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
-from typing import List
 
 from src.database import Base
 
@@ -37,6 +37,15 @@ class ScenarioMetadata(Base):
     passenger_attr: Mapped[dict] = mapped_column(JSONB, nullable=True)
     facility_conn: Mapped[dict] = mapped_column(JSONB, nullable=True)
     facility_info: Mapped[dict] = mapped_column(JSONB, nullable=True)
+
+
+class ScenarioStatus(Base):
+    __tablename__ = "scenario_status"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    scenario_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    status: Mapped[str] = mapped_column(String(36), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 
 
 class Groups(Base):

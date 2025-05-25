@@ -16,6 +16,7 @@ from src.simulation.infra.models import (
     Groups,
     OperationSetting,
     ScenarioMetadata,
+    ScenarioStatus,
     SimulationScenario,
 )
 from src.simulation.infra.schema import (
@@ -337,3 +338,29 @@ class SimulationRepository(ISimulationRepository):
         }
 
         return default_procedures
+
+    # TODO: 추후에는 upsert 로직으로 변경하기 (https://supabase.com/docs/reference/python/upsert)
+    async def upsert_scenario_status(
+        self, db: AsyncSession, scenario_id: str, created_at
+    ):
+        result = await db.execute(
+            select(ScenarioStatus).where(ScenarioStatus.scenario_id == scenario_id)
+        )
+
+        scenario_status = result.mappings().first()
+
+        if scenario_status is None:
+            new_status = ScenarioStatus(
+                scenario_id=scenario_id,
+                status="running",
+                created_at=created_at,
+            )
+            db.add(new_status)
+        else:
+            await db.execute(
+                update(ScenarioStatus)
+                .where(ScenarioStatus.scenario_id == scenario_id)
+                .values({ScenarioStatus.status: "helloworld"})
+            )
+
+        await db.commit()

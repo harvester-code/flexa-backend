@@ -62,3 +62,7 @@ class ISimulationRepository(metaclass=ABCMeta):
     @abstractmethod
     def fetch_processing_procedures(self):
         raise NotImplementedError
+
+    @abstractmethod
+    def upsert_scenario_status(self):
+        return NotImplementedError

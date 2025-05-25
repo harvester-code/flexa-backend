@@ -383,6 +383,7 @@ async def request_simulation(
     scenario_id: str,
     payload: RunSimulationBody,
     background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(aget_supabase_session),
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
 ):
 
@@ -395,5 +396,6 @@ async def request_simulation(
         scenario_id=scenario_id,
         components=components,
         processes=processes,
+        db=db,
         background_tasks=background_tasks,
     )
