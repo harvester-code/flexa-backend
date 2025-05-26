@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from datetime import datetime, time, timedelta
 from typing import List
 
@@ -26,7 +27,7 @@ from src.simulation.application.queries import (
 from src.simulation.domain.simulation import ScenarioMetadata, SimulationScenario
 from src.simulation.infra.repository import SimulationRepository
 from src.simulation.infra.sqs.producer import send_message_to_sqs
-from src.storages import check_s3_object_exists
+from src.storages import check_s3_object_exists, get_s3_client
 
 
 class SimulationService:
@@ -1616,3 +1617,19 @@ class SimulationService:
         )
 
         return {"status": "success", "message": "Simulation started successfully."}
+
+    async def get_simulation(self, db: AsyncSession, scenario_id: str):
+        bucket = "flexa-dev-ap-northeast-2-data-storage"
+        key = f"simulations/simulation-results-chart-data/{scenario_id}.json"
+
+        if check_s3_object_exists(bucket_name=bucket, object_key=key):
+            s3 = get_s3_client()
+            response = s3.get_object(Bucket=bucket, Key=key)
+
+            raw = response["Body"].read().decode("utf-8")
+
+            # HACK: NaN, Infinity, -Infinity를 null로 치환
+            cleaned = re.sub(r'(?<!")\b(?:NaN|Infinity|-Infinity)\b(?!")', "null", raw)
+            return json.loads(cleaned)
+        else:
+            return None

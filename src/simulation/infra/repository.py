@@ -341,7 +341,7 @@ class SimulationRepository(ISimulationRepository):
 
     # TODO: 추후에는 upsert 로직으로 변경하기 (https://supabase.com/docs/reference/python/upsert)
     async def upsert_scenario_status(
-        self, db: AsyncSession, scenario_id: str, created_at
+        self, db: AsyncSession, scenario_id: str, created_at, status="running"
     ):
         result = await db.execute(
             select(ScenarioStatus).where(ScenarioStatus.scenario_id == scenario_id)
@@ -360,7 +360,7 @@ class SimulationRepository(ISimulationRepository):
             await db.execute(
                 update(ScenarioStatus)
                 .where(ScenarioStatus.scenario_id == scenario_id)
-                .values({ScenarioStatus.status: "helloworld"})
+                .values({ScenarioStatus.status: status})
             )
 
         await db.commit()

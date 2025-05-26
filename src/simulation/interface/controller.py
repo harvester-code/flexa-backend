@@ -399,3 +399,15 @@ async def request_simulation(
         db=db,
         background_tasks=background_tasks,
     )
+
+
+@simulation_router.get(
+    "/request-simulation/scenario-id/{scenario_id}", status_code=status.HTTP_200_OK
+)
+@inject
+async def fetch_simulation(
+    scenario_id: str,
+    db: AsyncSession = Depends(aget_supabase_session),
+    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
+):
+    return await sim_service.get_simulation(db=db, scenario_id=scenario_id)
