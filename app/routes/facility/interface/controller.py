@@ -1,0 +1,153 @@
+from dependency_injector.wiring import Provide, inject
+from fastapi import APIRouter, Depends, status
+
+from app.libs.containers import Container
+from app.libs.exceptions import BadRequestException
+from app.routes.facility.application.service import FacilityService
+from packages.response import SuccessResponse
+
+facility_router = APIRouter(prefix="/facilities")
+
+"""
+status 코드 정리
+200: 요청이 성공적으로 처리되었고, 응답 본문에 업데이트된 데이터를 포함할 경우
+201: 새로운 리소스를 생성할 때 사용
+204: 요청이 성공적으로 처리되었지만, 응답 본문이 필요 없을 경우
+400: 요청이 올바르지 않을 경우
+"""
+
+
+@facility_router.get(
+    "/processes/scenario-id/{scenario_id}",
+    response_model=SuccessResponse,
+    status_code=status.HTTP_200_OK,
+    summary="최초 시나리오를 불러올 시 process list를 응답하는 엔드포인트",
+)
+@inject
+async def fetch_process_list(
+    scenario_id: str,
+    facility_service: FacilityService = Depends(Provide[Container.facility_service]),
+):
+    if not scenario_id:
+        raise BadRequestException("Scenario ID is required")
+
+    data = await facility_service.fetch_process_list(scenario_id=scenario_id)
+
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=data)
+
+
+@facility_router.get(
+    "/kpi-summaries/tables/kpi/scenario-id/{scenario_id}",
+    response_model=SuccessResponse,
+    status_code=status.HTTP_200_OK,
+    summary="kpi 테이블을 위한 데이터",
+    description="stats에 들어갈 수 있는 값: max, min, median, mean, top5, bottom5",
+)
+@inject
+async def fetch_kpi(
+    scenario_id: str,
+    process: str,
+    calculate_type: str = "mean",
+    percentile: int | None = None,
+    facility_service: FacilityService = Depends(Provide[Container.facility_service]),
+):
+
+    if not scenario_id or not process:
+        raise BadRequestException("Scenario ID and Process is required")
+
+    data = await facility_service.generate_kpi(
+        process=process,
+        scenario_id=scenario_id,
+        calculate_type=calculate_type,
+        percentile=percentile,
+    )
+
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=data)
+
+
+@facility_router.get(
+    "/kpi-summaries/charts/line/scenario-id/{scenario_id}",
+    response_model=SuccessResponse,
+    status_code=status.HTTP_200_OK,
+    summary="kpi-summary chart를 위한 데이터",
+)
+@inject
+async def fetch_chart(
+    scenario_id: str,
+    process: str,
+    facility_service: FacilityService = Depends(Provide[Container.facility_service]),
+):
+    if not scenario_id or not process:
+        raise BadRequestException("Scenario ID and Process is required")
+
+    data = await facility_service.generate_ks_chart(
+        process=process, scenario_id=scenario_id
+    )
+
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=data)
+
+
+@facility_router.get(
+    "/kpi-summaries/charts/heat-map/scenario-id/{scenario_id}",
+    response_model=SuccessResponse,
+    status_code=status.HTTP_200_OK,
+    summary="heat-map을 위한 데이터",
+)
+@inject
+async def fetch_heatmap(
+    scenario_id: str,
+    process: str,
+    facility_service: FacilityService = Depends(Provide[Container.facility_service]),
+):
+    if not scenario_id or not process:
+        raise BadRequestException("Scenario ID and Process is required")
+
+    data = await facility_service.generate_heatmap(
+        process=process, scenario_id=scenario_id
+    )
+
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=data)
+
+
+@facility_router.get(
+    "/passenger-analyses/charts/pie/scenario-id/{scenario_id}",
+    response_model=SuccessResponse,
+    status_code=status.HTTP_200_OK,
+    summary="pie-chart를 위한 데이터",
+)
+@inject
+async def fetch_pie_chart(
+    scenario_id: str,
+    process: str,
+    facility_service: FacilityService = Depends(Provide[Container.facility_service]),
+):
+    if not scenario_id or not process:
+        raise BadRequestException("Scenario ID and Process is required")
+
+    data = await facility_service.generate_pie_chart(
+        process=process, scenario_id=scenario_id
+    )
+
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=data)
+
+
+@facility_router.get(
+    "/passenger-analyses/charts/bar/scenario-id/{scenario_id}",
+    response_model=SuccessResponse,
+    status_code=status.HTTP_200_OK,
+    summary="passenger-analysis chart를 위한 데이터",
+)
+@inject
+async def fetch_pa_chart(
+    scenario_id: str,
+    process: str,
+    facility_service: FacilityService = Depends(Provide[Container.facility_service]),
+):
+    if not scenario_id or not process:
+        raise BadRequestException("Scenario ID and Process is required")
+
+    data = await facility_service.generate_pa_chart(
+        process=process, scenario_id=scenario_id
+    )
+
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=data)
