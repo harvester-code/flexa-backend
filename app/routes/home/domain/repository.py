@@ -14,5 +14,5 @@ class IHomeRepository(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    async def download_json_from_s3(self, scenario_id: str) -> Optional[dict]:
+    async def download_facility_json_from_s3(self, scenario_id: str) -> Optional[dict]:
         raise NotImplementedError

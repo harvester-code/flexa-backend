@@ -16,7 +16,7 @@ class HomeService:
 
     async def fetch_line_queue(self, scenario_id: str | None):
         pax_df = await self.home_repo.download_simulation_parquet_from_s3(scenario_id)
-        facility_info = await self.home_repo.download_json_from_s3(scenario_id)
+        facility_info = await self.home_repo.download_facility_json_from_s3(scenario_id)
         calculator = Calculator(pax_df, facility_info)
         return calculator.get_terminal_overview_line_queue()
 
@@ -27,13 +27,13 @@ class HomeService:
         percentile: int | None,
     ):
         pax_df = await self.home_repo.download_simulation_parquet_from_s3(scenario_id)
-        facility_info = await self.home_repo.download_json_from_s3(scenario_id)
+        facility_info = await self.home_repo.download_facility_json_from_s3(scenario_id)
         calculator = Calculator(pax_df, facility_info, calculate_type, percentile)
         return calculator.get_summary()
 
     async def fetch_alert_issues(self, scenario_id: str | None):
         pax_df = await self.home_repo.download_simulation_parquet_from_s3(scenario_id)
-        facility_info = await self.home_repo.download_json_from_s3(scenario_id)
+        facility_info = await self.home_repo.download_facility_json_from_s3(scenario_id)
         calculator = Calculator(pax_df, facility_info)
         return calculator.get_alert_issues()
 
@@ -41,7 +41,7 @@ class HomeService:
         self, scenario_id: str | None, calculate_type: str, percentile: int | None
     ):
         pax_df = await self.home_repo.download_simulation_parquet_from_s3(scenario_id)
-        facility_info = await self.home_repo.download_json_from_s3(scenario_id)
+        facility_info = await self.home_repo.download_facility_json_from_s3(scenario_id)
         calculator = Calculator(pax_df, facility_info, calculate_type, percentile)
         return calculator.get_facility_details()
 
