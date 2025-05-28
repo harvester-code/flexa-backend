@@ -1,9 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
-from app.libs.dependencies import verify_token, security
+from fastapi import APIRouter, Depends, HTTPException, status
+from packages.supabase.dependencies import security
 from supabase import create_client, Client
 import os
 from pydantic import BaseModel
-from typing import Optional
 from fastapi.security import HTTPAuthorizationCredentials
 
 auth_router = APIRouter(

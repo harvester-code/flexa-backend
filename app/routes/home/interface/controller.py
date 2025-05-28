@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, status
 from app.libs.containers import Container
 from app.routes.home.application.service import HomeService
 from packages.response import SuccessResponse
-from app.libs.dependencies import verify_token
+from packages.supabase.dependencies import verify_token
 
 home_router = APIRouter(
     prefix="/homes",
