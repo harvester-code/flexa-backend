@@ -19,7 +19,7 @@ ALGORITHM = "HS256"
 AUDIENCE = "authenticated"
 
 # FIXME: 차후 개발이 완성되면 모든 api는 해당 jwt 인증을 거치도록 설정
-EXCLUDED_PATHS = ["/docs", "/redoc", "/openapi.json", "/api/v1/", "/api/v1/health"]
+EXCLUDED_PATHS = ["/docs", "/redoc", "/openapi.json", "/api/v1/", "/api/v1/auth/login", "/api/v1/auth/me"]
 JWT_DECODER_PATH = [
     "/api/v1/simulations/scenario",
     "/api/v1/simulations/scenario/deactivate",

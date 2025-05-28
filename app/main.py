@@ -12,6 +12,7 @@ from app.libs.containers import Container
 from app.libs.exceptions import add_exception_handlers
 from app.libs.middleware import add_middlewares
 from app.routes.admin.interface.controller import admin_router
+from app.routes.auth.interface.controller import auth_router
 from app.routes.facility.interface.controller import facility_router
 from app.routes.home.interface.controller import home_router
 from app.routes.passenger_flow.controller import passenger_flow_router
@@ -36,21 +37,14 @@ add_exception_handlers(app)
 # ================================================================
 router = APIRouter()
 
-
 @router.get("/", response_class=PlainTextResponse)
 async def root():
     return text2art("FLEXA WAITFREE AIRPORT")
-
-
-@router.get("/health")
-async def health():
-    return {"status": "ok"}
-
-
 # ================================================================
 API_PREFIX = "/api/v1"
 
 app.include_router(router, prefix=API_PREFIX)
+app.include_router(auth_router, prefix=API_PREFIX, tags=["Authentication"])
 app.include_router(simulation_router, prefix=API_PREFIX, tags=["Simulations"])
 app.include_router(home_router, prefix=API_PREFIX, tags=["Homes"])
 app.include_router(facility_router, prefix=API_PREFIX, tags=["Detailed-Facilities"])
