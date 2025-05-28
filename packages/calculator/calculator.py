@@ -5,7 +5,8 @@ import numpy as np
 import pandas as pd
 
 
-class HomeCalculator:
+
+class Calculator:
     def __init__(
         self,
         pax_df: pd.DataFrame,
