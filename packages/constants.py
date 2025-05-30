@@ -1,3 +1,11 @@
+ALLOW_ORIGINS_MAP = {
+    "local": ["*"],
+    "dev": ["https://preview.flexa.expert", "http://localhost:3000"],
+    "prod": ["https://www.flexa.expert"],
+}
+
+API_PREFIX = "/api/v1"
+
 COL_FILTER_MAP = {
     "International/Domestic": "flight_type",
     "I/D": "flight_type",
@@ -18,10 +26,4 @@ CRITERIA_MAP = {
     "flight_type": "I/D",
     "country_code": "Country",
     "region_name": "Region",
-}
-
-ALLOW_ORIGINS_MAP = {
-    "local": ["*"],
-    "dev": ["https://preview.flexa.expert", "http://localhost:3000"],
-    "prod": ["https://www.flexa.expert"],
 }

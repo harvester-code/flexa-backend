@@ -1,145 +1,49 @@
-import os
+from typing import Callable
 
-from fastapi import FastAPI, HTTPException, Request, WebSocket, status
-from jose import JWTError, jwt
-from loguru import logger
-from starlette.responses import JSONResponse
+from fastapi import Request, status
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
+from packages.supabase.auth import decode_supabase_token
+from packages.constants import API_PREFIX
 
-def add_middlewares(app: FastAPI):
-    """미들웨어를 FastAPI 앱에 추가하는 함수"""
-    app.middleware("http")(jwt_decoder)
-
-
-# =============================================
-# TODO: refresh token과 refresh rotation 고려
-
-SUPABASE_JWT_SECRET_KEY = os.getenv("SUPABASE_JWT_SECRET_KEY")
-ALGORITHM = "HS256"
-AUDIENCE = "authenticated"
-
-# FIXME: 차후 개발이 완성되면 모든 api는 해당 jwt 인증을 거치도록 설정
-EXCLUDED_PATHS = ["/docs", "/redoc", "/openapi.json", "/api/v1/", "/api/v1/auth/login", "/api/v1/auth/me"]
-JWT_DECODER_PATH = [
-    "/api/v1/simulations/scenario",
-    "/api/v1/simulations/scenario/deactivate",
-    "/api/v1/simulations/scenario/deactivate/multiple",
-    "/api/v1/simulations/scenario/duplicate",
-    "/api/v1/simulations/scenario/master",
-    "/api/v1/simulations/scenario/metadata",
-    "/api/v1/simulations/kpi-chart",
-    "/api/v1/simulations/total-chart",
+PROTECTED_PATHS = [
+    f"{API_PREFIX}/simulations",
+    f"{API_PREFIX}/homes",
+    f"{API_PREFIX}/facilities",
 ]
 
 
-# =============================================
-# NOTE: http request
+class AuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next: Callable):
+        path = request.url.path
 
+        # NOTE: CORS 사전 요청(Preflight Request)을 처리하기 위해 OPTIONS 메서드는 인증을 우회합니다.
+        # 브라우저는 Authorization 헤더나 커스텀 헤더가 포함된 요청을 보내기 전에
+        # 먼저 OPTIONS 메서드로 사전 요청을 보냅니다.
+        # 이때 서버가 401/403을 반환하면 CORS 오류로 간주되어 실제 요청까지 도달하지 못합니다.
+        # 따라서 OPTIONS 요청은 인증 없이 통과시킵니다.
+        if request.method == "OPTIONS":
+            return await call_next(request)
 
-async def jwt_decoder(request: Request, call_next):
-    logger.info(
-        {
-            "method": request.method,
-            "url": str(request.url),
-            "path": str(request.url.path),
-            "headers": dict(request.headers),
-            "query_params": dict(request.query_params),
-            "path_params": request.path_params,
-        }
-    )
+        if any(path.startswith(protected_path) for protected_path in PROTECTED_PATHS):
+            auth_header = request.headers.get("Authorization")
 
-    if request.method == "OPTIONS":
+            if not auth_header or not auth_header.startswith("Bearer "):
+                return JSONResponse(
+                    {"detail": "Authorization header missing or invalid"},
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                )
+
+            token = auth_header.split(" ")[1]
+
+            try:
+                user = decode_supabase_token(token)
+                request.state.user_id = user.id
+            except Exception as e:
+                return JSONResponse(
+                    {"detail": str(e)},
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                )
+
         return await call_next(request)
-
-    if request.url.path in EXCLUDED_PATHS:
-        return await call_next(request)
-
-    # FIXME: 나중에는 정리필요
-    # if request.url.path not in JWT_DECODER_PATH:
-    #     return await call_next(request)
-
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Unauthorized",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-    try:
-        token = request.headers.get("Authorization")
-        if not token or not token.startswith("Bearer "):
-            raise credentials_exception
-
-        token = token.split(" ")[1]
-
-        payload = jwt.decode(
-            token,
-            SUPABASE_JWT_SECRET_KEY,
-            algorithms=[ALGORITHM],
-            audience=AUDIENCE,
-        )
-
-        user_id: str = payload.get("sub")
-        if user_id is None:
-            raise credentials_exception
-
-        request.state.user_id = user_id
-
-    except HTTPException as e:
-        return JSONResponse(
-            status_code=e.status_code,
-            content={"detail": e.detail},
-            headers=e.headers or {},
-        )
-
-    except JWTError:
-        return JSONResponse(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            content={"detail": "JWT DECODING ERROR"},
-        )
-
-    response = await call_next(request)
-    return response
-
-
-# =============================================
-# NOTE: websocket
-
-
-async def websocket_jwt_decoder(websocket: WebSocket):
-
-    token = websocket.headers.get("sec-websocket-protocol")
-    await websocket.accept(subprotocol=token)
-
-    if not token:
-        await websocket.close(
-            code=status.WS_1008_POLICY_VIOLATION, reason="Please Sec-WebSocket-Protocol"
-        )
-        raise
-
-    # token = token.split(" ")[1]
-
-    try:
-        payload = jwt.decode(
-            token,
-            SUPABASE_JWT_SECRET_KEY,
-            algorithms=[ALGORITHM],
-            audience=AUDIENCE,
-        )
-        user_id = payload.get("sub")
-        if user_id is None:
-            await websocket.close(
-                code=status.WS_1008_POLICY_VIOLATION,
-                reason="Check user_id in Access Token",
-            )
-            raise
-
-        websocket.state.user_id = user_id
-
-    except JWTError:
-        await websocket.close(
-            code=status.WS_1008_POLICY_VIOLATION, reason="Check Access Token"
-        )
-        raise
-
-
-# =============================================
