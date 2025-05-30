@@ -75,19 +75,19 @@ async def login(login_data: LoginRequest):
 async def read_users_me(user=Depends(verify_token)):
     try:
         return {
-            "id": user.user.id,
-            "email": user.user.email,
-            "phone": user.user.phone,
-            "created_at": user.user.created_at,
-            "updated_at": user.user.updated_at,
-            "email_confirmed_at": user.user.email_confirmed_at,
-            "last_sign_in_at": user.user.last_sign_in_at,
-            "role": user.user.role,
-            "aud": user.user.aud,
-            "user_metadata": user.user.user_metadata,
-            "app_metadata": user.user.app_metadata,
-            "identities": user.user.identities,
-            "factors": user.user.factors,
+            "id": user.id,
+            "email": user.email,
+            "phone": user.phone,
+            "created_at": user.created_at,
+            "updated_at": user.updated_at,
+            "email_confirmed_at": user.email_confirmed_at,
+            "last_sign_in_at": user.last_sign_in_at,
+            "role": user.role,
+            "aud": user.aud,
+            "user_metadata": user.user_metadata,
+            "app_metadata": user.app_metadata,
+            "identities": user.identities,
+            "factors": user.factors,
         }
 
     except Exception as _:
