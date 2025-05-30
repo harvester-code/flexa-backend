@@ -1,23 +1,23 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from packages.supabase.dependencies import security
-from supabase import create_client, Client
-import os
 from pydantic import BaseModel
-from fastapi.security import HTTPAuthorizationCredentials
+
+from app.libs.dependencies import verify_token
+from packages.supabase.auth import sign_in_with_password
 
 auth_router = APIRouter(
     prefix="/auth",
-    tags=["Authentication"],
     responses={
         401: {"description": "Unauthorized - Invalid credentials"},
         404: {"description": "Not Found - User not found"},
-        500: {"description": "Internal Server Error"}
-    }
+        500: {"description": "Internal Server Error"},
+    },
 )
+
 
 class LoginRequest(BaseModel):
     email: str
     password: str
+
 
 @auth_router.post(
     "/login",
@@ -35,35 +35,21 @@ class LoginRequest(BaseModel):
     - 토큰은 보안을 위해 안전하게 보관해야 합니다
     - 토큰이 노출되면 즉시 재발급 받으세요
     """,
-    response_description="Returns access token on successful login"
+    response_description="Returns access token on successful login",
 )
 async def login(login_data: LoginRequest):
     try:
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_PROJECT_URL"),
-            os.getenv("SUPABASE_PUBLIC_KEY")
-        )
-        
-        # Supabase login
-        response = supabase.auth.sign_in_with_password({
-            "email": login_data.email,
-            "password": login_data.password
-        })
-        
-        # Extract token from response
-        access_token = response.session.access_token
-        
-        return {
-            "access_token": access_token,
-            "token_type": "bearer"
-        }
-        
-    except Exception as e:
+        access_token = sign_in_with_password(login_data.email, login_data.password)
+
+        return {"access_token": access_token, "token_type": "bearer"}
+
+    except Exception as _:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
 
 @auth_router.get(
     "/me",
@@ -84,24 +70,10 @@ async def login(login_data: LoginRequest):
     - 사용자 역할 및 메타데이터
     - 인증 관련 정보
     """,
-    response_description="Returns detailed user information"
+    response_description="Returns detailed user information",
 )
-async def read_users_me(credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def read_users_me(user=Depends(verify_token)):
     try:
-        supabase: Client = create_client(
-            os.getenv("SUPABASE_PROJECT_URL"),
-            os.getenv("SUPABASE_PUBLIC_KEY")
-        )
-        
-        # Get user information using the token
-        user = supabase.auth.get_user(credentials.credentials)
-        
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
-            )
-            
         return {
             "id": user.user.id,
             "email": user.user.email,
@@ -115,11 +87,11 @@ async def read_users_me(credentials: HTTPAuthorizationCredentials = Depends(secu
             "user_metadata": user.user.user_metadata,
             "app_metadata": user.user.app_metadata,
             "identities": user.user.identities,
-            "factors": user.user.factors
+            "factors": user.user.factors,
         }
-        
-    except Exception as e:
+
+    except Exception as _:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error"
+            detail="Internal server error",
         )

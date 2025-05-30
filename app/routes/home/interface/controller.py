@@ -1,15 +1,10 @@
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, status
+
 from app.libs.containers import Container
+from app.libs.dependencies import verify_token
 from app.routes.home.application.service import HomeService
 from packages.response import SuccessResponse
-from packages.supabase.dependencies import verify_token
-
-home_router = APIRouter(
-    prefix="/homes",
-    dependencies=[Depends(verify_token)],
-    tags=["Homes"]
-)
 
 """
 status 코드 정리
@@ -18,6 +13,12 @@ status 코드 정리
 204: 요청이 성공적으로 처리되었지만, 응답 본문이 필요 없을 경우
 400: 요청이 올바르지 않을 경우
 """
+
+home_router = APIRouter(
+    prefix="/homes",
+    dependencies=[Depends(verify_token)],
+)
+
 
 @home_router.get(
     "/line-queue/{scenario_id}",
