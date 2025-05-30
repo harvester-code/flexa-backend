@@ -34,6 +34,7 @@ class Node(BaseModel):
     id: int
     name: str
     facility_count: int
+    facility_type: str
     max_queue_length: int
     facility_schedules: List[List[float]]
 
