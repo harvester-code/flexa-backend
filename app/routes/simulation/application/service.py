@@ -896,11 +896,13 @@ class SimulationService:
 
         # ===========================================================
         # NOTE: Overview 데이터 생성
-        pax_df["passenger_pattern"] = (
+        time_diffs = (
             pax_df["scheduled_gate_departure_local"] - pax_df["show_up_time"]
-        ).dt.total_seconds() // 60
+        ).dt.total_seconds()
 
-        passenger_pattern = pax_df["passenger_pattern"].mean()
+        avg_seconds = time_diffs.mean()
+        avg_minutes = round(avg_seconds / 60, 1)
+        passenger_pattern = f"{avg_minutes}min"
 
         matric = [
             {"name": "Date", "value": flight_sch.date},
