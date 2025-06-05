@@ -162,6 +162,12 @@ class SimulationService:
 
         await self.simulation_repo.update_master_scenario(db, group_id, scenario_id)
 
+    async def update_scenario_status(
+        self, db: AsyncSession, scenario_id: str, status: str
+    ):
+
+        await self.simulation_repo.update_scenario_status(db, scenario_id, status)
+
     # =====================================
     # NOTE: 시나리오 메타데이터
 

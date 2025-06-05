@@ -231,6 +231,17 @@ class SimulationRepository(ISimulationRepository):
         )
         await db.commit()
 
+    async def update_scenario_status(
+        self, db: AsyncSession, scenario_id: str, status: str
+    ):
+
+        await db.execute(
+            update(ScenarioInformation)
+            .where(ScenarioInformation.id == scenario_id)
+            .values({ScenarioInformation.status: status})
+        )
+        await db.commit()
+
     # ===================================
     # NOTE: 시나리오 메타데이터
 

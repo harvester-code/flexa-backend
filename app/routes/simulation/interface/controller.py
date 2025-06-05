@@ -194,6 +194,32 @@ async def update_master_scenario(
     )
 
 
+@simulation_router.patch(
+    "/scenarios/scenario-id/{scenario_id}/status",
+    status_code=204,
+    summary="시나리오의 시뮬레이션 상태를 업데이트하는 엔드포인트",
+    description="status에 들어갈 수 있는 값은 오직 'yet'과 'done'",
+)
+@inject
+async def update_scenario_status(
+    scenario_id: str,
+    status: str,
+    simulation_service: SimulationService = Depends(
+        Provide[Container.simulation_service]
+    ),
+    db: Connection = Depends(aget_supabase_session),
+):
+    if not status or not scenario_id:
+        raise BadRequestException("Scenario ID and Status is required")
+
+    if status not in ["yet", "done"]:
+        raise BadRequestException("status is only 'yet' or 'done'")
+
+    return await simulation_service.update_scenario_status(
+        db=db, scenario_id=scenario_id, status=status
+    )
+
+
 # ==============================
 # NOTE: 시나리오 메타데이터
 
