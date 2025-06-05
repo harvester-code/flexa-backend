@@ -21,7 +21,7 @@ class ScenarioInformation(Base):
     target_flight_schedule_date: Mapped[datetime] = mapped_column(
         DateTime, nullable=True
     )
-    status: Mapped[str] = mapped_column(String(36), nullable=True, default="Yet")
+    status: Mapped[str] = mapped_column(String(36), nullable=True, default="yet")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
