@@ -55,7 +55,7 @@ async def fetch_scenario(
     if not group_id:
         raise BadRequestException("Group ID is required")
 
-    return await sim_service.fetch_simulation_scenario(
+    return await sim_service.fetch_scenario_information(
         db=db,
         user_id=request.state.user_id,
         group_id=group_id,
@@ -64,22 +64,22 @@ async def fetch_scenario(
     )
 
 
-@simulation_router.get(
-    "/scenarios/location/group-id/{group_id}",
-    status_code=status.HTTP_201_CREATED,
-    summary="06_SI_001",
-    description="06_SI_001에서 new_scenario 버튼을 클릭해서 나오는 팝업창에서 빈칸을 작성한 후 create 버튼을 누르면 실행되는 엔드포인트",
-)
-@inject
-async def fetch_simulation_location(
-    group_id: str,
-    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
-    db: AsyncSession = Depends(aget_supabase_session),
-):
-    if not group_id:
-        raise BadRequestException("Group ID is required")
+# @simulation_router.get(
+#     "/scenarios/location/group-id/{group_id}",
+#     status_code=status.HTTP_201_CREATED,
+#     summary="06_SI_001",
+#     description="06_SI_001에서 new_scenario 버튼을 클릭해서 나오는 팝업창에서 빈칸을 작성한 후 create 버튼을 누르면 실행되는 엔드포인트",
+# )
+# @inject
+# async def fetch_scenario_location(
+#     group_id: str,
+#     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
+#     db: AsyncSession = Depends(aget_supabase_session),
+# ):
+#     if not group_id:
+#         raise BadRequestException("Group ID is required")
 
-    return await sim_service.fetch_simulation_location(db=db, group_id=group_id)
+#     return await sim_service.fetch_scenario_location(db=db, group_id=group_id)
 
 
 @simulation_router.post(
@@ -96,14 +96,14 @@ async def create_scenario(
     db: AsyncSession = Depends(aget_supabase_session),
 ):
 
-    return await sim_service.create_simulation_scenario(
+    return await sim_service.create_scenario_information(
         db=db,
         user_id=request.state.user_id,
-        name=scenario.simulation_name,
-        memo=scenario.memo,
-        airport=scenario.airport,
-        terminal=scenario.terminal,
+        name=scenario.name,
         editor=scenario.editor,
+        terminal=scenario.terminal,
+        airport=scenario.airport,
+        memo=scenario.memo,
     )
 
 
@@ -123,10 +123,10 @@ async def update_scenario(
     if not scenario_id:
         raise BadRequestException("Scenario ID is required")
 
-    await sim_service.update_simulation_scenario(
+    await sim_service.update_scenario_information(
         db=db,
         id=scenario_id,
-        name=scenario.simulation_name,
+        name=scenario.name,
         memo=scenario.memo,
     )
 
@@ -144,32 +144,32 @@ async def deactivate_scenario(
     db: AsyncSession = Depends(aget_supabase_session),
 ):
 
-    await sim_service.deactivate_simulation_scenario(db=db, ids=scenario_ids)
+    await sim_service.deactivate_scenario_information(db=db, ids=scenario_ids)
 
 
-@simulation_router.post(
-    "/scenarios/scenario-id/{scenario_id}/duplicate",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="06_SI_001",
-    description="06_SI_001에서 각 시나리오의 액션버튼을 눌러 나오는 duplicate를 클릭하여 실행하면 실행되는 앤드포인트",
-)
-@inject
-async def duplicate_scenario(
-    request: Request,
-    scenario_id: str,
-    scenario: DuplicateScenarioBody,
-    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
-    db: AsyncSession = Depends(aget_supabase_session),
-):
-    if not scenario_id:
-        raise BadRequestException("Scenario ID is required")
+# @simulation_router.post(
+#     "/scenarios/scenario-id/{scenario_id}/duplicate",
+#     status_code=status.HTTP_204_NO_CONTENT,
+#     summary="06_SI_001",
+#     description="06_SI_001에서 각 시나리오의 액션버튼을 눌러 나오는 duplicate를 클릭하여 실행하면 실행되는 앤드포인트",
+# )
+# @inject
+# async def duplicate_scenario(
+#     request: Request,
+#     scenario_id: str,
+#     scenario: DuplicateScenarioBody,
+#     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
+#     db: AsyncSession = Depends(aget_supabase_session),
+# ):
+#     if not scenario_id:
+#         raise BadRequestException("Scenario ID is required")
 
-    await sim_service.duplicate_simulation_scenario(
-        db=db,
-        user_id=request.state.user_id,
-        old_scenario_id=scenario_id,
-        editor=scenario.editor,
-    )
+#     await sim_service.duplicate_scenario_information(
+#         db=db,
+#         user_id=request.state.user_id,
+#         old_scenario_id=scenario_id,
+#         editor=scenario.editor,
+#     )
 
 
 @simulation_router.patch(
@@ -238,11 +238,11 @@ async def update_scenario_metadata(
         scenario_id,
         metadata.overview,
         metadata.history,
-        metadata.flight_sch,
-        metadata.passenger_sch,
-        metadata.passenger_attr,
-        metadata.facility_conn,
-        metadata.facility_info,
+        metadata.flight_schedule,
+        metadata.passenger_schedule,
+        metadata.processing_procedures,
+        metadata.facility_connection,
+        metadata.facility_information,
     )
 
 
@@ -274,7 +274,7 @@ async def fetch_flight_schedule(
         scenario_id=scenario_id,
     )
 
-    await sim_service.update_simulation_scenario_target_date(
+    await sim_service.update_scenario_target_flight_schedule_date(
         supabase_db, scenario_id, flight_schedule.date
     )
 
@@ -383,7 +383,6 @@ async def request_simulation(
     scenario_id: str,
     payload: RunSimulationBody,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(aget_supabase_session),
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
 ):
 
@@ -396,18 +395,5 @@ async def request_simulation(
         scenario_id=scenario_id,
         components=components,
         processes=processes,
-        db=db,
         background_tasks=background_tasks,
     )
-
-
-@simulation_router.get(
-    "/request-simulation/scenario-id/{scenario_id}", status_code=status.HTTP_200_OK
-)
-@inject
-async def fetch_simulation(
-    scenario_id: str,
-    db: AsyncSession = Depends(aget_supabase_session),
-    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
-):
-    return await sim_service.get_simulation(db=db, scenario_id=scenario_id)

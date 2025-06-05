@@ -10,27 +10,27 @@ class ISimulationRepository(metaclass=ABCMeta):
     # NOTE: 시뮬레이션 시나리오
 
     @abstractmethod
-    def fetch_simulation_scenario(self):
+    def fetch_scenario_information(self):
         raise NotImplementedError
 
     @abstractmethod
-    def fetch_simulation_location(self):
+    def fetch_scenario_location(self):
         raise NotImplementedError
 
     @abstractmethod
-    def create_simulation_scenario(self):
+    def create_scenario_information(self):
         raise NotImplementedError
 
     @abstractmethod
-    def update_simulation_scenario(self):
+    def update_scenario_information(self):
         raise NotImplementedError
 
     @abstractmethod
-    def deactivate_simulation_scenario(self):
+    def deactivate_scenario_information(self):
         raise NotImplementedError
 
     @abstractmethod
-    def duplicate_simulation_scenario(self):
+    def duplicate_scenario_information(self):
         raise NotImplementedError
 
     @abstractmethod
@@ -56,13 +56,9 @@ class ISimulationRepository(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def update_simulation_scenario_target_date(self):
+    def update_scenario_target_flight_schedule_date(self):
         raise NotImplementedError
 
     @abstractmethod
     def fetch_processing_procedures(self):
         raise NotImplementedError
-
-    @abstractmethod
-    def upsert_scenario_status(self):
-        return NotImplementedError

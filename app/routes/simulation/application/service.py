@@ -21,7 +21,10 @@ from app.routes.simulation.application.queries import (
     SELECT_AIRPORT_DEPARTURE,
     SELECT_AIRPORT_DEPARTURE_SCHEDULE,
 )
-from app.routes.simulation.domain.simulation import ScenarioMetadata, SimulationScenario
+from app.routes.simulation.domain.simulation import (
+    ScenarioMetadata,
+    ScenarioInformation,
+)
 from app.routes.simulation.infra.repository import SimulationRepository
 from app.routes.simulation.infra.sqs.producer import send_message_to_sqs
 from packages.boto3_session import boto3_session
@@ -56,7 +59,7 @@ class SimulationService:
     # =====================================
     # NOTE: 시뮬레이션 시나리오
 
-    async def fetch_simulation_scenario(
+    async def fetch_scenario_information(
         self,
         db: AsyncSession,
         user_id: str,
@@ -65,92 +68,91 @@ class SimulationService:
         items_per_page: int,
     ):
 
-        scenario = await self.simulation_repo.fetch_simulation_scenario(
+        scenario = await self.simulation_repo.fetch_scenario_information(
             db, user_id, group_id, page, items_per_page
         )
 
         return scenario
 
-    async def fetch_simulation_location(
+    async def fetch_scenario_location(
         self,
         db: AsyncSession,
         group_id: str,
     ):
 
-        location = await self.simulation_repo.fetch_simulation_location(db, group_id)
+        location = await self.simulation_repo.fetch_scenario_location(db, group_id)
 
         return location
 
-    async def create_simulation_scenario(
+    async def create_scenario_information(
         self,
         db: AsyncSession,
         user_id: str,
-        name: str,
-        memo: str,
-        airport: str,
-        terminal: str,
         editor: str,
+        name: str,
+        terminal: str,
+        airport: str | None,
+        memo: str | None,
     ):
         id = str(ULID())
 
-        simulation_scenario: SimulationScenario = SimulationScenario(
+        scenario_information: ScenarioInformation = ScenarioInformation(
             id=id,
             user_id=user_id,
-            simulation_name=name,
-            size=None,
-            airport=airport,
-            terminal=terminal,
             editor=editor,
+            name=name,
+            terminal=terminal,
+            airport=airport,
             memo=memo,
-            simulation_date=None,
-            updated_at=self.timestamp.time_now(),
-            created_at=self.timestamp.time_now(),
+            target_flight_schedule_date=None,
+            created_at=self.timestamp.time_now(timezone="UTC"),
+            updated_at=self.timestamp.time_now(timezone="UTC"),
         )
 
         scenario_metadata: ScenarioMetadata = ScenarioMetadata(
             scenario_id=id,
             overview=None,
             history=None,
-            flight_sch=None,
-            passenger_sch=None,
-            passenger_attr=None,
-            facility_conn=None,
-            facility_info=None,
+            flight_schedule=None,
+            passenger_schedule=None,
+            processing_procedures=None,
+            facility_connection=None,
+            facility_information=None,
         )
 
-        await self.simulation_repo.create_simulation_scenario(
-            db, simulation_scenario, scenario_metadata
+        await self.simulation_repo.create_scenario_information(
+            db, scenario_information, scenario_metadata
         )
 
         return {
             "scenario_id": id,
             "overview": {},
             "history": {},
-            "flight_sch": {},
-            "passenger_sch": {},
-            "passenger_attr": {},
-            "facility_conn": {},
-            "facility_info": {},
+            "flight_schedule": {},
+            "passenger_schedule": {},
+            "processing_procedures": {},
+            "facility_connection": {},
+            "facility_information": {},
         }
 
-    async def update_simulation_scenario(
+    async def update_scenario_information(
         self, db: AsyncSession, id: str, name: str | None, memo: str | None
     ):
 
-        await self.simulation_repo.update_simulation_scenario(db, id, name, memo)
+        await self.simulation_repo.update_scenario_information(db, id, name, memo)
 
-    async def deactivate_simulation_scenario(self, db: AsyncSession, ids: List[str]):
+    async def deactivate_scenario_information(self, db: AsyncSession, ids: List[str]):
 
-        await self.simulation_repo.deactivate_simulation_scenario(db, ids)
+        await self.simulation_repo.deactivate_scenario_information(db, ids)
 
-    async def duplicate_simulation_scenario(
+    async def duplicate_scenario_information(
         self, db: AsyncSession, user_id: str, old_scenario_id: str, editor: str
     ):
 
         new_scenario_id = str(ULID())
         time_now = self.timestamp.time_now()
 
-        await self.simulation_repo.duplicate_simulation_scenario(
+        await self.simulation_repo.duplicate_scenario_information(
             db, user_id, old_scenario_id, new_scenario_id, editor, time_now
         )
 
@@ -178,11 +180,11 @@ class SimulationService:
         scenario_id: str,
         overview: dict | None,
         history: list | None,
-        flight_sch: dict | None,
-        passenger_sch: dict | None,
-        passenger_attr: dict | None,
-        facility_conn: dict | None,
-        facility_info: dict | None,
+        flight_schedule: dict | None,
+        passenger_schedule: dict | None,
+        processing_procedures: dict | None,
+        facility_connection: dict | None,
+        facility_information: dict | None,
     ):
 
         # if history:
@@ -192,11 +194,11 @@ class SimulationService:
             scenario_id=scenario_id,
             overview=overview,
             history=history,
-            flight_sch=flight_sch,
-            passenger_sch=passenger_sch,
-            passenger_attr=passenger_attr,
-            facility_conn=facility_conn,
-            facility_info=facility_info,
+            flight_schedule=flight_schedule,
+            passenger_schedule=passenger_schedule,
+            processing_procedures=processing_procedures,
+            facility_connection=facility_connection,
+            facility_information=facility_information,
         )
 
         time_now = self.timestamp.time_now()
@@ -321,14 +323,16 @@ class SimulationService:
         )
         return showup_passenger_df
 
-    async def update_simulation_scenario_target_date(
-        self, db: AsyncSession, scenario_id: str, target_date: str
+    async def update_scenario_target_flight_schedule_date(
+        self, db: AsyncSession, scenario_id: str, flight_schedule_date: str
     ):
 
-        target_datetime = datetime.strptime(target_date, "%Y-%m-%d")
+        target_flight_schedule_date = datetime.strptime(
+            flight_schedule_date, "%Y-%m-%d"
+        )
 
-        await self.simulation_repo.update_simulation_scenario_target_date(
-            db, scenario_id, target_datetime
+        await self.simulation_repo.update_scenario_target_flight_schedule_date(
+            db, scenario_id, target_flight_schedule_date
         )
 
     async def _create_flight_schedule_chart(

@@ -10,14 +10,13 @@ from app.routes.simulation.domain.simulation import (
     ScenarioMetadata as ScenarioMetadataVO,
 )
 from app.routes.simulation.domain.simulation import (
-    SimulationScenario as SimulationScenarioVO,
+    ScenarioInformation as ScenarioInformationVO,
 )
 from app.routes.simulation.infra.models import (
-    Groups,
+    Group,
     OperationSetting,
     ScenarioMetadata,
-    ScenarioStatus,
-    SimulationScenario,
+    ScenarioInformation,
 )
 from app.routes.simulation.infra.schema import (
     GeneralDeclarationArrival,
@@ -30,7 +29,7 @@ class SimulationRepository(ISimulationRepository):
     # ===================================
     # NOTE: 시뮬레이션 시나리오
 
-    async def fetch_simulation_scenario(
+    async def fetch_scenario_information(
         self,
         db: AsyncSession,
         user_id: str,
@@ -42,7 +41,7 @@ class SimulationRepository(ISimulationRepository):
         # FIXME: [25.04.07] 여기서 DB를 호출하는 횟수를 최대한 줄여보자
         async with db.begin():
             result = await db.execute(
-                select(Groups.master_scenario_id).where(Groups.id == int(group_id))
+                select(Group.master_scenario_id).where(Group.id == int(group_id))
             )
 
             master_scenario_id = result.scalar_one_or_none()
@@ -50,28 +49,28 @@ class SimulationRepository(ISimulationRepository):
             master_scenario = None
             if master_scenario_id:
                 result = await db.execute(
-                    select(SimulationScenario)
-                    .where(SimulationScenario.id == master_scenario_id)
-                    .where(SimulationScenario.is_active.is_(true()))
+                    select(ScenarioInformation)
+                    .where(ScenarioInformation.id == master_scenario_id)
+                    .where(ScenarioInformation.is_active.is_(true()))
                 )
 
                 master_scenario = result.scalar_one_or_none()
 
             result = await db.execute(
                 select(func.count())
-                .select_from(SimulationScenario)
-                .where(SimulationScenario.user_id == user_id)
-                .where(SimulationScenario.is_active.is_(true()))
+                .select_from(ScenarioInformation)
+                .where(ScenarioInformation.user_id == user_id)
+                .where(ScenarioInformation.is_active.is_(true()))
             )
             total_count = result.scalar()
 
             offset = (page - 1) * items_per_page
 
             result = await db.execute(
-                select(SimulationScenario)
-                .where(SimulationScenario.user_id == user_id)
-                .where(SimulationScenario.is_active.is_(true()))
-                .order_by(desc(SimulationScenario.updated_at))
+                select(ScenarioInformation)
+                .where(ScenarioInformation.user_id == user_id)
+                .where(ScenarioInformation.is_active.is_(true()))
+                .order_by(desc(ScenarioInformation.updated_at))
                 .offset(offset)
                 .limit(items_per_page)
             )
@@ -85,7 +84,7 @@ class SimulationRepository(ISimulationRepository):
             "user_scenario": user_scenario,
         }
 
-    async def fetch_simulation_location(
+    async def fetch_scenario_location(
         self,
         db: AsyncSession,
         group_id: str,
@@ -102,25 +101,24 @@ class SimulationRepository(ISimulationRepository):
 
         return scenario_info
 
-    async def create_simulation_scenario(
+    async def create_scenario_information(
         self,
         db: AsyncSession,
-        simulation_scenario: SimulationScenarioVO,
+        scenario_information: ScenarioInformationVO,
         scenario_metadata: ScenarioMetadataVO,
     ):
 
-        new_scenario = SimulationScenario(
-            id=simulation_scenario.id,
-            user_id=simulation_scenario.user_id,
-            simulation_name=simulation_scenario.simulation_name,
-            size=simulation_scenario.size,
-            airport=simulation_scenario.airport,
-            terminal=simulation_scenario.terminal,
-            editor=simulation_scenario.editor,
-            memo=simulation_scenario.memo,
-            simulation_date=simulation_scenario.simulation_date,
-            updated_at=simulation_scenario.updated_at,
-            created_at=simulation_scenario.created_at,
+        new_scenario = ScenarioInformation(
+            id=scenario_information.id,
+            user_id=scenario_information.user_id,
+            editor=scenario_information.editor,
+            name=scenario_information.name,
+            terminal=scenario_information.terminal,
+            airport=scenario_information.airport,
+            memo=scenario_information.memo,
+            target_flight_schedule_date=scenario_information.target_flight_schedule_date,
+            created_at=scenario_information.created_at,
+            updated_at=scenario_information.updated_at,
         )
 
         db.add(new_scenario)
@@ -130,44 +128,44 @@ class SimulationRepository(ISimulationRepository):
             scenario_id=new_scenario.id,
             overview=scenario_metadata.overview,
             history=scenario_metadata.history,
-            flight_sch=scenario_metadata.flight_sch,
-            passenger_sch=scenario_metadata.passenger_sch,
-            passenger_attr=scenario_metadata.passenger_attr,
-            facility_conn=scenario_metadata.facility_conn,
-            facility_info=scenario_metadata.facility_info,
+            flight_schedule=scenario_metadata.flight_schedule,
+            passenger_schedule=scenario_metadata.passenger_schedule,
+            processing_procedures=scenario_metadata.processing_procedures,
+            facility_connection=scenario_metadata.facility_connection,
+            facility_information=scenario_metadata.facility_information,
         )
 
         db.add(new_metadata)
         await db.commit()
 
-    async def update_simulation_scenario(
+    async def update_scenario_information(
         self, db: AsyncSession, id: str, name: str | None, memo: str | None
     ):
         values_to_update = {}
 
         if name:
-            values_to_update[SimulationScenario.simulation_name] = name
+            values_to_update[ScenarioInformation.name] = name
         if memo:
-            values_to_update[SimulationScenario.memo] = memo
+            values_to_update[ScenarioInformation.memo] = memo
 
         await db.execute(
-            update(SimulationScenario)
-            .where(SimulationScenario.id == id)
+            update(ScenarioInformation)
+            .where(ScenarioInformation.id == id)
             .values(values_to_update)
         )
         await db.commit()
 
-    async def deactivate_simulation_scenario(self, db: AsyncSession, ids: List[str]):
+    async def deactivate_scenario_information(self, db: AsyncSession, ids: List[str]):
 
         stmt = (
-            update(SimulationScenario)
-            .where(SimulationScenario.id.in_(bindparam("ids", expanding=True)))
+            update(ScenarioInformation)
+            .where(ScenarioInformation.id.in_(bindparam("ids", expanding=True)))
             .values(is_active=False)
         )
         await db.execute(stmt, {"ids": ids.scenario_ids})
         await db.commit()
 
-    async def duplicate_simulation_scenario(
+    async def duplicate_scenario_information(
         self,
         db: AsyncSession,
         user_id: str,
@@ -177,9 +175,9 @@ class SimulationRepository(ISimulationRepository):
         time_now,
     ):
         scenario_result = await db.execute(
-            select(SimulationScenario)
-            .where(SimulationScenario.id == old_id)
-            .where(SimulationScenario.is_active.is_(true()))
+            select(ScenarioInformation)
+            .where(ScenarioInformation.id == old_id)
+            .where(ScenarioInformation.is_active.is_(true()))
         )
 
         origin_scenario = scenario_result.scalar_one()
@@ -227,9 +225,9 @@ class SimulationRepository(ISimulationRepository):
     ):
 
         await db.execute(
-            update(Groups)
-            .where(Groups.id == int(group_id))
-            .values({Groups.master_scenario_id: scenario_id})
+            update(Group)
+            .where(Group.id == int(group_id))
+            .values({Group.master_scenario_id: scenario_id})
         )
         await db.commit()
 
@@ -241,11 +239,11 @@ class SimulationRepository(ISimulationRepository):
 
             result = await db.execute(
                 select(
-                    SimulationScenario.simulation_name,
-                    SimulationScenario.memo,
-                    SimulationScenario.editor,
-                    SimulationScenario.terminal,
-                ).where(SimulationScenario.id == scenario_id)
+                    ScenarioInformation.name,
+                    ScenarioInformation.memo,
+                    ScenarioInformation.editor,
+                    ScenarioInformation.terminal,
+                ).where(ScenarioInformation.id == scenario_id)
             )
 
             scenario_info = result.mappings().first()
@@ -277,18 +275,18 @@ class SimulationRepository(ISimulationRepository):
             if metadata:
                 metadata.overview = scenario_metadata.overview
                 metadata.history = scenario_metadata.history
-                metadata.flight_sch = scenario_metadata.flight_sch
-                metadata.passenger_sch = scenario_metadata.passenger_sch
-                metadata.passenger_attr = scenario_metadata.passenger_attr
-                metadata.facility_conn = scenario_metadata.facility_conn
-                metadata.facility_info = scenario_metadata.facility_info
+                metadata.flight_schedule = scenario_metadata.flight_schedule
+                metadata.passenger_schedule = scenario_metadata.passenger_schedule
+                metadata.processing_procedures = scenario_metadata.processing_procedures
+                metadata.facility_connection = scenario_metadata.facility_connection
+                metadata.facility_information = scenario_metadata.facility_information
 
                 await db.flush()
 
             result = await db.execute(
-                update(SimulationScenario)
-                .where(SimulationScenario.id == scenario_metadata.scenario_id)
-                .values({SimulationScenario.updated_at: time_now})
+                update(ScenarioInformation)
+                .where(ScenarioInformation.id == scenario_metadata.scenario_id)
+                .values({ScenarioInformation.updated_at: time_now})
             )
 
             await db.commit()
@@ -311,16 +309,20 @@ class SimulationRepository(ISimulationRepository):
         rows = [dict(schema_map.get(flight_io)(**row._mapping)) for row in result]
         return rows
 
-    async def update_simulation_scenario_target_date(
+    async def update_scenario_target_flight_schedule_date(
         self,
         db: AsyncSession,
         scenario_id: str,
-        target_datetime,
+        target_flight_schedule_date,
     ):
         await db.execute(
-            update(SimulationScenario)
-            .where(SimulationScenario.id == scenario_id)
-            .values({SimulationScenario.simulation_date: target_datetime})
+            update(ScenarioInformation)
+            .where(ScenarioInformation.id == scenario_id)
+            .values(
+                {
+                    ScenarioInformation.target_flight_schedule_date: target_flight_schedule_date
+                }
+            )
         )
         await db.commit()
 
@@ -338,29 +340,3 @@ class SimulationRepository(ISimulationRepository):
         }
 
         return default_procedures
-
-    # TODO: 추후에는 upsert 로직으로 변경하기 (https://supabase.com/docs/reference/python/upsert)
-    async def upsert_scenario_status(
-        self, db: AsyncSession, scenario_id: str, created_at, status="running"
-    ):
-        result = await db.execute(
-            select(ScenarioStatus).where(ScenarioStatus.scenario_id == scenario_id)
-        )
-
-        scenario_status = result.mappings().first()
-
-        if scenario_status is None:
-            new_status = ScenarioStatus(
-                scenario_id=scenario_id,
-                status="running",
-                created_at=created_at,
-            )
-            db.add(new_status)
-        else:
-            await db.execute(
-                update(ScenarioStatus)
-                .where(ScenarioStatus.scenario_id == scenario_id)
-                .values({ScenarioStatus.status: status})
-            )
-
-        await db.commit()
