@@ -14,7 +14,14 @@ class Calculator:
         calculate_type: str = "mean",
         percentile: int | None = None,
     ):
-        self.pax_df = pax_df
+        # on, done 값이 없는 경우, 처리 안된 여객이므로 제외하고 시작함
+        self.pax_df = pax_df.copy()
+        for process in [col.replace("_on_pred", "") for col in self.pax_df.columns if "on_pred" in col]:
+            cols_to_check = [
+                f"{process}_on_pred",
+                f"{process}_done_pred"
+            ]
+            self.pax_df = self.pax_df.dropna(subset=cols_to_check)
         self.facility_info = facility_info
         self.calculate_type = calculate_type
         self.percentile = percentile
