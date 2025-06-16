@@ -401,6 +401,17 @@ async def generate_simulation_overview(
     )
 
 
+@simulation_router.get(
+    "/request-simulation/scenario-id/{scenario_id}", status_code=status.HTTP_200_OK
+)
+@inject
+async def fetch_simulation(
+    scenario_id: str,
+    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
+):
+    return await sim_service.get_simulation(scenario_id=scenario_id)
+
+
 @simulation_router.post(
     "/request-simulation/scenario-id/{scenario_id}", status_code=status.HTTP_200_OK
 )

@@ -1620,7 +1620,7 @@ class SimulationService:
 
         return {"status": "success", "message": "Simulation started successfully."}
 
-    async def get_simulation(self, db: AsyncSession, scenario_id: str):
+    async def get_simulation(self, scenario_id: str):
         bucket = "flexa-dev-ap-northeast-2-data-storage"
         key = f"simulations/simulation-results-chart-data/{scenario_id}.json"
 
