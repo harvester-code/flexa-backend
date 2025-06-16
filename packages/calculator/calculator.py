@@ -326,20 +326,66 @@ class Calculator:
         return result
 
     def get_histogram_data(self):
-        """시설별 통계 데이터 생성"""
-        result = {}
+        """시설별 통계 데이터 생성 (요청한 응답 구조로 변환, histograms 계층 제거)"""
+        data = {}
+        facility_histograms = {}
+        # 1. 각 시설별 waiting_time/queue_length 생성
         for process in self.process_list:
-            result[process] = {
-                "waiting_time": self._calculate_waiting_time_distribution(process),
-                "queue_length": self._calculate_queue_length_distribution(process),
+            waiting_time_bins = self._calculate_waiting_time_distribution(process)
+            queue_length_bins = self._calculate_queue_length_distribution(process)
+            facility_histograms[process] = {
+                "waiting_time": {
+                    "range_unit": "min",
+                    "value_unit": "%",
+                    "bins": [
+                        {"range": self._parse_range(item["title"], "waiting_time"), "value": item["value"]}
+                        for item in waiting_time_bins
+                    ],
+                },
+                "queue_length": {
+                    "range_unit": "pax",
+                    "value_unit": "%",
+                    "bins": [
+                        {"range": self._parse_range(item["title"], "queue_length"), "value": item["value"]}
+                        for item in queue_length_bins
+                    ],
+                },
             }
-        all_facility_data = self._calculate_average_distribution([result])
-        # value가 혹시 float으로 남아있을 경우 int로 변환
-        for key in ["waiting_time", "queue_length"]:
-            for item in all_facility_data[key]:
-                item["value"] = int(item["value"])
-        result["all_facilities"] = all_facility_data
-        return result
+        # 2. all_facilities는 각 시설별 분포의 평균/합산
+        all_waiting_time = {}
+        all_queue_length = {}
+        for process in self.process_list:
+            for item in facility_histograms[process]["waiting_time"]["bins"]:
+                rng = tuple(item["range"])
+                all_waiting_time.setdefault(rng, []).append(item["value"])
+            for item in facility_histograms[process]["queue_length"]["bins"]:
+                rng = tuple(item["range"])
+                all_queue_length.setdefault(rng, []).append(item["value"])
+        avg_waiting_time = [
+            {"range": list(rng), "value": int(round(sum(vals) / len(vals)))}
+            for rng, vals in all_waiting_time.items()
+        ]
+        avg_queue_length = [
+            {"range": list(rng), "value": int(round(sum(vals) / len(vals)))}
+            for rng, vals in all_queue_length.items()
+        ]
+        # 3. data에 시설별 waiting_time/queue_length 먼저 추가
+        for process in self.process_list:
+            data[process] = facility_histograms[process]
+        # 4. 마지막에 all_facilities 추가
+        data["all_facilities"] = {
+            "waiting_time": {
+                "range_unit": "min",
+                "value_unit": "%",
+                "bins": avg_waiting_time,
+            },
+            "queue_length": {
+                "range_unit": "pax",
+                "value_unit": "%",
+                "bins": avg_queue_length,
+            },
+        }
+        return data
 
     def get_sankey_diagram_data(self):
         """시설 이용 흐름을 분석하여 Sankey 다이어그램 데이터를 생성"""
@@ -1141,3 +1187,31 @@ class Calculator:
         elif isinstance(data, (int, float)):
             return self._format_number(data)
         return data
+
+    def _parse_range(self, title, mode):
+        # title: "00:00-15:00" or "0-50" etc.
+        if mode == "waiting_time":
+            # "00:00-15:00" -> [0, 15], "60:00-" -> [60, None]
+            if ":" in title:
+                start, rest = title.split("-")
+                start_min = int(start.split(":")[0]) * 60 + int(start.split(":")[1])
+                start_min = start_min // 60  # 초 -> 분 변환
+                if rest == "":
+                    return [start_min, None]
+                end_min = int(rest.split(":")[0]) * 60 + int(rest.split(":")[1]) if rest != "" else None
+                end_min = end_min // 60 if end_min is not None else None  # 초 -> 분 변환
+                return [start_min, end_min]
+            elif "-" in title:
+                start, end = title.split("-")
+                return [int(start), int(end) if end else None]
+            else:
+                return [0, None]
+        else:
+            # queue_length: "0-50", "250+"
+            if "+" in title:
+                return [int(title.replace("+", "")), None]
+            elif "-" in title:
+                start, end = title.split("-")
+                return [int(start), int(end) if end else None]
+            else:
+                return [0, None]
