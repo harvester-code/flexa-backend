@@ -912,7 +912,6 @@ class SimulationService:
 
         avg_seconds = time_diffs.mean()
         avg_minutes = round(avg_seconds / 60, 1)
-        passenger_pattern = f"{avg_minutes}min"
 
         matric = [
             {"name": "Date", "value": flight_sch.date},
@@ -938,7 +937,7 @@ class SimulationService:
             },
             {
                 "name": "Avg Pax show-up Time",
-                "value": f"{passenger_pattern:,} mins",
+                "value": f"{avg_minutes:,} mins",
             },
             {
                 "name": "Generation Method",
