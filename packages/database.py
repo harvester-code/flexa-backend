@@ -75,6 +75,8 @@ async def aget_supabase_session() -> AsyncGenerator[AsyncSession, None]:
         #     await session.close()
 
 
+# ============================================================
+# HACK: Supabase 클라이언트 생성 함수. 현재는 백엔드에서 안쓰이나, 추후 db 리팩토링 이후 필요없을시 삭제 예정
 async def aget_supabase_client() -> AsyncClient:
     SUPABASE_PROJECT_URL: str = os.getenv("SUPABASE_PROJECT_URL")
     SUPABASE_PUBLIC_KEY: str = os.getenv("SUPABASE_PUBLIC_KEY")
