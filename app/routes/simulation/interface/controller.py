@@ -60,7 +60,7 @@ async def fetch_scenario(
         user_id=request.state.user_id,
         group_id=group_id,
         page=page,
-        items_per_page=11,
+        items_per_page=9,
     )
 
 
