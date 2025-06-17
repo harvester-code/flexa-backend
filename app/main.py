@@ -10,6 +10,7 @@ from app.libs.middleware import AuthMiddleware
 from app.routes.admin.interface.controller import admin_router
 from app.routes.auth.interface.controller import auth_router
 from app.routes.facility.interface.controller import facility_router
+from app.routes.health.controller import health_router
 from app.routes.home.interface.controller import home_router
 from app.routes.passenger_flow.controller import passenger_flow_router
 from app.routes.simulation.interface.controller import simulation_router
@@ -32,6 +33,7 @@ app.add_middleware(AuthMiddleware)
 add_exception_handlers(app)
 
 # ================================================================
+app.include_router(health_router, prefix=API_PREFIX, tags=["HealthCheck"])
 app.include_router(auth_router, prefix=API_PREFIX, tags=["Authentication"])
 app.include_router(simulation_router, prefix=API_PREFIX, tags=["Simulations"])
 app.include_router(home_router, prefix=API_PREFIX, tags=["Homes"])
