@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 from dependency_injector.wiring import inject
+from loguru import logger
 
 from app.routes.facility.infra.repository import FacilityRepository
 
@@ -18,8 +19,11 @@ class FacilityService:
         self.facility_repo = facility_repo
 
     async def fetch_process_list(self, scenario_id: str | None = None):
-
-        sim_df = await self.facility_repo.download_from_s3(scenario_id)
+        try:
+            sim_df = await self.facility_repo.download_from_s3(scenario_id)
+        except Exception as e:
+            logger.error(f"ERROR: {e}")
+            return []
 
         process_columns = sim_df.columns[
             sim_df.columns.str.contains("pt_pred", case=False)
@@ -232,6 +236,9 @@ class FacilityService:
         percentile = percentile / 100
 
         sim_df = await self.facility_repo.download_from_s3(scenario_id)
+        if sim_df is None:
+            logger.error(f"ERROR: No data found for scenario_id {scenario_id}")
+            return None
 
         kpi_result = {"header": {"columns": [], "subColumns": []}, "body": []}
         node_list: list = sim_df[f"{process}_pred"].unique().tolist()
@@ -387,6 +394,9 @@ class FacilityService:
         chart_result = {}
 
         sim_df = await self.facility_repo.download_from_s3(scenario_id)
+        if sim_df is None:
+            logger.error(f"ERROR: No data found for scenario_id {scenario_id}")
+            return None
 
         node_list = [
             val
@@ -450,6 +460,9 @@ class FacilityService:
         heatmap_result = {}
 
         sim_df = await self.facility_repo.download_from_s3(scenario_id)
+        if sim_df is None:
+            logger.error(f"ERROR: No data found for scenario_id {scenario_id}")
+            return None
 
         # TP
         tp = await self._create_throughput(
@@ -536,6 +549,9 @@ class FacilityService:
     async def generate_pie_chart(self, process: str, scenario_id: str | None = None):
 
         sim_df = await self.facility_repo.download_from_s3(scenario_id)
+        if sim_df is None:
+            logger.error(f"ERROR: No data found for scenario_id {scenario_id}")
+            return None
 
         pie_result = {}
         table_result = {}
@@ -638,6 +654,9 @@ class FacilityService:
     async def generate_pa_chart(self, process: str, scenario_id: str | None = None):
 
         sim_df = await self.facility_repo.download_from_s3(scenario_id)
+        if sim_df is None:
+            logger.error(f"ERROR: No data found for scenario_id {scenario_id}")
+            return None
 
         chart_result = {}
         for group_name, group_column in self.get_criteria_options(process).items():
