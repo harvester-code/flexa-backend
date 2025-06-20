@@ -92,7 +92,7 @@ class Calculator:
                 )
             return (result, None) if return_row else result
 
-        if self.percentile is None:
+        if self.calculate_type == "mean":
             # 평균
             for process in self.process_list:
                 value = df[process].mean()
@@ -129,7 +129,7 @@ class Calculator:
             "processed_per_installed"
         ]
 
-        if self.percentile is None:
+        if self.calculate_type == "mean":
             waiting_time = self._calculate_kpi_values(method="waiting_time")
             waiting_time = self._format_waiting_time(waiting_time)
             queue_length = self._calculate_kpi_values(method="queue_length")
@@ -223,7 +223,7 @@ class Calculator:
                 def get_stat(series):
                     if series.empty:
                         return 0
-                    if self.percentile is not None:
+                    if self.calculate_type == "top":
                         return series.quantile(1 - self.percentile / 100)
                     return series.mean()
 
@@ -267,125 +267,267 @@ class Calculator:
         return result
 
     def get_flow_chart_data(self):
-        """시간별 대기열 및 대기 시간 데이터 생성"""
+        """시간별 대기열 및 대기 시간 데이터 생성 (시설별 세부 데이터 포함)"""
+        # --- 1. 시간축 생성 ---
         time_df = self._create_time_dataframe()
-        time_df = self._add_queue_data(time_df)
-        time_df.fillna(0, inplace=True)
-
-        # 시간 데이터 생성
         times = time_df.index.strftime("%Y-%m-%d %H:%M:%S").tolist()
 
-        # 결과 딕셔너리 초기화
-        result = {}
+        # --- 2. 결과 구조 초기화 ---
+        result = {"times": times}
 
-        # 전체 시설의 평균 데이터 계산
-        throughput_sum = pd.DataFrame()
-        queue_length_avg = pd.DataFrame()
-        waiting_time_avg = pd.DataFrame()
-
+        # --- 3. 프로세스 및 시설별 데이터 계산 ---
         for process in self.process_list:
-            throughput_sum[process] = time_df[f"{process}_throughput"]
-            queue_length_avg[process] = time_df[f"{process}_que"]
-            waiting_time_avg[process] = time_df[f"{process}_waiting_time"]
+            # 'all_zones' 집계를 위한 프로세스 레벨 데이터 저장소
+            process_inflow_dfs = []
+            process_outflow_dfs = []
+            process_queue_dfs = []
+            process_waiting_time_dfs = []
+            process_capacity_dfs = []
 
-        # all_facilities를 먼저 추가
-        result["all_facilities"] = {
-            "throughput": {
-                "x": times,
-                "y": [],
-            },
-            "queue_length": {
-                "x": times,
-                "y": queue_length_avg.mean(axis=1).astype(int).tolist(),
-            },
-            "waiting_time": {
-                "x": times,
-                "y": waiting_time_avg.mean(axis=1).astype(int).tolist(),
-            },
-        }
+            # 개별 시설 데이터를 임시 저장할 딕셔너리
+            process_facility_data = {}
 
-        # 각 프로세스별로 데이터 생성
-        for process in self.process_list:
-            process_data = {
-                "throughput": {
-                    "x": times,
-                    "y": time_df[f"{process}_throughput"].astype(int).tolist(),
-                },
-                "queue_length": {
-                    "x": times,
-                    "y": time_df[f"{process}_que"].astype(int).tolist(),
-                },
-                "waiting_time": {
-                    "x": times,
-                    "y": time_df[f"{process}_waiting_time"].astype(int).tolist(),
-                },
-            }
-            result[process] = process_data
+            # 해당 프로세스의 모든 시설 목록 가져오기
+            facilities = sorted(self.pax_df[f"{process}_pred"].dropna().unique())
 
-        # return self._format_json_numbers(result)
+            for facility_name in facilities:
+                # 특정 시설에 대한 데이터만 필터링
+                facility_df = self.pax_df[
+                    self.pax_df[f"{process}_pred"] == facility_name
+                ].copy()
+                short_name = facility_name.split("_")[-1]
+
+                # 시간대별 집계
+                # inflow
+                inflow_counts = facility_df.groupby(
+                    facility_df[f"{process}_on_pred"].dt.floor("10min")
+                ).size()
+                inflow_series = inflow_counts.reindex(time_df.index, fill_value=0)
+
+                # outflow
+                outflow_counts = facility_df.groupby(
+                    facility_df[f"{process}_done_pred"].dt.floor("10min")
+                ).size()
+                outflow_series = outflow_counts.reindex(time_df.index, fill_value=0)
+
+                # --- 4. 대기열 및 대기 시간 계산 ---
+                # 이 시설의 누적 inflow 및 outflow 계산
+                cumulative_inflow = inflow_series.cumsum()
+                cumulative_outflow = outflow_series.cumsum()
+
+                # 대기열 길이(Queue Length) 계산
+                queue_length_series = (cumulative_inflow - cumulative_outflow).clip(
+                    lower=0
+                )
+
+                # 대기 시간(Waiting Time) 계산
+                # 간단한 Little's Law 변형 적용: W = L / λ (여기서 λ는 outflow)
+                # outflow가 0일 경우 대기 시간을 0으로 처리하여 0으로 나누는 것을 방지
+                waiting_time_series = (
+                    (queue_length_series / (outflow_series / 600))
+                    .replace([float("inf"), -float("inf")], 0)
+                    .fillna(0)
+                )
+
+                # === capacity 계산 ===
+                capacity_list = []
+                if self.facility_info is not None:
+                    for comp in self.facility_info.get("components", []):
+                        if comp["name"] == process:
+                            for node in comp.get("nodes", []):
+                                if node["name"] == short_name:
+                                    schedules = node.get("facility_schedules", [])
+                                    if schedules:
+                                        for slot in schedules:
+                                            slot_capacity = 0
+                                            for t in slot:
+                                                if t and t > 0:
+                                                    slot_capacity += int(600 // t)
+                                            capacity_list.append(slot_capacity)
+                                    break
+                # capacity_list가 비어있으면 0으로 채운 144개 리스트로 대체
+                if not capacity_list:
+                    capacity_list = [0] * len(time_df.index)
+
+                process_facility_data[short_name] = {
+                    "inflow": inflow_series.astype(int).tolist(),
+                    "outflow": outflow_series.astype(int).tolist(),
+                    "queue_length": queue_length_series.astype(int).tolist(),
+                    "waiting_time": waiting_time_series.astype(int).tolist(),
+                    "capacity": capacity_list,
+                }
+                process_inflow_dfs.append(inflow_series)
+                process_outflow_dfs.append(outflow_series)
+                process_queue_dfs.append(queue_length_series)
+                process_waiting_time_dfs.append(waiting_time_series)
+                process_capacity_dfs.append(pd.Series(capacity_list, index=time_df.index))
+
+            # --- 7. 'all_zones' 집계 및 프로세스 결과 구성 ---
+            if process_inflow_dfs:
+                # 프로세스 레벨의 모든 시설 데이터 집계
+                sum_inflow = pd.concat(process_inflow_dfs, axis=1).sum(axis=1)
+                sum_outflow = pd.concat(process_outflow_dfs, axis=1).sum(axis=1)
+                avg_queue = pd.concat(process_queue_dfs, axis=1).mean(axis=1)
+                avg_waiting_time = pd.concat(process_waiting_time_dfs, axis=1).mean(
+                    axis=1
+                )
+
+                all_zones_data = {
+                    "inflow": sum_inflow.astype(int).tolist(),
+                    "outflow": sum_outflow.astype(int).tolist(),
+                    "queue_length": avg_queue.round().astype(int).tolist(),
+                    "waiting_time": avg_waiting_time.round().astype(int).tolist(),
+                }
+                # capacity 평균값 항상 추가 (없으면 0)
+                if process_capacity_dfs:
+                    avg_capacity = pd.concat(process_capacity_dfs, axis=1).mean(axis=1)
+                    all_zones_data["capacity"] = avg_capacity.round().astype(int).tolist()
+                else:
+                    all_zones_data["capacity"] = [0] * len(time_df.index)
+
+                result[process] = {"all_zones": all_zones_data}
+                result[process].update(process_facility_data)
+            else:
+                result[process] = {}
+
         return result
 
     def get_histogram_data(self):
-        """시설별 통계 데이터 생성 (요청한 응답 구조로 변환, histograms 계층 제거)"""
-        data = {}
-        facility_histograms = {}
-        # 1. 각 시설별 waiting_time/queue_length 생성
+        """시설별, 그리고 그 안의 구역별 통계 데이터 생성 (all_zones 포함)"""
+        result = {}
+
         for process in self.process_list:
-            waiting_time_bins = self._calculate_waiting_time_distribution(process)
-            queue_length_bins = self._calculate_queue_length_distribution(process)
-            facility_histograms[process] = {
-                "waiting_time": {
-                    "range_unit": "min",
-                    "value_unit": "%",
-                    "bins": [
-                        {"range": self._parse_range(item["title"], "waiting_time"), "value": item["value"]}
-                        for item in waiting_time_bins
-                    ],
-                },
-                "queue_length": {
-                    "range_unit": "pax",
-                    "value_unit": "%",
-                    "bins": [
-                        {"range": self._parse_range(item["title"], "queue_length"), "value": item["value"]}
-                        for item in queue_length_bins
-                    ],
-                },
-            }
-        # 2. all_facilities는 각 시설별 분포의 평균/합산
-        all_waiting_time = {}
-        all_queue_length = {}
-        for process in self.process_list:
-            for item in facility_histograms[process]["waiting_time"]["bins"]:
-                rng = tuple(item["range"])
-                all_waiting_time.setdefault(rng, []).append(item["value"])
-            for item in facility_histograms[process]["queue_length"]["bins"]:
-                rng = tuple(item["range"])
-                all_queue_length.setdefault(rng, []).append(item["value"])
-        avg_waiting_time = [
-            {"range": list(rng), "value": int(round(sum(vals) / len(vals)))}
-            for rng, vals in all_waiting_time.items()
-        ]
-        avg_queue_length = [
-            {"range": list(rng), "value": int(round(sum(vals) / len(vals)))}
-            for rng, vals in all_queue_length.items()
-        ]
-        # 3. data에 시설별 waiting_time/queue_length 먼저 추가
-        for process in self.process_list:
-            data[process] = facility_histograms[process]
-        # 4. 마지막에 all_facilities 추가
-        data["all_facilities"] = {
-            "waiting_time": {
-                "range_unit": "min",
-                "value_unit": "%",
-                "bins": avg_waiting_time,
-            },
-            "queue_length": {
-                "range_unit": "pax",
-                "value_unit": "%",
-                "bins": avg_queue_length,
-            },
-        }
-        return data
+            # 'all_zones' 집계를 위한 데이터 저장소
+            process_wt_bins_collection = []
+            process_ql_bins_collection = []
+
+            # 개별 시설 데이터를 임시 저장할 딕셔너리
+            process_facility_data = {}
+
+            # 해당 프로세스의 모든 시설 목록 가져오기
+            facilities = sorted(self.pax_df[f"{process}_pred"].dropna().unique())
+
+            for facility_name in facilities:
+                # 특정 시설에 대한 데이터만 필터링
+                facility_df = self.pax_df[
+                    self.pax_df[f"{process}_pred"] == facility_name
+                ].copy()
+
+                # 히스토그램 계산
+                waiting_time_bins = self._calculate_waiting_time_distribution(
+                    process, facility_df
+                )
+                queue_length_bins = self._calculate_queue_length_distribution(
+                    process, facility_df
+                )
+
+                # 짧은 이름으로 키 생성
+                short_name = facility_name.split("_")[-1]
+
+                # 개별 시설 결과 저장
+                process_facility_data[short_name] = {
+                    "waiting_time": {
+                        "range_unit": "min",
+                        "value_unit": "%",
+                        "bins": [
+                            {
+                                "range": self._parse_range(
+                                    item["title"], "waiting_time"
+                                ),
+                                "value": item["value"],
+                            }
+                            for item in waiting_time_bins
+                        ],
+                    },
+                    "queue_length": {
+                        "range_unit": "pax",
+                        "value_unit": "%",
+                        "bins": [
+                            {
+                                "range": self._parse_range(
+                                    item["title"], "queue_length"
+                                ),
+                                "value": item["value"],
+                            }
+                            for item in queue_length_bins
+                        ],
+                    },
+                }
+
+                # 'all_zones' 집계를 위해 데이터 추가
+                if waiting_time_bins:
+                    process_wt_bins_collection.append(waiting_time_bins)
+                if queue_length_bins:
+                    process_ql_bins_collection.append(queue_length_bins)
+
+            # --- 'all_zones' 집계 및 최종 결과 구성 ---
+            if process_wt_bins_collection and process_ql_bins_collection:
+                # 각 bin 별로 평균값 계산
+                def calculate_average_bins(bins_collection):
+                    aggregated_values = {}
+                    if not bins_collection:
+                        return []
+                    
+                    # 모든 bin의 title을 기준으로 값들을 수집
+                    for bin_list in bins_collection:
+                        for bin_item in bin_list:
+                            title = bin_item["title"]
+                            value = bin_item["value"]
+                            if title not in aggregated_values:
+                                aggregated_values[title] = []
+                            aggregated_values[title].append(value)
+                    
+                    # 평균 계산 및 최종 bin 리스트 생성 (순서 유지를 위해 첫번째 리스트의 title 순서 사용)
+                    average_bins = []
+                    for bin_item in bins_collection[0]:
+                        title = bin_item["title"]
+                        # 해당 title에 값이 없는 경우를 대비하여 기본값 0으로 처리
+                        avg_value = round(np.mean(aggregated_values.get(title, [0])))
+                        average_bins.append(
+                            {"title": title, "value": int(avg_value)}
+                        )
+                    return average_bins
+
+                avg_wt_bins = calculate_average_bins(process_wt_bins_collection)
+                avg_ql_bins = calculate_average_bins(process_ql_bins_collection)
+
+                # 'all_zones' 데이터 생성
+                all_zones_data = {
+                    "waiting_time": {
+                        "range_unit": "min",
+                        "value_unit": "%",
+                        "bins": [
+                            {
+                                "range": self._parse_range(
+                                    item["title"], "waiting_time"
+                                ),
+                                "value": item["value"],
+                            }
+                            for item in avg_wt_bins
+                        ],
+                    },
+                    "queue_length": {
+                        "range_unit": "pax",
+                        "value_unit": "%",
+                        "bins": [
+                            {
+                                "range": self._parse_range(
+                                    item["title"], "queue_length"
+                                ),
+                                "value": item["value"],
+                            }
+                            for item in avg_ql_bins
+                        ],
+                    },
+                }
+                # 'all_zones'를 맨 앞에 추가
+                result[process] = {"all_zones": all_zones_data}
+                result[process].update(process_facility_data)
+            else:
+                # 집계할 데이터가 없으면 개별 시설 데이터만 포함
+                result[process] = process_facility_data
+                
+        return result
 
     def get_sankey_diagram_data(self):
         """시설 이용 흐름을 분석하여 Sankey 다이어그램 데이터를 생성"""
@@ -903,7 +1045,7 @@ class Calculator:
 
         if not all_pax_data:
             return np.nan
-        if self.percentile is None:
+        if self.calculate_type == "mean":
             return round(np.mean(all_pax_data))
         else:
             return round(np.percentile(all_pax_data, 100 - self.percentile))
@@ -997,7 +1139,7 @@ class Calculator:
         def get_stat(series):
             if series.empty:
                 return 0
-            if self.percentile is not None:
+            if self.calculate_type == "top":
                 return series.quantile(1 - self.percentile / 100)
             return series.mean()
 
@@ -1025,7 +1167,7 @@ class Calculator:
             def get_stat(series):
                 if series.empty:
                     return 0
-                if self.percentile is not None:
+                if self.calculate_type == "top":
                     return series.quantile(1 - self.percentile / 100)
                 return series.mean()
 
@@ -1050,60 +1192,51 @@ class Calculator:
             }
             category_obj["components"].append(component)
 
-    def _add_queue_data(self, time_df):
-        """대기열 및 대기 시간 데이터를 데이터프레임에 추가"""
-        temp = self.pax_df.copy()
-        for process in self.process_list:
-            queue = temp.groupby(temp[f"{process}_on_pred"].dt.floor(self.time_unit))[
-                f"{process}_que"
-            ].mean()
-            time_df[f"{process}_que"] = round(queue, 2).fillna(0)
-            waiting_time_minutes = self._calculate_waiting_time_minutes(temp, process)
-            waiting_time = waiting_time_minutes.groupby(
-                temp[f"{process}_on_pred"].dt.floor(self.time_unit)
-            ).mean()
-
-            time_df[f"{process}_waiting_time"] = waiting_time.round(1).fillna(0.0)
-
-            done_counts = (
-                temp[f"{process}_done_pred"]
-                .dropna()
-                .dt.floor(self.time_unit)
-                .value_counts()
-                .sort_index()
-            )
-            time_df[f"{process}_throughput"] = 0
-            for time_idx, count in done_counts.items():
-                if time_idx in time_df.index:
-                    time_df.loc[time_idx, f"{process}_throughput"] = count
-        return time_df
-
-    def _calculate_waiting_time_distribution(self, process):
+    def _calculate_waiting_time_distribution(self, process, df=None):
         """대기 시간 분포를 계산"""
-        waiting_time_minutes = self._calculate_waiting_time_minutes(
-            self.pax_df, process
-        )
+        if df is None:
+            df = self.pax_df
+        waiting_time_minutes = self._calculate_waiting_time_minutes(df, process)
+        if waiting_time_minutes.empty:
+            return []
         bins = [0, 15, 30, 45, 60, float("inf")]
         labels = ["00:00-15:00", "15:00-30:00", "30:00-45:00", "45:00-60:00", "60:00-"]
         time_groups = pd.cut(
             waiting_time_minutes, bins=bins, labels=labels, right=False
         )
-        percentages = (time_groups.value_counts(normalize=True) * 100).round(0)
+        # 모든 레이블에 대한 카운트를 얻기 위해 reindex 사용
+        all_counts = time_groups.value_counts().reindex(labels, fill_value=0)
+        total = all_counts.sum()
+        if total == 0:
+            percentages = all_counts # 모두 0
+        else:
+            percentages = ((all_counts / total) * 100).round(0)
+
         return [
             {"title": label, "value": int(percentages[label]), "unit": "%"}
             for label in labels
         ]
 
-    def _calculate_queue_length_distribution(self, process):
+    def _calculate_queue_length_distribution(self, process, df=None):
         """대기열 길이 분포를 계산"""
+        if df is None:
+            df = self.pax_df
+        if f"{process}_que" not in df.columns or df[f"{process}_que"].empty:
+            return []
+
         bins = [0, 50, 100, 150, 200, 250, float("inf")]
         labels = ["0-50", "50-100", "100-150", "150-200", "200-250", "250+"]
         queue_groups = pd.cut(
-            self.pax_df[f"{process}_que"], bins=bins, labels=labels, right=False
+            df[f"{process}_que"], bins=bins, labels=labels, right=False
         )
-        percentages = (
-            (queue_groups.value_counts(normalize=True) * 100).round(0).sort_index()
-        )
+        # 모든 레이블에 대한 카운트를 얻기 위해 reindex 사용
+        all_counts = queue_groups.value_counts().reindex(labels, fill_value=0)
+        total = all_counts.sum()
+        if total == 0:
+            percentages = all_counts # 모두 0
+        else:
+            percentages = ((all_counts / total) * 100).round(0)
+
         return [
             {"title": label, "value": int(percentages[label]), "unit": "%"}
             for label in labels
