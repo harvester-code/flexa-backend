@@ -1,5 +1,6 @@
 import math
 from typing import Any, Dict, Optional
+from fractions import Fraction
 
 import numpy as np
 import pandas as pd
@@ -330,21 +331,7 @@ class Calculator:
                 )
 
                 # === capacity 계산 ===
-                capacity_list = []
-                if self.facility_info is not None:
-                    for comp in self.facility_info.get("components", []):
-                        if comp["name"] == process:
-                            for node in comp.get("nodes", []):
-                                if node["name"] == short_name:
-                                    schedules = node.get("facility_schedules", [])
-                                    if schedules:
-                                        for slot in schedules:
-                                            slot_capacity = 0
-                                            for t in slot:
-                                                if t and t > 0:
-                                                    slot_capacity += int(600 // t)
-                                            capacity_list.append(slot_capacity)
-                                    break
+                capacity_list = self._calculate_node_capacity_list(process, short_name)
                 # capacity_list가 비어있으면 0으로 채운 144개 리스트로 대체
                 if not capacity_list:
                     capacity_list = [0] * len(time_df.index)
@@ -380,8 +367,8 @@ class Calculator:
                 }
                 # capacity 평균값 항상 추가 (없으면 0)
                 if process_capacity_dfs:
-                    avg_capacity = pd.concat(process_capacity_dfs, axis=1).mean(axis=1)
-                    all_zones_data["capacity"] = avg_capacity.round().astype(int).tolist()
+                    all_capacity = pd.concat(process_capacity_dfs, axis=1).sum(axis=1)
+                    all_zones_data["capacity"] = all_capacity.round().astype(int).tolist()
                 else:
                     all_zones_data["capacity"] = [0] * len(time_df.index)
 
@@ -568,12 +555,6 @@ class Calculator:
             for col in self.pax_df.columns
             if "on_pred" in col
         ]
-
-    def _format_seconds_to_time(self, seconds):
-        """초 단위 값을 'XXh YYm ZZs' 형식으로 변환"""
-        if pd.isna(seconds):
-            return "0s"
-        return self._format_waiting_time(seconds)
 
     def _format_timedelta(self, td):
         """Timedelta를 'XXh YYm ZZs' 형식으로 변환"""
@@ -1155,43 +1136,6 @@ class Calculator:
             "pi_ratio": pi_ratio,
         }
 
-    def _add_facility_components(self, df, process, category_obj):
-        """시설별 컴포넌트를 계산하고 category_obj에 추가"""
-        facilities = sorted(df[f"{process}_pred"].unique())
-        for facility in facilities:
-            facility_df = df[df[f"{process}_pred"] == facility]
-            waiting_time = self._calculate_waiting_time(facility_df, process)
-            opened_count = facility_df[f"{process}_facility_number"].nunique()
-
-            # 퍼센타일 또는 평균 계산을 위한 헬퍼 함수
-            def get_stat(series):
-                if series.empty:
-                    return 0
-                if self.calculate_type == "top":
-                    return series.quantile(1 - self.percentile / 100)
-                return series.mean()
-
-            component = {
-                "title": facility,
-                "opened": (
-                    [opened_count, opened_count] if not facility_df.empty else [0, 0]
-                ),
-                "isOpened": not facility_df.empty,
-                "throughput": len(facility_df),
-                "maxQueue": (
-                    int(facility_df[f"{process}_que"].fillna(0).max())
-                    if not facility_df[f"{process}_que"].empty
-                    and pd.notna(facility_df[f"{process}_que"].fillna(0).max())
-                    else 0
-                ),
-                "queueLength": int(get_stat(facility_df[f"{process}_que"])),
-                "procTime": self._format_seconds_to_time(
-                    get_stat(facility_df[f"{process}_pt"])
-                ),
-                "waitTime": self._format_timedelta(get_stat(waiting_time)),
-            }
-            category_obj["components"].append(component)
-
     def _calculate_waiting_time_distribution(self, process, df=None):
         """대기 시간 분포를 계산"""
         if df is None:
@@ -1242,38 +1186,6 @@ class Calculator:
             for label in labels
         ]
 
-    def _calculate_average_distribution(self, histogram_data):
-        """전체 시설의 평균 분포를 계산"""
-        all_waiting_time = {}
-        all_queue_length = {}
-        for facility in histogram_data:
-            # facility의 첫 번째 (유일한) 키-값 쌍을 가져옴
-            process_data = list(facility.values())[0]
-            for wt in process_data["waiting_time"]:
-                value = float(wt["value"])
-                all_waiting_time.setdefault(wt["title"], []).append(value)
-            for ql in process_data["queue_length"]:
-                value = float(ql["value"])
-                all_queue_length.setdefault(ql["title"], []).append(value)
-
-        avg_waiting_time = [
-            {
-                "title": title,
-                "value": int(round(sum(values) / len(values))),
-                "unit": "%",
-            }
-            for title, values in all_waiting_time.items()
-        ]
-        avg_queue_length = [
-            {
-                "title": title,
-                "value": int(round(sum(values) / len(values))),
-                "unit": "%",
-            }
-            for title, values in all_queue_length.items()
-        ]
-        return {"waiting_time": avg_waiting_time, "queue_length": avg_queue_length}
-
     def _create_facility_queue_dataframe(self):
         """시간별 시설 대기열 데이터프레임 생성
 
@@ -1305,22 +1217,6 @@ class Calculator:
         time_df.fillna(0, inplace=True)
         return time_df
 
-    def _format_number(self, value):
-        """숫자를 천 단위 구분자가 포함된 문자열로 변환"""
-        if isinstance(value, (int, float)):
-            return f"{int(value):,}"
-        return value
-
-    def _format_json_numbers(self, data):
-        """JSON 형태의 데이터에서 모든 숫자를 천 단위 구분자가 포함된 문자열로 변환"""
-        if isinstance(data, dict):
-            return {k: self._format_json_numbers(v) for k, v in data.items()}
-        elif isinstance(data, list):
-            return [self._format_json_numbers(item) for item in data]
-        elif isinstance(data, (int, float)):
-            return self._format_number(data)
-        return data
-
     def _parse_range(self, title, mode):
         # title: "00:00-15:00" or "0-50" etc.
         if mode == "waiting_time":
@@ -1348,3 +1244,22 @@ class Calculator:
                 return [int(start), int(end) if end else None]
             else:
                 return [0, None]
+
+    def _calculate_node_capacity_list(self, process_name, node_name):
+        """프로세스와 노드 이름을 기반으로 10분 단위 용량 리스트(144개)를 계산합니다."""
+        if self.facility_info:
+            for comp in self.facility_info.get("components", []):
+                if comp["name"] == process_name:
+                    for node in comp.get("nodes", []):
+                        if node["name"] == node_name:
+                            schedules = node.get("facility_schedules", [])
+                            if schedules:
+                                capacity_list = []
+                                for slot in schedules:
+                                    slot_capacity = Fraction(0)
+                                    for t in slot:
+                                        if t and t > 0:
+                                            slot_capacity += Fraction(600, 1) / Fraction(t)
+                                    capacity_list.append(int(slot_capacity))
+                                return capacity_list
+        return []
