@@ -85,7 +85,12 @@ class HomeService:
             logger.error(f"ERROR: No data found for scenario_id {scenario_id}")
             return None
 
-        calculator = Calculator(pax_df)
+        facility_info = await self.home_repo.download_facility_json_from_s3(scenario_id)
+        if facility_info is None:
+            logger.error(f"ERROR: No facility info found for scenario_id {scenario_id}")
+            return None
+
+        calculator = Calculator(pax_df, facility_info)
         return calculator.get_flow_chart_data()
 
     async def fetch_histogram(self, scenario_id: str | None):
