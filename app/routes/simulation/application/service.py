@@ -427,6 +427,7 @@ class SimulationService:
         wr.s3.to_parquet(
             df=pd.DataFrame(flight_schedule_data),
             path=f"s3://flexa-dev-ap-northeast-2-data-storage/simulations/flight-schedule-data/{scenario_id}.parquet",
+            boto3_session=boto3_session,
         )
 
         # ==============================================================
@@ -648,6 +649,7 @@ class SimulationService:
         wr.s3.to_parquet(
             df=pax_df,
             path=f"s3://flexa-dev-ap-northeast-2-data-storage/simulations/show-up-passenger-data/{scenario_id}.parquet",
+            boto3_session=boto3_session,
         )
 
         # ==============================================================
