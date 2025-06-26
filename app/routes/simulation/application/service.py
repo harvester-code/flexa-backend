@@ -870,19 +870,27 @@ class SimulationService:
 
         return capacity
 
-    async def _calculate_capacity(self, facility_schedule: list, time_unit: int):
-        by_pass = 1e-10
+    async def _calculate_capacity(self, facility_schedule: List[int], time_unit: int):
+        BY_PASS = 1e-10
 
-        if by_pass in facility_schedule:
+        if BY_PASS in facility_schedule:
             return None
 
         return sum(
             1 / (schedule / 60) * time_unit if schedule != 0 else 0
             for schedule in facility_schedule
         )
+        # NOTE: 위 코드의 의미를 파악하기 어려워서 아래와 같이 작성함.
+        # 계산식이 맞다면 사용 예정.
+        # total_capacity = 0
+        # for schedule in facility_schedule:
+        #     if schedule == 0:
+        #         continue
+        #     capacity = (60 / schedule) * time_unit  # 분모에 0 안 들어가는 것 주의
+        #     total_capacity += capacity
+        # return total_capacity
 
     async def generate_set_opening_hours(self, facility_info):
-
         time_list = [
             (datetime(2023, 1, 1, 0, 0) + timedelta(minutes=10 * i)).strftime(
                 "%H:%M:%S"
@@ -895,12 +903,21 @@ class SimulationService:
             for facility_schedule in facility_info.facility_schedules
         ]
 
-        non_none_data = [data for data in data_list if data is not None]
-        max_data = max(non_none_data) if non_none_data else 0
+        valid_data = []
+        for data in data_list:
+            if data is not None:
+                valid_data.append(data)
 
-        data_list = [data if data is not None else max_data * 2 for data in data_list]
+        max_data = max(valid_data) if valid_data else 0
 
-        return {"x": time_list, "y": data_list}
+        y_data = []
+        for data in data_list:
+            if data is None:
+                y_data.append(max_data * 2)
+            else:
+                y_data.append(data)
+
+        return {"x": time_list, "y": y_data}
 
     async def generate_simulation_overview(
         self,
