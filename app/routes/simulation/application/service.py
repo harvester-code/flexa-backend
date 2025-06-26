@@ -22,8 +22,8 @@ from app.routes.simulation.application.queries import (
     SELECT_AIRPORT_DEPARTURE_SCHEDULE,
 )
 from app.routes.simulation.domain.simulation import (
-    ScenarioMetadata,
     ScenarioInformation,
+    ScenarioMetadata,
 )
 from app.routes.simulation.infra.repository import SimulationRepository
 from app.routes.simulation.infra.sqs.producer import send_message_to_sqs
@@ -724,7 +724,9 @@ class SimulationService:
 
         return sankey_data
 
-    async def _create_capacity_chart(self, df_pax, process, node_list):
+    async def _create_capacity_chart(
+        self, df_pax: pd.DataFrame, process: str, node_list: List[str], target_date: str
+    ):
         times = [
             time(hour=hour, minute=minute)
             for hour in range(24)
@@ -737,11 +739,20 @@ class SimulationService:
 
         for node in node_list:
             df_pax_filtered = df_pax[df_pax[f"{process}_component"] == node].copy()
+
+            df_pax_filtered = df_pax_filtered[
+                df_pax_filtered["show_up_time"].dt.date
+                == pd.to_datetime(target_date).date()
+            ]
+
+            # show_up_time을 10분 단위로 내림 처리
             df_pax_filtered.loc[:, "show_up_time"] = df_pax_filtered[
                 "show_up_time"
             ].dt.floor("10min")
 
             grouped = df_pax_filtered["show_up_time"].value_counts().reset_index()
+
+            # show_up_time을 문자열로 변환하고 마지막 8자리(HH:MM:SS)만 추출
             grouped["index"] = grouped["show_up_time"].astype(str).str[-8:]
 
             total_capa = pd.merge(time_df, grouped, on="index", how="left")
@@ -841,14 +852,19 @@ class SimulationService:
 
         return df_pax
 
-    async def generate_facility_conn(self, processes: dict, scenario_id: str):
+    async def generate_facility_conn(
+        self, processes: dict, scenario_id: str, target_date: str
+    ):
         pax_df = await self.fetch_show_up_passenger_data(scenario_id=scenario_id)
         pax_df = await self._calculate_add_columns(processes, pax_df)
 
         capacity = {}
         for process in list(processes.values())[1:]:
             capacity_data = await self._create_capacity_chart(
-                pax_df, process=process.name, node_list=process.nodes
+                pax_df,
+                process=process.name,
+                node_list=process.nodes,
+                target_date=target_date,
             )
             capacity[process.name] = capacity_data
 

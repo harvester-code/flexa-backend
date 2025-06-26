@@ -356,9 +356,10 @@ async def generate_facility_conn(
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     db: Connection = Depends(get_snowflake_session),
 ):
-
     return await sim_service.generate_facility_conn(
-        facility_conn.processes, scenario_id
+        scenario_id=scenario_id,
+        processes=facility_conn.processes,
+        target_date=facility_conn.flight_schedule.date,
     )
 
 
