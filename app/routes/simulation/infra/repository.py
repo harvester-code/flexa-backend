@@ -351,3 +351,43 @@ class SimulationRepository(ISimulationRepository):
         }
 
         return default_procedures
+
+    async def update_simulation_start_end_at(
+        self, db: AsyncSession, scenario_id: str, column: str, time
+    ):
+
+        if column == "start":
+            await db.execute(
+                update(ScenarioInformation)
+                .where(ScenarioInformation.id == scenario_id)
+                .values(
+                    {
+                        ScenarioInformation.simulation_start_at: time,
+                        ScenarioInformation.simulation_end_at: None,
+                    }
+                )
+            )
+
+        elif column == "end":
+            await db.execute(
+                update(ScenarioInformation)
+                .where(ScenarioInformation.id == scenario_id)
+                .values({ScenarioInformation.simulation_end_at: time})
+            )
+
+        else:
+            raise ValueError("Invalid time parameter. Use 'start' or 'end'")
+
+        await db.commit()
+
+    async def check_user_scenario_permission(
+        self, db: AsyncSession, user_id: str, scenario_id: str
+    ):
+        result = await db.execute(
+            select(1)
+            .where(ScenarioInformation.id == scenario_id)
+            .where(ScenarioInformation.user_id == user_id)
+        )
+        exists = result.scalar() is not None
+        if not exists:
+            raise ValueError("User does not have permission for this scenario")

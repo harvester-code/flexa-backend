@@ -418,10 +418,12 @@ async def fetch_simulation(
 )
 @inject
 async def request_simulation(
+    request: Request,
     scenario_id: str,
     payload: RunSimulationBody,
     background_tasks: BackgroundTasks,
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
+    supabase_db: AsyncSession = Depends(aget_supabase_session),
 ):
 
     components, processes, flight_schedule = itemgetter(
@@ -429,9 +431,30 @@ async def request_simulation(
     )(payload.model_dump())
 
     return await sim_service.execute_simulation_by_scenario(
+        db=supabase_db,
+        user_id=request.state.user_id,
         schedule_date=flight_schedule.get("date"),
         scenario_id=scenario_id,
         components=components,
         processes=processes,
         background_tasks=background_tasks,
+    )
+
+
+@simulation_router.patch(
+    "/end-simulation/scenario-id/{scenario_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+@inject
+async def end_simulation(
+    request: Request,
+    scenario_id: str,
+    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
+    supabase_db: AsyncSession = Depends(aget_supabase_session),
+):
+
+    if not scenario_id:
+        raise BadRequestException("Scenario ID is required")
+
+    await sim_service.end_simulation(
+        db=supabase_db, user_id=request.state.user_id, scenario_id=scenario_id
     )

@@ -1620,6 +1620,8 @@ class SimulationService:
 
     async def execute_simulation_by_scenario(
         self,
+        db: AsyncSession,
+        user_id: str,
         schedule_date: str,
         scenario_id: str,
         components: list,
@@ -1650,7 +1652,19 @@ class SimulationService:
         background_tasks.add_task(
             send_message_to_sqs,
             queue_url=os.getenv("AWS_SQS_URL"),
-            message_body={"schedule_date": schedule_date, "scenario_id": scenario_id},
+            message_body={
+                "schedule_date": schedule_date,
+                "user_id": user_id,
+                "scenario_id": scenario_id,
+            },
+        )
+
+        # ====================================================================
+        # NOTE: 시뮬레이션 시작 시간 DB 저장
+        time_now = self.timestamp.time_now()
+
+        await self.simulation_repo.update_simulation_start_end_at(
+            db=db, scenario_id=scenario_id, column="start", time=time_now
         )
 
         return {"status": "success", "message": "Simulation started successfully."}
@@ -1670,3 +1684,22 @@ class SimulationService:
             return json.loads(cleaned)
         else:
             return None
+
+    async def end_simulation(
+        self,
+        db: AsyncSession,
+        user_id: str,
+        scenario_id: str,
+    ):
+
+        # ====================================================================
+        # NOTE: 시뮬레이션 종료 시간 DB 저장
+        time_now = self.timestamp.time_now()
+
+        await self.simulation_repo.check_user_scenario_permission(
+            db=db, user_id=user_id, scenario_id=scenario_id
+        )
+
+        await self.simulation_repo.update_simulation_start_end_at(
+            db=db, scenario_id=scenario_id, column="end", time=time_now
+        )
