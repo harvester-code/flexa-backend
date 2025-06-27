@@ -4,13 +4,18 @@ from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from packages.supabase.auth import decode_supabase_token
+from app.libs.jwt_decode import decode_jwt
 from packages.constants import API_PREFIX
+from packages.supabase.auth import decode_supabase_token
 
 PROTECTED_PATHS = [
     f"{API_PREFIX}/simulations",
     f"{API_PREFIX}/homes",
     f"{API_PREFIX}/facilities",
+]
+
+SYSTEM_PATHS = [
+    f"{API_PREFIX}/simulations/end-simulation",
 ]
 
 
@@ -37,9 +42,16 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
             token = auth_header.split(" ")[1]
 
+            # NOTE: 시스템(ex. Lambda) 환경에서는 다른 jwt 인증을 사용합니다.
             try:
-                user = decode_supabase_token(token)
-                request.state.user_id = user.id
+                if any(path.startswith(system_path) for system_path in SYSTEM_PATHS):
+                    payload = decode_jwt(token=token)
+                    request.state.user_id = payload.get("user_id")
+
+                else:
+                    user = decode_supabase_token(token)
+                    request.state.user_id = user.id
+
             except Exception as e:
                 return JSONResponse(
                     {"detail": str(e)},
