@@ -1,5 +1,7 @@
 from typing import List
 
+import psycopg
+from psycopg.rows import dict_row
 from sqlalchemy import bindparam, desc, func, true, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -313,10 +315,9 @@ class SimulationRepository(ISimulationRepository):
             "departure": GeneralDeclarationDeparture,
         }
 
-        cursor = conn.cursor()
-        cursor.execute(stmt_text, params)
-        rows = cursor.fetchall()
-        cursor.close()
+        with conn.cursor(row_factory=dict_row) as cursor:
+            cursor.execute(stmt_text, params)
+            rows = cursor.fetchall()
         
         return [dict(schema_map.get(flight_io)(**row)) for row in rows]
 

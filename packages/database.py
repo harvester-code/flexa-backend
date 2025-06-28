@@ -2,42 +2,39 @@ import os
 from typing import AsyncGenerator
 
 from fastapi import HTTPException, status
-import psycopg2
-import psycopg2.pool
-from psycopg2.extras import RealDictCursor
+import psycopg
+from psycopg_pool import ConnectionPool
+from psycopg.rows import dict_row
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from supabase._async.client import AsyncClient, create_client
 
 # ============================================================
-connection_pool = psycopg2.pool.ThreadedConnectionPool(
-    minconn=1,
-    maxconn=20,  # Maximum 20 concurrent connections
-    host=os.getenv("REDSHIFT_HOST"),
-    port=os.getenv("REDSHIFT_PORT"),
-    database=os.getenv("REDSHIFT_DBNAME"),
-    user=os.getenv("REDSHIFT_USERNAME"),
-    password=os.getenv("REDSHIFT_PASSWORD"),
-    cursor_factory=RealDictCursor,  # Returns dict-like results
+connection_pool = ConnectionPool(
+    f"host={os.getenv('REDSHIFT_HOST')} "
+    f"port={os.getenv('REDSHIFT_PORT')} "
+    f"dbname={os.getenv('REDSHIFT_DBNAME')} "
+    f"user={os.getenv('REDSHIFT_USERNAME')} "
+    f"password={os.getenv('REDSHIFT_PASSWORD')} "
+    f"client_encoding=utf8 "
+    f"options='-c client_encoding=utf8'",
+    min_size=1,
+    max_size=20,  # Maximum 20 concurrent connections
 )
 
 
 def get_redshift_session():
     """Get a connection from the Redshift connection pool"""
-    conn = None
-    try:
-        conn = connection_pool.getconn()
-        yield conn
-    except psycopg2.Error as err:
-        print(f"Redshift connection error: {err}")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="현재 요청하신 서비스 이용이 어려운 상태입니다.",
-        )
-    finally:
-        if conn:
-            connection_pool.putconn(conn)
+    with connection_pool.connection() as conn:
+        try:
+            yield conn
+        except psycopg.Error as err:
+            print(f"Redshift connection error: {err}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="현재 요청하신 서비스 이용이 어려운 상태입니다.",
+            )
 
 
 # ============================================================
