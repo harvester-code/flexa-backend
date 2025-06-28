@@ -12,7 +12,7 @@ import pendulum
 from botocore.config import Config
 from dependency_injector.wiring import inject
 from fastapi import BackgroundTasks
-from sqlalchemy import Connection, text
+from sqlalchemy import Connection
 from sqlalchemy.ext.asyncio import AsyncSession
 from ulid import ULID
 
@@ -220,7 +220,7 @@ class SimulationService:
         airport: str,
         condition: list | None,
         scenario_id: str,
-        storage: str = "s3",  # NOTE: "s3" | "snowflake"
+        storage: str = "s3",  # NOTE: "s3" | "redshift"
     ):
         """항공기 스케줄 데이터 조회
 
@@ -254,8 +254,8 @@ class SimulationService:
             return flight_schedule_data.to_dict(orient="records")
 
         # ======================================================
-        # NOTE: SNOWFLAKE 데이터 확인
-        if storage == "snowflake":
+        # NOTE: REDSHIFT 데이터 확인
+        if storage == "redshift":
             FLIGHT_IO = "departure"
 
             # 현재 날짜와 입력된 날짜 비교
@@ -283,25 +283,23 @@ class SimulationService:
             if condition:
                 for con in condition:
                     if con.criteria == "I/D":
-                        where_conditions.append("FLIGHT_TYPE = :i_d")
+                        where_conditions.append("FLIGHT_TYPE = %(i_d)s")
                         params["i_d"] = con.value[0]
 
                     if con.criteria == "Terminal":
-                        where_conditions.append("DEPARTURE_TERMINAL = :terminal")
+                        where_conditions.append("DEPARTURE_TERMINAL = %(terminal)s")
                         params["terminal"] = con.value[0]
 
                     if con.criteria == "Airline":
-                        where_conditions.append("OPERATING_CARRIER_IATA IN :airline")
-                        params["airline"] = tuple(con.value)
+                        where_conditions.append("OPERATING_CARRIER_IATA = ANY(%(airline)s)")
+                        params["airline"] = con.value
 
                 if where_conditions:
                     base_query += " AND " + " AND ".join(where_conditions)
 
-            stmt = text(base_query)
-
             flight_schedule_data = (
                 await self.simulation_repo.fetch_flight_schedule_data(
-                    db, stmt, params, FLIGHT_IO
+                    db, base_query, params, FLIGHT_IO
                 )
             )
             return flight_schedule_data
@@ -417,9 +415,9 @@ class SimulationService:
         """
 
         # ==============================================================
-        # NOTE: SNOWFLAKE 데이터 조회
+        # NOTE: REDSHIFT 데이터 조회
         flight_schedule_data = await self.fetch_flight_schedule_data(
-            db, date, airport, condition, scenario_id, storage="snowflake"
+            db, date, airport, condition, scenario_id, storage="redshift"
         )
 
         # ==============================================================

@@ -20,7 +20,7 @@ from app.routes.simulation.interface.schema import (
     SetOpeningHoursBody,
     SimulationScenarioBody,
 )
-from packages.database import aget_supabase_session, get_snowflake_session
+from packages.database import aget_supabase_session, get_redshift_session
 
 simulation_router = APIRouter(prefix="/simulations")
 
@@ -285,7 +285,7 @@ async def fetch_flight_schedule(
     scenario_id: str,
     flight_schedule: FlightScheduleBody,
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
-    snowflake_db: Connection = Depends(get_snowflake_session),
+    redshift_db: Connection = Depends(get_redshift_session),
     supabase_db: AsyncSession = Depends(aget_supabase_session),
 ):
 
@@ -293,7 +293,7 @@ async def fetch_flight_schedule(
         raise BadRequestException("Scenario ID is required")
 
     flight_sch = await sim_service.generate_flight_schedule(
-        snowflake_db,
+        redshift_db,
         flight_schedule.date,
         flight_schedule.airport,
         flight_schedule.condition,
@@ -318,7 +318,7 @@ async def generate_passenger_schedule(
     scenario_id: str,
     passenger_schedule: PassengerScheduleBody,
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
-    db: Connection = Depends(get_snowflake_session),
+    db: Connection = Depends(get_redshift_session),
 ):
     return await sim_service.generate_passenger_schedule(
         db=db,
@@ -337,7 +337,7 @@ async def generate_passenger_schedule(
 @inject
 async def fetch_processing_procedures(
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
-    db: Connection = Depends(get_snowflake_session),
+    db: Connection = Depends(get_redshift_session),
 ):
 
     return await sim_service.fetch_processing_procedures()
@@ -354,7 +354,7 @@ async def generate_facility_conn(
     scenario_id: str,
     facility_conn: FacilityConnBody,
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
-    db: Connection = Depends(get_snowflake_session),
+    db: Connection = Depends(get_redshift_session),
 ):
     return await sim_service.generate_facility_conn(
         scenario_id=scenario_id,
@@ -389,7 +389,7 @@ async def generate_simulation_overview(
     scenario_id: str,
     run_simulation: RunSimulationBody,
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
-    db: Connection = Depends(get_snowflake_session),
+    db: Connection = Depends(get_redshift_session),
 ):
 
     return await sim_service.generate_simulation_overview(

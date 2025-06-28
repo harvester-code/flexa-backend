@@ -1,6 +1,6 @@
 from typing import List
 
-from sqlalchemy import Connection, bindparam, desc, func, true, update
+from sqlalchemy import bindparam, desc, func, true, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.inspection import inspect
@@ -306,19 +306,19 @@ class SimulationRepository(ISimulationRepository):
     # NOTE: 시뮬레이션 프로세스
 
     async def fetch_flight_schedule_data(
-        self, conn: Connection, stmt, params, flight_io
+        self, conn, stmt_text, params, flight_io
     ) -> List[dict]:
         schema_map = {
             "arrival": GeneralDeclarationArrival,
             "departure": GeneralDeclarationDeparture,
         }
 
-        if params.get("airline"):
-            stmt = stmt.bindparams(bindparam("airline", expanding=True))
-
-        result = conn.execute(stmt, params)
-        rows = [dict(schema_map.get(flight_io)(**row._mapping)) for row in result]
-        return rows
+        cursor = conn.cursor()
+        cursor.execute(stmt_text, params)
+        rows = cursor.fetchall()
+        cursor.close()
+        
+        return [dict(schema_map.get(flight_io)(**row)) for row in rows]
 
     async def update_scenario_target_flight_schedule_date(
         self,
