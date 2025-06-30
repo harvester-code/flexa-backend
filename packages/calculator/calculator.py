@@ -27,7 +27,6 @@ class Calculator:
 
         self.facility_info = facility_info
         self.calculate_type = calculate_type
-        print(self.calculate_type)
         self.percentile = percentile
         self.time_unit = "10min"
         self.process_list = self._get_process_list()

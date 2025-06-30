@@ -30,7 +30,6 @@ def get_redshift_session():
         try:
             yield conn
         except psycopg.Error as err:
-            print(f"Redshift connection error: {err}")
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="현재 요청하신 서비스 이용이 어려운 상태입니다.",
