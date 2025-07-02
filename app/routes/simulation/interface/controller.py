@@ -21,8 +21,12 @@ from app.routes.simulation.interface.schema import (
     SimulationScenarioBody,
 )
 from packages.database import aget_supabase_session, get_redshift_session
+from app.libs.dependencies import verify_token
 
-simulation_router = APIRouter(prefix="/simulations")
+simulation_router = APIRouter(
+    prefix="/simulations",
+    dependencies=[Depends(verify_token)],
+)
 
 
 """
