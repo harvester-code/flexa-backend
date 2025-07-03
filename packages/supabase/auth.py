@@ -25,7 +25,7 @@ def decode_supabase_token(token: str):
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e),
+            detail=f"Decode supabase token error: {str(e)}",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
