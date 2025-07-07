@@ -1,5 +1,3 @@
-import os
-
 from fastapi import FastAPI
 from fastapi.middleware.gzip import GZipMiddleware
 from starlette.middleware.cors import CORSMiddleware
@@ -15,6 +13,7 @@ from app.routes.home.interface.controller import home_router
 from app.routes.passenger_flow.controller import passenger_flow_router
 from app.routes.simulation.interface.controller import simulation_router
 from packages.constants import ALLOW_ORIGINS_MAP, API_PREFIX
+from packages.secrets import get_secret
 
 app = FastAPI()
 
@@ -22,7 +21,7 @@ app.container = Container()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOW_ORIGINS_MAP.get(os.getenv("ENVIRONMENT")),
+    allow_origins=ALLOW_ORIGINS_MAP.get(get_secret("ENVIRONMENT")),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

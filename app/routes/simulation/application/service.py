@@ -1,5 +1,4 @@
 import json
-import os
 import re
 from datetime import datetime, time, timedelta
 from typing import List
@@ -30,6 +29,7 @@ from app.routes.simulation.infra.sqs.producer import send_message_to_sqs
 from packages.boto3_session import boto3_session
 from packages.common import TimeStamp
 from packages.constants import COL_FILTER_MAP, CRITERIA_MAP
+from packages.secrets import get_secret
 from packages.storages import check_s3_object_exists, get_s3_client
 
 
@@ -291,7 +291,9 @@ class SimulationService:
                         params["terminal"] = con.value[0]
 
                     if con.criteria == "Airline":
-                        where_conditions.append("OPERATING_CARRIER_IATA = ANY(%(airline)s)")
+                        where_conditions.append(
+                            "OPERATING_CARRIER_IATA = ANY(%(airline)s)"
+                        )
                         params["airline"] = con.value
 
                 if where_conditions:
@@ -1635,8 +1637,8 @@ class SimulationService:
         s3 = boto3.client(
             "s3",
             config=Config(region_name="ap-northeast-2"),
-            aws_access_key_id=os.getenv("AWS_ACCESS_KEY"),
-            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+            aws_access_key_id=get_secret("AWS_ACCESS_KEY"),
+            aws_secret_access_key=get_secret("AWS_SECRET_ACCESS_KEY"),
         )
         s3.put_object(
             ContentType="application/json",
@@ -1649,7 +1651,7 @@ class SimulationService:
         # NOTE: SQS에 메시지 전송
         background_tasks.add_task(
             send_message_to_sqs,
-            queue_url=os.getenv("AWS_SQS_URL"),
+            queue_url=get_secret("AWS_SQS_URL"),
             message_body={
                 "schedule_date": schedule_date,
                 "user_id": user_id,

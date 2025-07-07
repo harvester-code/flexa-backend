@@ -1,11 +1,11 @@
-import os
-
 from supabase import create_client
+
+from packages.secrets import get_secret
 
 
 def get_supabase_client():
-    url = os.getenv("SUPABASE_PROJECT_URL")
-    key = os.getenv("SUPABASE_PUBLIC_KEY")
+    url = get_secret("SUPABASE_PROJECT_URL")
+    key = get_secret("SUPABASE_PUBLIC_KEY")
 
     if not url or not key:
         raise ValueError(

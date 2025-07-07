@@ -1,9 +1,9 @@
-import os
-
 from fastapi import FastAPI, HTTPException, Request, WebSocket, status
 from jose import JWTError, jwt
 from loguru import logger
 from starlette.responses import JSONResponse
+
+from packages.secrets import get_secret
 
 
 def add_middlewares(app: FastAPI):
@@ -14,7 +14,7 @@ def add_middlewares(app: FastAPI):
 # =============================================
 # TODO: refresh token과 refresh rotation 고려
 
-SUPABASE_JWT_SECRET_KEY = os.getenv("SUPABASE_JWT_SECRET_KEY")
+SUPABASE_JWT_SECRET_KEY = get_secret("SUPABASE_JWT_SECRET_KEY")
 ALGORITHM = "HS256"
 AUDIENCE = "authenticated"
 

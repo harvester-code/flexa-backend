@@ -1,10 +1,10 @@
-import os
-
 import jwt
 from fastapi import HTTPException, status
 from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 
-SECRET = os.getenv("SYSTEM_JWT_SECRET_KEY")
+from packages.secrets import get_secret
+
+SECRET = get_secret("SYSTEM_JWT_SECRET_KEY")
 ALGORITHM = "HS256"
 
 

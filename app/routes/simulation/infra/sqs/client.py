@@ -1,4 +1,3 @@
-import os
 from typing import Optional
 
 import boto3
@@ -6,6 +5,7 @@ from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
 from app.routes.simulation.infra.sqs.exceptions import SQSClientInitializationError
+from packages.secrets import get_secret
 
 _sqs_client: Optional[boto3.client] = None
 
@@ -31,8 +31,8 @@ def get_sqs_client() -> boto3.client:
                         "mode": "standard",
                     },
                 ),
-                aws_access_key_id=os.getenv("AWS_ACCESS_KEY"),
-                aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+                aws_access_key_id=get_secret("AWS_ACCESS_KEY"),
+                aws_secret_access_key=get_secret("AWS_SECRET_ACCESS_KEY"),
             )
 
         except (BotoCoreError, ClientError) as e:

@@ -1,8 +1,8 @@
-import os
-
 import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
+
+from packages.secrets import get_secret
 
 
 def get_s3_client():
@@ -12,8 +12,8 @@ def get_s3_client():
     return boto3.client(
         "s3",
         config=config,
-        aws_access_key_id=os.getenv("AWS_ACCESS_KEY"),
-        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+        aws_access_key_id=get_secret("AWS_ACCESS_KEY"),
+        aws_secret_access_key=get_secret("AWS_SECRET_ACCESS_KEY"),
     )
 
 
