@@ -26,7 +26,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::531915313382:role/GithubActionsOIDCRole
+          role-to-assume: arn:aws:iam::260492119792:role/GithubActionsOIDCRole
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
@@ -36,7 +36,7 @@ jobs:
       - name: Build, tag, and push docker image to ECR
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: coop/flexa-waitfree-api
+          REPOSITORY: flexa/waitfree-api
           IMAGE_TAG: ${{ github.ref_name }}
         run: |
           docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
