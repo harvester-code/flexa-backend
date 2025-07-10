@@ -2,13 +2,12 @@ from typing import Callable
 
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
+from loguru import logger
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.libs.jwt_decode import decode_jwt
 from packages.constants import API_PREFIX
 from packages.supabase.auth import decode_supabase_token
-
-from loguru import logger
 
 PROTECTED_PATHS = [
     f"{API_PREFIX}/simulations",
