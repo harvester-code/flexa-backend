@@ -18,8 +18,8 @@ from ulid import ULID
 
 from app.routes.simulation.application.queries import (
     SELECT_AIRPORT_ARRIVAL,
-    SELECT_AIRPORT_DEPARTURE,
-    SELECT_AIRPORT_DEPARTURE_SCHEDULE,
+    SELECT_AIRPORT_DEPARTURE_REDSHIFT,
+    SELECT_AIRPORT_DEPARTURE_SCHEDULE_REDSHIFT,
 )
 from app.routes.simulation.domain.simulation import (
     ScenarioInformation,
@@ -274,45 +274,42 @@ class SimulationService:
             if input_date >= current_date:
                 query_map = {
                     "arrival": SELECT_AIRPORT_ARRIVAL,
-                    "departure": SELECT_AIRPORT_DEPARTURE_SCHEDULE,
+                    "departure": SELECT_AIRPORT_DEPARTURE_SCHEDULE_REDSHIFT,
                 }
             else:
                 query_map = {
                     "arrival": SELECT_AIRPORT_ARRIVAL,
-                    "departure": SELECT_AIRPORT_DEPARTURE,
+                    "departure": SELECT_AIRPORT_DEPARTURE_REDSHIFT,
                 }
 
             base_query = query_map.get(FLIGHT_IO)
-
-            params = {"airport": airport, "date": date}
+            params = [airport, airport, date]
 
             # I/D, 항공사, 터미널
             where_conditions = []
             if condition:
                 for con in condition:
                     if con.criteria == "I/D":
-                        where_conditions.append("FLIGHT_TYPE = %(i_d)s")
-                        params["i_d"] = con.value[0]
+                        where_conditions.append("FLIGHT_TYPE = %s")
+                        params.append(con.value[0])
 
                     if con.criteria == "Terminal":
-                        where_conditions.append("DEPARTURE_TERMINAL = %(terminal)s")
-                        params["terminal"] = con.value[0]
+                        where_conditions.append("DEPARTURE_TERMINAL = %s")
+                        params.append(con.value[0])
 
                     if con.criteria == "Airline":
-                        where_conditions.append(
-                            "OPERATING_CARRIER_IATA = ANY(%(airline)s)"
-                        )
-                        params["airline"] = con.value
+                        where_conditions.append("OPERATING_CARRIER_IATA = ANY(%s)")
+                        params.append(con.value)
 
                 if where_conditions:
                     base_query += " AND " + " AND ".join(where_conditions)
 
-            flight_schedule_data = (
-                await self.simulation_repo.fetch_flight_schedule_data(
-                    db, base_query, params, FLIGHT_IO
-                )
+            return await self.simulation_repo.fetch_flight_schedule_data(
+                conn=db,
+                stmt_text=base_query,
+                params=params,
+                flight_io=FLIGHT_IO,
             )
-            return flight_schedule_data
 
         return flight_schedule_data
 

@@ -1,24 +1,23 @@
 from typing import List
 
-import psycopg
-from psycopg.rows import dict_row
-from sqlalchemy import bindparam, desc, func, true, update, text
+import redshift_connector
+from sqlalchemy import bindparam, text, true, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.inspection import inspect
 
 from app.routes.simulation.domain.repository import ISimulationRepository
 from app.routes.simulation.domain.simulation import (
-    ScenarioMetadata as ScenarioMetadataVO,
+    ScenarioInformation as ScenarioInformationVO,
 )
 from app.routes.simulation.domain.simulation import (
-    ScenarioInformation as ScenarioInformationVO,
+    ScenarioMetadata as ScenarioMetadataVO,
 )
 from app.routes.simulation.infra.models import (
     Group,
     OperationSetting,
-    ScenarioMetadata,
     ScenarioInformation,
+    ScenarioMetadata,
     UserInformation,
 )
 from app.routes.simulation.infra.schema import (
@@ -317,20 +316,43 @@ class SimulationRepository(ISimulationRepository):
 
     # ===================================
     # NOTE: 시뮬레이션 프로세스
-
     async def fetch_flight_schedule_data(
-        self, conn, stmt_text, params, flight_io
-    ) -> List[dict]:
+        self,
+        conn: redshift_connector.core.Connection,
+        stmt_text: str,
+        params: List[str],
+        flight_io: str,
+    ):
+        # NOTE: 추후 Snowflake로 변경시, 데이터소스를 분기하는 로직 추가할 것.
+        """Fetch flight schedule data from Redshift.
+
+        Args:
+            conn (redshift_connector.core.Connection): Connection to the Redshift database.
+            stmt_text (str): Query statement text to execute.
+            params (List[str]): Parameters to bind to the query.
+            flight_io (str): Flight I/O type, either 'arrival' or 'departure'.
+
+        Returns:
+            List[GeneralDeclarationArrival | GeneralDeclarationDeparture]: A list of flight schedule data
+        """
+
         schema_map = {
             "arrival": GeneralDeclarationArrival,
             "departure": GeneralDeclarationDeparture,
         }
 
-        with conn.cursor(row_factory=dict_row) as cursor:
-            cursor.execute(stmt_text, params)
-            rows = cursor.fetchall()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(stmt_text, params)
+                rows = cursor.fetchall()
+                columns = [desc[0] for desc in cursor.description]
 
-        return [dict(schema_map.get(flight_io)(**row)) for row in rows]
+            results = [dict(zip(columns, row)) for row in rows]
+            return [dict(schema_map.get(flight_io)(**result)) for result in results]
+
+        except redshift_connector.Error as e:
+            print(f"Error executing query: {e}")
+            return []
 
     async def update_scenario_target_flight_schedule_date(
         self,

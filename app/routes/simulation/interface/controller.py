@@ -20,7 +20,7 @@ from app.routes.simulation.interface.schema import (
     SetOpeningHoursBody,
     SimulationScenarioBody,
 )
-from packages.database import aget_supabase_session, get_redshift_session
+from packages.database import aget_supabase_session, get_redshift_connection
 from app.libs.dependencies import verify_token
 
 simulation_router = APIRouter(
@@ -238,7 +238,7 @@ async def fetch_flight_schedule(
     scenario_id: str,
     flight_schedule: FlightScheduleBody,
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
-    redshift_db: Connection = Depends(get_redshift_session),
+    redshift_db: Connection = Depends(get_redshift_connection),
     supabase_db: AsyncSession = Depends(aget_supabase_session),
 ):
 
@@ -271,7 +271,7 @@ async def generate_passenger_schedule(
     scenario_id: str,
     passenger_schedule: PassengerScheduleBody,
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
-    db: Connection = Depends(get_redshift_session),
+    db: Connection = Depends(get_redshift_connection),
 ):
     return await sim_service.generate_passenger_schedule(
         db=db,
@@ -290,7 +290,7 @@ async def generate_passenger_schedule(
 @inject
 async def fetch_processing_procedures(
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
-    db: Connection = Depends(get_redshift_session),
+    db: Connection = Depends(get_redshift_connection),
 ):
 
     return await sim_service.fetch_processing_procedures()
@@ -307,7 +307,7 @@ async def generate_facility_conn(
     scenario_id: str,
     facility_conn: FacilityConnBody,
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
-    db: Connection = Depends(get_redshift_session),
+    db: Connection = Depends(get_redshift_connection),
 ):
     return await sim_service.generate_facility_conn(
         scenario_id=scenario_id,
@@ -342,7 +342,7 @@ async def generate_simulation_overview(
     scenario_id: str,
     run_simulation: RunSimulationBody,
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
-    db: Connection = Depends(get_redshift_session),
+    db: Connection = Depends(get_redshift_connection),
 ):
 
     return await sim_service.generate_simulation_overview(

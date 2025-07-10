@@ -28,6 +28,7 @@ dependencies = [
     "pyjwt>=2.10.1",
     "python-multipart>=0.0.20",
     "python-ulid>=3.0.0",
+    "redshift-connector>=2.1.8",
     "snowflake-sqlalchemy>=1.7.3",
     "sqlmodel>=0.0.24",
     "supabase>=2.15.1",

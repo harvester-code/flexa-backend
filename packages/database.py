@@ -1,8 +1,8 @@
+from queue import Queue
+from threading import Lock
 from typing import AsyncGenerator
 
-import psycopg
-from fastapi import HTTPException, status
-from psycopg_pool import ConnectionPool
+import redshift_connector
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -11,29 +11,43 @@ from supabase._async.client import AsyncClient, create_client
 from packages.secrets import get_secret
 
 # ============================================================
-connection_pool = ConnectionPool(
-    f"host={get_secret('REDSHIFT_HOST')} "
-    f"port={get_secret('REDSHIFT_PORT')} "
-    f"dbname={get_secret('REDSHIFT_DBNAME')} "
-    f"user={get_secret('REDSHIFT_USERNAME')} "
-    f"password={get_secret('REDSHIFT_PASSWORD')} "
-    f"client_encoding=utf8 "
-    f"options='-c client_encoding=utf8'",
-    min_size=1,
-    max_size=20,  # Maximum 20 concurrent connections
-)
+# NOTE: Redshift 연결을 위한 설정
+POOL_SIZE = 10
+TIMEOUT = 20
+
+redshift_connection_pool = Queue(maxsize=POOL_SIZE)
+redshift_pool_lock = Lock()
 
 
-def get_redshift_session():
-    """Get a connection from the Redshift connection pool"""
-    with connection_pool.connection() as conn:
-        try:
-            yield conn
-        except psycopg.Error as err:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="현재 요청하신 서비스 이용이 어려운 상태입니다.",
-            )
+def create_redshift_connection():
+    return redshift_connector.connect(
+        host=get_secret("REDSHIFT_HOST"),
+        database=get_secret("REDSHIFT_DBNAME"),
+        port=get_secret("REDSHIFT_PORT"),
+        user=get_secret("REDSHIFT_USERNAME"),
+        password=get_secret("REDSHIFT_PASSWORD"),
+    )
+
+
+def initialize_redshift_pool():
+    with redshift_pool_lock:
+        while not redshift_connection_pool.full():
+            try:
+                conn = create_redshift_connection()
+                redshift_connection_pool.put(conn)
+            except redshift_connector.Error as e:
+                print(f"Error connecting to Redshift: {e}")
+                break
+
+
+def get_redshift_connection():
+    conn = None
+    try:
+        conn = redshift_connection_pool.get(timeout=TIMEOUT)
+        yield conn
+    finally:
+        if conn:
+            redshift_connection_pool.put(conn)
 
 
 # ============================================================

@@ -6,6 +6,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from app.libs.containers import Container
 from app.libs.exceptions import add_exception_handlers
+from app.libs.lifespan import lifespan
 from app.libs.middleware import AuthMiddleware
 from app.libs.monitor_memory import monitor_memory
 from app.routes.admin.interface.controller import admin_router
@@ -20,7 +21,7 @@ from packages.secrets import get_secret
 if get_secret("ENVIRONMENT") == "dev":
     threading.Thread(target=monitor_memory, daemon=True).start()
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 app.container = Container()
 
