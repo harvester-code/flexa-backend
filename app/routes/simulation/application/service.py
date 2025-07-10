@@ -221,7 +221,7 @@ class SimulationService:
             db, scenario_metadata, time_now
         )
 
-    async def fetch_flight_schedule_data(
+    async def load_flight_schedule_data(
         self,
         db: Connection,
         date: str,
@@ -423,7 +423,7 @@ class SimulationService:
 
         # ==============================================================
         # NOTE: REDSHIFT 데이터 조회
-        flight_schedule_data = await self.fetch_flight_schedule_data(
+        flight_schedule_data = await self.load_flight_schedule_data(
             db, date, airport, condition, scenario_id, storage="redshift"
         )
 
@@ -608,7 +608,7 @@ class SimulationService:
         destribution_conditions: list,
         scenario_id: str,
     ):
-        flight_schedule_data = await self.fetch_flight_schedule_data(
+        flight_schedule_data = await self.load_flight_schedule_data(
             db=db,
             date=flight_sch.date,
             airport=flight_sch.airport,
@@ -933,7 +933,7 @@ class SimulationService:
         components: list,
         scenario_id: str,
     ):
-        flight_schedule_data = await self.fetch_flight_schedule_data(
+        flight_schedule_data = await self.load_flight_schedule_data(
             db,
             flight_sch.date,
             flight_sch.airport,
