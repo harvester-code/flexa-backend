@@ -1,8 +1,8 @@
 from typing import Optional, Dict, Any
 from dependency_injector.wiring import inject
 
-from packages.calculator.calculator import Calculator
 from app.routes.home.infra.repository import HomeRepository
+from packages.calculator.calculator import Calculator
 
 
 class HomeService:
