@@ -19,5 +19,8 @@ async def lifespan(app: FastAPI):
     yield
 
     while not redshift_connection_pool.empty():
-        conn = redshift_connection_pool.get_nowait()
-        conn.close()  # Close the connection
+        try:
+            conn = redshift_connection_pool.get_nowait()
+            conn.close()  # Close the connection
+        except Exception as e:
+            print(f"Error closing Redshift connection: {e}")

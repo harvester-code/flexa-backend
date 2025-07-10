@@ -1,8 +1,10 @@
-from queue import Queue
+import asyncio
+from queue import Empty, Queue
 from threading import Lock
 from typing import AsyncGenerator
 
 import redshift_connector
+from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -12,8 +14,8 @@ from packages.secrets import get_secret
 
 # ============================================================
 # NOTE: Redshift 연결을 위한 설정
-POOL_SIZE = 10
-TIMEOUT = 20
+POOL_SIZE = 20
+TIMEOUT = 60
 
 redshift_connection_pool = Queue(maxsize=POOL_SIZE)
 redshift_pool_lock = Lock()
@@ -40,14 +42,25 @@ def initialize_redshift_pool():
                 break
 
 
-def get_redshift_connection():
+async def get_redshift_connection():
     conn = None
     try:
-        conn = redshift_connection_pool.get(timeout=TIMEOUT)
+        # Redshift 연결을 스레드에서 가져옴 (동기 드라이버 대응)
+        conn = await asyncio.to_thread(
+            redshift_connection_pool.get, True, timeout=TIMEOUT
+        )
         yield conn
+    except Empty:
+        raise HTTPException(
+            status_code=503, detail="Redshift connection pool exhausted"
+        )
     finally:
         if conn:
-            redshift_connection_pool.put(conn)
+            try:
+                await asyncio.to_thread(redshift_connection_pool.put, conn)
+            except Exception as e:
+                print(f"Error returning Redshift connection to pool: {e}")
+                pass  # 이미 풀 꽉 찬 경우
 
 
 # ============================================================
