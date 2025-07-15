@@ -48,3 +48,17 @@ def fetch_kpi_home_data(
 ):
     result = home_service.fetch_kpi_home_data(scenario_id, calculate_type, percentile)
     return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
+
+
+@home_router.get(
+    "/aemos_template/{scenario_id}",
+    status_code=200,
+    summary="aemos_template를 응답하는 엔드포인트",
+)
+@inject
+async def fetch_aemos_template(
+    home_service: HomeService = Depends(Provide[Container.home_service]),
+    scenario_id: str | None = None,
+):
+    result = await home_service.fetch_aemos_template(scenario_id)
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
