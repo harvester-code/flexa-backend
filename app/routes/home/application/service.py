@@ -72,3 +72,15 @@ class HomeService:
             "summary": calculator.get_summary(),
             "facility_details": calculator.get_facility_details(),
         }
+
+    async def fetch_aemos_template(self, scenario_id: str | None):
+        pax_df = await self.home_repo.download_simulation_parquet_from_s3(scenario_id)
+        if pax_df is None:
+            return None
+
+        facility_info = await self.home_repo.download_facility_json_from_s3(scenario_id)
+        if facility_info is None:
+            return None
+
+        calculator = Calculator(pax_df, facility_info)
+        return calculator.get_aemos_template()
