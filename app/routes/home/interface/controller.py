@@ -26,11 +26,11 @@ home_router = APIRouter(
     summary="KPI와 무관한 공통 홈 데이터 (alert_issues, flow_chart, histogram, sankey_diagram)",
 )
 @inject
-def fetch_common_home_data(
+async def fetch_common_home_data(
     scenario_id: str,
     home_service: HomeService = Depends(Provide[Container.home_service]),
 ):
-    result = home_service.fetch_common_home_data(scenario_id)
+    result = await home_service.fetch_common_home_data(scenario_id)
     return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
 
 
@@ -40,13 +40,15 @@ def fetch_common_home_data(
     summary="KPI 의존적 홈 데이터 (summary, facility_details)",
 )
 @inject
-def fetch_kpi_home_data(
+async def fetch_kpi_home_data(
     scenario_id: str,
     calculate_type: str,
     home_service: HomeService = Depends(Provide[Container.home_service]),
     percentile: int | None = None,
 ):
-    result = home_service.fetch_kpi_home_data(scenario_id, calculate_type, percentile)
+    result = await home_service.fetch_kpi_home_data(
+        scenario_id, calculate_type, percentile
+    )
     return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
 
 
