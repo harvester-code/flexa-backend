@@ -2,7 +2,7 @@ from typing import List
 
 import psycopg
 from psycopg.rows import dict_row
-from sqlalchemy import bindparam, desc, func, true, update
+from sqlalchemy import bindparam, desc, func, true, update, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.inspection import inspect
@@ -19,6 +19,7 @@ from app.routes.simulation.infra.models import (
     OperationSetting,
     ScenarioMetadata,
     ScenarioInformation,
+    UserInformation,
 )
 from app.routes.simulation.infra.schema import (
     GeneralDeclarationArrival,
@@ -28,63 +29,63 @@ from app.routes.simulation.infra.schema import (
 
 class SimulationRepository(ISimulationRepository):
 
-    # ===================================
-    # NOTE: 시뮬레이션 시나리오
-
     async def fetch_scenario_information(
         self,
         db: AsyncSession,
         user_id: str,
-        group_id: str,
-        page: int,
-        items_per_page: int,
     ):
-
-        # FIXME: [25.04.07] 여기서 DB를 호출하는 횟수를 최대한 줄여보자
         async with db.begin():
+            # 현재 유저의 group_id 조회
             result = await db.execute(
-                select(Group.master_scenario_id).where(Group.id == int(group_id))
+                select(UserInformation.group_id).where(
+                    UserInformation.user_id == user_id
+                )
             )
+            user_group_id = result.scalar_one_or_none()
+            if not user_group_id:
+                return {"master_scenario": [], "user_scenario": []}
 
+            # 마스터 시나리오 ID 조회
+            result = await db.execute(
+                select(Group.master_scenario_id).where(Group.id == user_group_id)
+            )
             master_scenario_id = result.scalar_one_or_none()
 
-            master_scenario = None
-            if master_scenario_id:
-                result = await db.execute(
-                    select(ScenarioInformation)
-                    .where(ScenarioInformation.id == master_scenario_id)
-                    .where(ScenarioInformation.is_active.is_(true()))
-                )
-
-                master_scenario = result.scalar_one_or_none()
-
+            # 단일 쿼리로 모든 시나리오 조회 (마스터 여부 구분)
             result = await db.execute(
-                select(func.count())
-                .select_from(ScenarioInformation)
-                .where(ScenarioInformation.user_id == user_id)
-                .where(ScenarioInformation.is_active.is_(true()))
-            )
-            total_count = result.scalar()
-
-            offset = (page - 1) * items_per_page
-
-            result = await db.execute(
-                select(ScenarioInformation)
-                .where(ScenarioInformation.user_id == user_id)
-                .where(ScenarioInformation.is_active.is_(true()))
-                .order_by(desc(ScenarioInformation.updated_at))
-                .offset(offset)
-                .limit(items_per_page)
+                text(
+                    """
+                    SELECT 
+                        si.*,
+                        CASE WHEN si.id = :master_scenario_id THEN true ELSE false END as is_master
+                    FROM scenario_information si
+                    JOIN user_information ui ON si.user_id = ui.user_id
+                    WHERE ui.group_id = :group_id 
+                        AND si.is_active = true
+                    ORDER BY si.updated_at DESC
+                    LIMIT 50
+                """
+                ),
+                {"group_id": user_group_id, "master_scenario_id": master_scenario_id},
             )
 
-            user_scenario = result.scalars().all()
+            # 결과를 마스터/사용자 시나리오로 분리
+            master_scenarios = []
+            user_scenarios = []
 
-        return {
-            "total_count": total_count,
-            "page": page,
-            "master_scenario": [master_scenario],
-            "user_scenario": user_scenario,
-        }
+            for row in result.mappings():
+                # is_master 필드를 제외한 시나리오 데이터 추출
+                scenario_dict = {k: v for k, v in row.items() if k != "is_master"}
+
+                if row["is_master"]:
+                    master_scenarios.append(scenario_dict)
+                else:
+                    user_scenarios.append(scenario_dict)
+
+            return {
+                "master_scenario": master_scenarios,
+                "user_scenario": user_scenarios,
+            }
 
     async def fetch_scenario_location(
         self,
@@ -141,12 +142,22 @@ class SimulationRepository(ISimulationRepository):
         await db.commit()
 
     async def update_scenario_information(
-        self, db: AsyncSession, id: str, name: str | None, memo: str | None
+        self,
+        db: AsyncSession,
+        id: str,
+        name: str | None,
+        terminal: str | None,
+        airport: str | None,
+        memo: str | None,
     ):
         values_to_update = {}
 
         if name:
             values_to_update[ScenarioInformation.name] = name
+        if terminal:
+            values_to_update[ScenarioInformation.terminal] = terminal
+        if airport:
+            values_to_update[ScenarioInformation.airport] = airport
         if memo:
             values_to_update[ScenarioInformation.memo] = memo
 
@@ -164,7 +175,7 @@ class SimulationRepository(ISimulationRepository):
             .where(ScenarioInformation.id.in_(bindparam("ids", expanding=True)))
             .values(is_active=False)
         )
-        await db.execute(stmt, {"ids": ids.scenario_ids})
+        await db.execute(stmt, {"ids": ids})
         await db.commit()
 
     async def duplicate_scenario_information(
@@ -223,12 +234,12 @@ class SimulationRepository(ISimulationRepository):
         await db.commit()
 
     async def update_master_scenario(
-        self, db: AsyncSession, group_id: str, scenario_id: str
+        self, db: AsyncSession, group_id: int, scenario_id: str
     ):
 
         await db.execute(
             update(Group)
-            .where(Group.id == int(group_id))
+            .where(Group.id == group_id)
             .values({Group.master_scenario_id: scenario_id})
         )
         await db.commit()
@@ -318,7 +329,7 @@ class SimulationRepository(ISimulationRepository):
         with conn.cursor(row_factory=dict_row) as cursor:
             cursor.execute(stmt_text, params)
             rows = cursor.fetchall()
-        
+
         return [dict(schema_map.get(flight_io)(**row)) for row in rows]
 
     async def update_scenario_target_flight_schedule_date(

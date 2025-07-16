@@ -42,55 +42,28 @@ status 코드 정리
 
 
 @simulation_router.get(
-    "/scenarios/group-id/{group_id}",
+    "/scenarios",
     status_code=status.HTTP_200_OK,
-    summary="06_SI_001",
-    description="06_SI_001에서 각 유저가 가지고 있는 시나리오 리스트를 디비에서 불러오는 엔드포인트",
+    summary="시나리오 목록 조회",
+    description="현재 유저와 같은 그룹의 모든 시나리오를 조회합니다 (최대 50개)",
 )
 @inject
-async def fetch_scenario(
+async def get_scenarios(
     request: Request,
-    group_id: str,
-    page: int,
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
-
-    if not group_id:
-        raise BadRequestException("Group ID is required")
-
     return await sim_service.fetch_scenario_information(
         db=db,
         user_id=request.state.user_id,
-        group_id=group_id,
-        page=page,
-        items_per_page=9,
     )
-
-
-# @simulation_router.get(
-#     "/scenarios/location/group-id/{group_id}",
-#     status_code=status.HTTP_201_CREATED,
-#     summary="06_SI_001",
-#     description="06_SI_001에서 new_scenario 버튼을 클릭해서 나오는 팝업창에서 빈칸을 작성한 후 create 버튼을 누르면 실행되는 엔드포인트",
-# )
-# @inject
-# async def fetch_scenario_location(
-#     group_id: str,
-#     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
-#     db: AsyncSession = Depends(aget_supabase_session),
-# ):
-#     if not group_id:
-#         raise BadRequestException("Group ID is required")
-
-#     return await sim_service.fetch_scenario_location(db=db, group_id=group_id)
 
 
 @simulation_router.post(
     "/scenarios",
     status_code=status.HTTP_201_CREATED,
-    summary="06_SI_001",
-    description="06_SI_001에서 new_scenario 버튼을 클릭해서 나오는 팝업창에서 빈칸을 작성한 후 create 버튼을 누르면 실행되는 엔드포인트",
+    summary="시나리오 생성",
+    description="새로운 시나리오를 생성합니다",
 )
 @inject
 async def create_scenario(
@@ -99,7 +72,6 @@ async def create_scenario(
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
-
     return await sim_service.create_scenario_information(
         db=db,
         user_id=request.state.user_id,
@@ -111,11 +83,11 @@ async def create_scenario(
     )
 
 
-@simulation_router.patch(
-    "/scenarios/scenario-id/{scenario_id}/edit",
+@simulation_router.put(
+    "/scenarios/{scenario_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="06_SI_001",
-    description="06_SI_001에서 각 시나리오의 액션버튼을 눌러 나오는 edit을 클릭하여 실행하면 실행되는 앤드포인트",
+    summary="시나리오 수정",
+    description="기존 시나리오의 정보를 수정합니다",
 )
 @inject
 async def update_scenario(
@@ -131,70 +103,47 @@ async def update_scenario(
         db=db,
         id=scenario_id,
         name=scenario.name,
+        terminal=scenario.terminal,
+        airport=scenario.airport,
         memo=scenario.memo,
     )
 
 
-@simulation_router.patch(
-    "/scenarios/deactivate",
+@simulation_router.delete(
+    "/scenarios",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="06_SI_001",
-    description="06_SI_001에서 각 시나리오의 액션버튼을 눌러 나오는 delete를 클릭하여 실행하면 실행되는 앤드포인트",
+    summary="시나리오 삭제",
+    description="시나리오들을 소프트 삭제합니다",
 )
 @inject
-async def deactivate_scenario(
+async def delete_scenarios(
     scenario_ids: ScenarioDeactivateBody,
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
-
-    await sim_service.deactivate_scenario_information(db=db, ids=scenario_ids)
-
-
-# @simulation_router.post(
-#     "/scenarios/scenario-id/{scenario_id}/duplicate",
-#     status_code=status.HTTP_204_NO_CONTENT,
-#     summary="06_SI_001",
-#     description="06_SI_001에서 각 시나리오의 액션버튼을 눌러 나오는 duplicate를 클릭하여 실행하면 실행되는 앤드포인트",
-# )
-# @inject
-# async def duplicate_scenario(
-#     request: Request,
-#     scenario_id: str,
-#     scenario: DuplicateScenarioBody,
-#     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
-#     db: AsyncSession = Depends(aget_supabase_session),
-# ):
-#     if not scenario_id:
-#         raise BadRequestException("Scenario ID is required")
-
-#     await sim_service.duplicate_scenario_information(
-#         db=db,
-#         user_id=request.state.user_id,
-#         old_scenario_id=scenario_id,
-#         editor=scenario.editor,
-#     )
+    await sim_service.deactivate_scenario_information(
+        db=db, ids=scenario_ids.scenario_ids
+    )
 
 
 @simulation_router.patch(
-    "/scenarios/masters/group-id/{group_id}/scenario-id/{scenario_id}",
+    "/scenarios/{scenario_id}/master",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="06_SI_001",
-    description="06_SI_001에서 각 시나리오의 액션버튼을 눌러 나오는 master(미정)를 클릭하여 실행하면 실행되는 앤드포인트",
+    summary="마스터 시나리오 설정",
+    description="특정 시나리오를 그룹의 마스터 시나리오로 설정합니다",
 )
 @inject
 async def update_master_scenario(
-    group_id: str,
+    request: Request,
     scenario_id: str,
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
-
-    if not group_id or not scenario_id:
-        raise BadRequestException("Group ID and Scenario ID is required")
+    if not scenario_id:
+        raise BadRequestException("Scenario ID is required")
 
     return await sim_service.update_master_scenario(
-        db=db, group_id=group_id, scenario_id=scenario_id
+        db=db, user_id=request.state.user_id, scenario_id=scenario_id
     )
 
 

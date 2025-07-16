@@ -97,6 +97,8 @@ class ScenarioMetadataBody(BaseModel):
 
 class ScenarioUpdateBody(BaseModel):
     name: str | None
+    terminal: str | None
+    airport: str | None
     memo: str | None
 
 

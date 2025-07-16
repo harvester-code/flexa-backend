@@ -13,6 +13,7 @@ from dependency_injector.wiring import inject
 from fastapi import BackgroundTasks
 from sqlalchemy import Connection
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 from ulid import ULID
 
 from app.routes.simulation.application.queries import (
@@ -25,6 +26,7 @@ from app.routes.simulation.domain.simulation import (
     ScenarioMetadata,
 )
 from app.routes.simulation.infra.repository import SimulationRepository
+from app.routes.simulation.infra.models import UserInformation
 from app.routes.simulation.infra.sqs.producer import send_message_to_sqs
 from packages.boto3_session import boto3_session
 from packages.common import TimeStamp
@@ -63,14 +65,9 @@ class SimulationService:
         self,
         db: AsyncSession,
         user_id: str,
-        group_id: str,
-        page: int,
-        items_per_page: int,
     ):
 
-        scenario = await self.simulation_repo.fetch_scenario_information(
-            db, user_id, group_id, page, items_per_page
-        )
+        scenario = await self.simulation_repo.fetch_scenario_information(db, user_id)
 
         return scenario
 
@@ -112,7 +109,7 @@ class SimulationService:
         scenario_metadata: ScenarioMetadata = ScenarioMetadata(
             scenario_id=id,
             overview=None,
-            history=None,
+            history=[],
             flight_schedule=None,
             passenger_schedule=None,
             processing_procedures=None,
@@ -126,20 +123,22 @@ class SimulationService:
 
         return {
             "scenario_id": id,
-            "overview": {},
-            "history": {},
-            "flight_schedule": {},
-            "passenger_schedule": {},
-            "processing_procedures": {},
-            "facility_connection": {},
-            "facility_information": {},
+            "message": "Scenario created successfully",
         }
 
     async def update_scenario_information(
-        self, db: AsyncSession, id: str, name: str | None, memo: str | None
+        self,
+        db: AsyncSession,
+        id: str,
+        name: str | None,
+        terminal: str | None,
+        airport: str | None,
+        memo: str | None,
     ):
 
-        await self.simulation_repo.update_scenario_information(db, id, name, memo)
+        await self.simulation_repo.update_scenario_information(
+            db, id, name, terminal, airport, memo
+        )
 
     async def deactivate_scenario_information(self, db: AsyncSession, ids: List[str]):
 
@@ -157,10 +156,19 @@ class SimulationService:
         )
 
     async def update_master_scenario(
-        self, db: AsyncSession, group_id: str, scenario_id: str
+        self, db: AsyncSession, user_id: str, scenario_id: str
     ):
+        # 사용자의 그룹 ID 조회
+        result = await db.execute(
+            select(UserInformation.group_id).where(UserInformation.user_id == user_id)
+        )
+        user_group_id = result.scalar_one_or_none()
+        if not user_group_id:
+            raise ValueError("User group not found")
 
-        await self.simulation_repo.update_master_scenario(db, group_id, scenario_id)
+        await self.simulation_repo.update_master_scenario(
+            db, user_group_id, scenario_id
+        )
 
     async def update_scenario_status(
         self, db: AsyncSession, scenario_id: str, status: str
@@ -1088,7 +1096,6 @@ class SimulationService:
                 "y": group_counts[col].tolist(),
             }
             for col in group_counts.columns
-            if pd.notna(col)
         ]
 
         return {"traces": traces, "default_x": default_x}

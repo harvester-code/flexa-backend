@@ -21,6 +21,7 @@ class ScenarioInformation(Base):
     target_flight_schedule_date: Mapped[datetime] = mapped_column(
         DateTime, nullable=True
     )
+    status: Mapped[str] = mapped_column(String(10), nullable=True, default="yet")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     simulation_start_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -73,3 +74,25 @@ class OperationSetting(Base):
     terminal_layout: Mapped[dict] = mapped_column(JSONB, nullable=True)
     terminal_layout_image_url: Mapped[str] = mapped_column(String(36), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class UserInformation(Base):
+    __tablename__ = "user_information"
+    __table_args__ = {"extend_existing": True}
+
+    user_id: Mapped[str] = mapped_column(UUID, primary_key=True)
+    email: Mapped[str] = mapped_column(String, nullable=False)
+    first_name: Mapped[str] = mapped_column(String, nullable=False)
+    last_name: Mapped[str] = mapped_column(String, nullable=False)
+    group_id: Mapped[int] = mapped_column(Integer, nullable=True)
+    role_id: Mapped[int] = mapped_column(Integer, nullable=True)
+    position: Mapped[str] = mapped_column(String, nullable=True)
+    bio: Mapped[str] = mapped_column(String, nullable=True)
+    profile_image_url: Mapped[str] = mapped_column(String, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
