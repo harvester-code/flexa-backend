@@ -14,7 +14,8 @@ from packages.secrets import get_secret
 
 # ============================================================
 # NOTE: Redshift 연결을 위한 설정
-POOL_SIZE = 20
+POOL_SIZE_MAP = {"development": 5, "production": 20}
+POOL_SIZE = POOL_SIZE_MAP.get(get_secret("ENVIRONMENT"), 1)
 TIMEOUT = 60
 
 redshift_connection_pool = Queue(maxsize=POOL_SIZE)
