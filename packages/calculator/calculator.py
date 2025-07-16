@@ -28,9 +28,11 @@ class Calculator:
         self.facility_info = facility_info
         self.calculate_type = calculate_type
         self.percentile = percentile
-        self.time_unit = "15min" # for aemos template time unit arrange
+        self.time_unit = "10min" 
         self.process_list = self._get_process_list()
-        self.facility_ratio = self.make_facility_ratio() if self.facility_info is not None else {}
+        # self.facility_ratio = self.make_facility_ratio() if self.facility_info is not None else {}
+        self.facility_ratio = {}
+
     # ===============================
     # 메인 함수들
     # ===============================
@@ -104,7 +106,7 @@ class Calculator:
             ]
         return data
 
-    def get_aemos_template(self, time_interval_min=15, dep_arr="departure"):
+    def get_aemos_template(self, time_interval_min=10, dep_arr="departure"):
         """AEMOS 템플릿 데이터 생성 (최적화된 버전)"""
         df = self.pax_df.copy()  # 한 번만 복사
         component_list = self.process_list
@@ -208,7 +210,6 @@ class Calculator:
 
 
 
-
     def get_flow_chart_data(self, time_unit: str = None):
         """플로우 차트 데이터 생성"""
         time_unit = time_unit or self.time_unit
@@ -274,83 +275,6 @@ class Calculator:
             data[process] = {"all_zones": all_zones_data, **process_facility_data}
         return data
 
-    def get_flow_chart_aemos_data(self, time_unit: str = None, dep_arr="departure"):
-        """플로우 차트와 AEMOS 템플릿 데이터를 함께 생성 (최적화된 통합 함수)"""
-        time_unit = time_unit or self.time_unit
-        time_df = self._create_time_df_index(time_unit)
-        flow_data = {"times": time_df.index.strftime("%Y-%m-%d %H:%M:%S").tolist()}
-        aemos_template_parts = []
-
-        for process in self.process_list:
-            facilities = sorted(self.pax_df[f"{process}_pred"].dropna().unique())
-            if not facilities:
-                flow_data[process] = {}
-                continue
-       
-            process_data = self.pax_df[self.pax_df[f"{process}_pred"].notna()].copy()
-            process_data[f"{process}_waiting"] = (process_data[f"{process}_pt_pred"] - process_data[f"{process}_on_pred"]).dt.total_seconds()
-
-            # 시간 플로어링을 복사본에서 계산
-            process_data[f"{process}_on_floored"] = process_data[f"{process}_on_pred"].dt.floor(time_unit)
-            process_data[f"{process}_done_floored"] = process_data[f"{process}_done_pred"].dt.floor(time_unit)
-
-            # 한번에 모든 메트릭 계산
-            metrics = {
-                'inflow': process_data.groupby([f"{process}_on_floored", f"{process}_pred"]).size(),
-                'outflow': process_data.groupby([f"{process}_done_floored", f"{process}_pred"]).size(),
-                'queue_length': process_data.groupby([f"{process}_on_floored", f"{process}_pred"])[f"{process}_que"].mean(),
-                'waiting_time': process_data.groupby([f"{process}_on_floored", f"{process}_pred"])[f"{process}_waiting"].mean()
-            }
-
-            # unstack하고 reindex 한번에
-            pivoted = {k: v.unstack(fill_value=0).reindex(time_df.index, fill_value=0) for k, v in metrics.items()}
-
-            # AEMOS 템플릿 데이터 생성
-            aemos_part = self._create_aemos_template_part(process, pivoted)
-            if aemos_part is not None:
-                aemos_template_parts.append(aemos_part)
-
-            # 플로우 차트 데이터 구성
-            process_facility_data = {}
-            aggregated = {k: pd.Series(0, index=time_df.index, dtype=float) for k in metrics.keys()}
-            aggregated['capacity'] = pd.Series(0, index=time_df.index, dtype=float)
-
-            for facility_name in facilities:
-                node_name = facility_name.split("_")[-1]
-                capacity_per_unit_time = self._calculate_node_capacity_list(process, node_name, time_unit) or [0] * len(time_df.index)
-                
-                facility_data = {k: pivoted[k].get(facility_name, pd.Series(0, index=time_df.index)) for k in metrics.keys()}
-                facility_data['capacity'] = pd.Series(capacity_per_unit_time, index=time_df.index)
-                
-                # 집계
-                for k in facility_data.keys():
-                    aggregated[k] += facility_data[k]
-                
-                # 저장 (타입 변환)
-                process_facility_data[node_name] = {
-                    k: (facility_data[k].round() if k in ['queue_length', 'waiting_time'] else facility_data[k]).astype(int).tolist()
-                    for k in facility_data.keys()
-                }
-
-            # all_zones
-            facility_count = len(facilities)
-            all_zones_data = {
-                'inflow': aggregated['inflow'].astype(int).tolist(),
-                'outflow': aggregated['outflow'].astype(int).tolist(), 
-                'queue_length': (aggregated['queue_length'] / facility_count).round().astype(int).tolist(),
-                'waiting_time': (aggregated['waiting_time'] / facility_count).round().astype(int).tolist(),
-                'capacity': aggregated['capacity'].astype(int).tolist()
-            }
-
-            flow_data[process] = {"all_zones": all_zones_data, **process_facility_data}
-        
-        # AEMOS 데이터 생성
-        aemos_data = self._build_aemos_data(aemos_template_parts, dep_arr)
-        
-        return {
-            "flow_chart_data": flow_data,
-            "aemos_template_data": aemos_data
-        }
 
     def get_facility_details(self):
         """시설 세부 정보 생성"""
@@ -842,105 +766,3 @@ class Calculator:
         return [{"title": item["title"], "value": int(round(np.mean(agg.get(item["title"], [0]))))} 
                 for item in bins_collection[0]]
 
-    def _create_aemos_template_part(self, component, pivoted_data):
-        """개별 컴포넌트의 AEMOS 템플릿 파트 생성 (실제 데이터 포함)"""
-        try:
-            # inflow 데이터를 기반으로 템플릿 생성
-            grouped = pivoted_data['inflow'].stack().reset_index()
-            grouped.columns = ['Measurement Time', f'{component}_pred', 'Exp pax']
-            grouped = grouped[grouped['Exp pax'] > 0].copy()  # 실제 승객이 있는 시간대만
-            
-            if grouped.empty:
-                return None
-            
-            # Service Point 컬럼 추가
-            grouped["Service Point"] = grouped[f"{component}_pred"].str.replace(f"{component}_", "", regex=False)
-            grouped["Touch Point"] = component
-            grouped = grouped[["Touch Point", "Service Point", "Measurement Time", "Exp pax"]]
-            
-            # 실제 데이터로 빈 컬럼들 채우기
-            empty_cols = ["Queue Start", "Sample Appearance", "Queue Pax", "Open Resources", "Open Detail", "Queue End", "Comment"]
-            for col in empty_cols:
-                grouped[col] = ""
-            
-            # 첫 번째 행에 실제 데이터 기반 값 설정
-            if len(grouped) > 0:
-                first_idx = grouped.index[0]
-                measurement_time = grouped.loc[first_idx, "Measurement Time"]
-                facility_name = grouped.loc[first_idx, f"{component}_pred"]
-                
-                # 실제 큐 길이와 대기시간 활용
-                queue_data = pivoted_data.get('queue_length')
-                waiting_data = pivoted_data.get('waiting_time')
-                
-                try:
-                    avg_queue = int(queue_data[facility_name].mean()) if queue_data is not None and facility_name in queue_data.columns else 25
-                    grouped.loc[first_idx, "Queue Pax"] = max(avg_queue, 1)
-                    
-                    avg_waiting = int(waiting_data[facility_name].mean()) if waiting_data is not None and facility_name in waiting_data.columns else 702
-                    grouped.loc[first_idx, "Queue Start"] = measurement_time + pd.Timedelta(10, unit="S")
-                    grouped.loc[first_idx, "Queue End"] = measurement_time + pd.Timedelta(avg_waiting, unit="S")
-                except:
-                    grouped.loc[first_idx, "Queue Pax"] = 25
-                    grouped.loc[first_idx, "Queue Start"] = measurement_time + pd.Timedelta(12, unit="S")
-                    grouped.loc[first_idx, "Queue End"] = measurement_time + pd.Timedelta(702, unit="S")
-                
-                # 나머지 필드들
-                grouped.loc[first_idx, "Sample Appearance"] = "Blue T-shirt"
-                grouped.loc[first_idx, "Open Resources"] = 7
-                grouped.loc[first_idx, "Open Detail"] = "Desk 01~07"
-            
-            return grouped
-            
-        except Exception as e:
-            print(f"Error creating AEMOS template part for {component}: {e}")
-            return None
-
-    def _build_aemos_data(self, template_parts, dep_arr):
-        """AEMOS 템플릿 데이터 최종 구성"""
-        if not template_parts:
-            return {"template_dict": [], "service_point_info_dict": [], "metric_dict": {}}
-        
-        # 템플릿 합치기
-        template = pd.concat(template_parts, ignore_index=True)
-        
-        # 서비스 포인트 정보 생성
-        service_points = template[["Touch Point", "Service Point"]].drop_duplicates().reset_index(drop=True)
-        service_point_defaults = {
-            "Unit(Desk / Lane..)": ["Desk", "Desk"], "Installed(total) Facility": ["11 Desks", "15 Desks"],
-            "Manned / Self-service": ["Manned", "Self"], "e-Gate Support": ["No", "Yes"],
-            "e-Gate Detail": ["-", "SITA SmartPath(v2.1)"], "Biometric Support": ["No", "Yes"],
-            "Biometric Detail": ["-", "Face recognition(One ID, IDEMIA)"], "Dedicated Lane": ["No", "Yes"],
-            "Dedicated Detail": ["No", "For PRM"]
-        }
-        service_points = service_points.rename(columns={"Touch Point": "Touch-Point", "Service Point": "Service-Point"})
-        for col, values in service_point_defaults.items():
-            service_points[col] = ""
-            for i, value in enumerate(values):
-                if i < len(service_points):
-                    service_points.loc[i, col] = value
-        
-        # 메트릭 계산
-        df = self.pax_df
-        metric_dict = {
-            "origin_airport_code": df[f"{dep_arr}_airport_iata"].iloc[0] if len(df) > 0 else "",
-            "terminal_name": df[f"{dep_arr}_terminal"].iloc[0] if len(df) > 0 else "",
-            "num_of_flights": df["flight_number"].nunique(),
-            "num_of_passengers": len(df),
-            "num_of_touch_point": len(self.process_list),
-            "num_of_service_point": service_points["Service-Point"].nunique(),
-            "num_of_samples": len(template),
-            "sample_ratio": f"{int(len(template)/(len(df)*len(self.process_list))*1000)/10}%" if len(df) > 0 and len(self.process_list) > 0 else "0%"
-        }
-        
-        # 날짜/시간 컬럼을 문자열로 변환
-        for col in template.select_dtypes(include=['datetime64']).columns:
-            template[col] = template[col].astype(str)
-        for col in service_points.select_dtypes(include=['datetime64']).columns:
-            service_points[col] = service_points[col].astype(str)
-        
-        return {
-            "template_dict": template.to_dict(orient="records"),
-            "service_point_info_dict": service_points.to_dict(orient="records"),
-            "metric_dict": metric_dict
-        }
