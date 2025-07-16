@@ -10,9 +10,9 @@ class IHomeRepository(metaclass=ABCMeta):
     """
 
     @abstractmethod
-    async def download_simulation_parquet_from_s3(self, scenario_id: str) -> pd.DataFrame:
+    def download_simulation_parquet_from_s3(self, scenario_id: str) -> pd.DataFrame:
         raise NotImplementedError
 
     @abstractmethod
-    async def download_facility_json_from_s3(self, scenario_id: str) -> Optional[dict]:
+    def download_facility_json_from_s3(self, scenario_id: str) -> Optional[dict]:
         raise NotImplementedError

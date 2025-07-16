@@ -21,104 +21,30 @@ home_router = APIRouter(
 
 
 @home_router.get(
-    "/line-queue/{scenario_id}",
+    "/common-data/{scenario_id}",
     status_code=200,
-    summary="line-queue를 응답하는 엔드포인트",
+    summary="KPI와 무관한 공통 홈 데이터 (alert_issues, flow_chart, histogram, sankey_diagram)",
 )
 @inject
-async def fetch_line_queue(
+def fetch_common_home_data(
+    scenario_id: str,
     home_service: HomeService = Depends(Provide[Container.home_service]),
-    scenario_id: str | None = None,
 ):
-    result = await home_service.fetch_line_queue(scenario_id)
+    result = home_service.fetch_common_home_data(scenario_id)
     return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
 
 
 @home_router.get(
-    "/summaries/{scenario_id}",
+    "/kpi-data/{scenario_id}",
     status_code=200,
-    summary="최상단 Summary result list를 응답하는 엔드포인트",
+    summary="KPI 의존적 홈 데이터 (summary, facility_details)",
 )
 @inject
-async def fetch_summary(
+def fetch_kpi_home_data(
+    scenario_id: str,
+    calculate_type: str,
     home_service: HomeService = Depends(Provide[Container.home_service]),
-    scenario_id: str | None = None,
-    calculate_type: str = "mean",
     percentile: int | None = None,
 ):
-    result = await home_service.fetch_summary(scenario_id, calculate_type, percentile)
-    return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
-
-
-@home_router.get(
-    "/alert-issues/{scenario_id}",
-    status_code=200,
-    summary="alert-issues를 응답하는 엔드포인트",
-)
-@inject
-async def fetch_alert_issues(
-    home_service: HomeService = Depends(Provide[Container.home_service]),
-    scenario_id: str | None = None,
-):
-    result = await home_service.fetch_alert_issues(scenario_id)
-    return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
-
-
-@home_router.get(
-    "/facility-details/{scenario_id}",
-    status_code=200,
-    summary="facility-details를 응답하는 엔드포인트",
-)
-@inject
-async def fetch_facility_details(
-    home_service: HomeService = Depends(Provide[Container.home_service]),
-    scenario_id: str | None = None,
-    calculate_type: str = "mean",
-    percentile: int | None = None,
-):
-    result = await home_service.fetch_facility_details(
-        scenario_id, calculate_type, percentile
-    )
-    return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
-
-
-@home_router.get(
-    "/charts/flow-chart/{scenario_id}",
-    status_code=200,
-    summary="flow-chart를 응답하는 엔드포인트",
-)
-@inject
-async def fetch_flow_chart(
-    home_service: HomeService = Depends(Provide[Container.home_service]),
-    scenario_id: str | None = None,
-):
-    result = await home_service.fetch_flow_chart(scenario_id)
-    return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
-
-
-@home_router.get(
-    "/charts/histogram/{scenario_id}",
-    status_code=200,
-    summary="histogram를 응답하는 엔드포인트",
-)
-@inject
-async def fetch_histogram(
-    home_service: HomeService = Depends(Provide[Container.home_service]),
-    scenario_id: str | None = None,
-):
-    result = await home_service.fetch_histogram(scenario_id)
-    return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
-
-
-@home_router.get(
-    "/charts/sankey-diagram/{scenario_id}",
-    status_code=200,
-    summary="sankey-diagram를 응답하는 엔드포인트",
-)
-@inject
-async def fetch_sankey_diagram(
-    home_service: HomeService = Depends(Provide[Container.home_service]),
-    scenario_id: str | None = None,
-):
-    result = await home_service.fetch_sankey_diagram(scenario_id)
+    result = home_service.fetch_kpi_home_data(scenario_id, calculate_type, percentile)
     return SuccessResponse(status_code=status.HTTP_200_OK, data=result)

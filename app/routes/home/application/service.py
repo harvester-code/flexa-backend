@@ -1,112 +1,74 @@
+from typing import Optional, Dict, Any
 from dependency_injector.wiring import inject
-from loguru import logger
 
 from packages.calculator.calculator import Calculator
 from app.routes.home.infra.repository import HomeRepository
 
 
 class HomeService:
-    """
-    //매서드 정의//
-
-    """
 
     @inject
     def __init__(self, home_repo: HomeRepository):
         self.home_repo = home_repo
 
-    async def fetch_line_queue(self, scenario_id: str | None):
-        pax_df = await self.home_repo.download_simulation_parquet_from_s3(scenario_id)
+    def _get_cached_data(
+        self, scenario_id: Optional[str]
+    ) -> tuple[Optional[Any], Optional[dict]]:
+        if scenario_id is None:
+            return None, None
+
+        pax_df = self.home_repo.download_simulation_parquet_from_s3(scenario_id)
         if pax_df is None:
-            logger.error(f"ERROR: No data found for scenario_id {scenario_id}")
-            return None
+            return None, None
 
-        facility_info = await self.home_repo.download_facility_json_from_s3(scenario_id)
+        facility_info = self.home_repo.download_facility_json_from_s3(scenario_id)
         if facility_info is None:
-            logger.error(f"ERROR: No facility info found for scenario_id {scenario_id}")
-            return None
+            return None, None
 
-        calculator = Calculator(pax_df, facility_info)
-        return calculator.get_terminal_overview_line_queue()
+        return pax_df, facility_info
 
-    async def fetch_summary(
+    def _create_calculator(
         self,
-        scenario_id: str | None,
+        pax_df: Any,
         calculate_type: str,
-        percentile: int | None,
-    ):
+        facility_info: Optional[dict] = None,
+        percentile: Optional[int] = None,
+    ) -> Calculator:
+        return Calculator(pax_df, facility_info, calculate_type, percentile)
 
-        pax_df = await self.home_repo.download_simulation_parquet_from_s3(scenario_id)
-        if pax_df is None:
-            logger.error(f"ERROR: No data found for scenario_id {scenario_id}")
+    def fetch_common_home_data(
+        self, scenario_id: Optional[str]
+    ) -> Optional[Dict[str, Any]]:
+        """KPI와 무관한 공통 데이터 반환"""
+        pax_df, facility_info = self._get_cached_data(scenario_id)
+        if pax_df is None or facility_info is None:
             return None
 
-        facility_info = await self.home_repo.download_facility_json_from_s3(scenario_id)
-        if facility_info is None:
-            logger.error(f"ERROR: No facility info found for scenario_id {scenario_id}")
+        calculator = self._create_calculator(pax_df, "mean", facility_info)
+
+        return {
+            "alert_issues": calculator.get_alert_issues(),
+            "flow_chart": calculator.get_flow_chart_data(),
+            "histogram": calculator.get_histogram_data(),
+            "sankey_diagram": calculator.get_sankey_diagram_data(),
+        }
+
+    def fetch_kpi_home_data(
+        self,
+        scenario_id: Optional[str],
+        calculate_type: str,
+        percentile: Optional[int] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """KPI 의존적 데이터 반환"""
+        pax_df, facility_info = self._get_cached_data(scenario_id)
+        if pax_df is None or facility_info is None:
             return None
 
-        calculator = Calculator(pax_df, facility_info, calculate_type, percentile)
-        return calculator.get_summary()
+        calculator = self._create_calculator(
+            pax_df, calculate_type, facility_info, percentile
+        )
 
-    async def fetch_alert_issues(self, scenario_id: str | None):
-        pax_df = await self.home_repo.download_simulation_parquet_from_s3(scenario_id)
-        if pax_df is None:
-            logger.error(f"ERROR: No data found for scenario_id {scenario_id}")
-            return None
-
-        facility_info = await self.home_repo.download_facility_json_from_s3(scenario_id)
-        if facility_info is None:
-            logger.error(f"ERROR: No facility info found for scenario_id {scenario_id}")
-            return None
-
-        calculator = Calculator(pax_df, facility_info)
-        return calculator.get_alert_issues()
-
-    async def fetch_facility_details(
-        self, scenario_id: str | None, calculate_type: str, percentile: int | None
-    ):
-        pax_df = await self.home_repo.download_simulation_parquet_from_s3(scenario_id)
-        if pax_df is None:
-            logger.error(f"ERROR: No data found for scenario_id {scenario_id}")
-            return None
-
-        facility_info = await self.home_repo.download_facility_json_from_s3(scenario_id)
-        if facility_info is None:
-            logger.error(f"ERROR: No facility info found for scenario_id {scenario_id}")
-            return None
-
-        calculator = Calculator(pax_df, facility_info, calculate_type, percentile)
-        return calculator.get_facility_details()
-
-    async def fetch_flow_chart(self, scenario_id: str | None):
-        pax_df = await self.home_repo.download_simulation_parquet_from_s3(scenario_id)
-        if pax_df is None:
-            logger.error(f"ERROR: No data found for scenario_id {scenario_id}")
-            return None
-
-        facility_info = await self.home_repo.download_facility_json_from_s3(scenario_id)
-        if facility_info is None:
-            logger.error(f"ERROR: No facility info found for scenario_id {scenario_id}")
-            return None
-
-        calculator = Calculator(pax_df, facility_info)
-        return calculator.get_flow_chart_data()
-
-    async def fetch_histogram(self, scenario_id: str | None):
-        pax_df = await self.home_repo.download_simulation_parquet_from_s3(scenario_id)
-        if pax_df is None:
-            logger.error(f"ERROR: No data found for scenario_id {scenario_id}")
-            return None
-
-        calculator = Calculator(pax_df)
-        return calculator.get_histogram_data()
-
-    async def fetch_sankey_diagram(self, scenario_id: str | None):
-        pax_df = await self.home_repo.download_simulation_parquet_from_s3(scenario_id)
-        if pax_df is None:
-            logger.error(f"ERROR: No data found for scenario_id {scenario_id}")
-            return None
-
-        calculator = Calculator(pax_df)
-        return calculator.get_sankey_diagram_data()
+        return {
+            "summary": calculator.get_summary(),
+            "facility_details": calculator.get_facility_details(),
+        }
