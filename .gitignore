@@ -56,5 +56,5 @@ Thumbs.db
 .env.*
 !.env.example
 
-# dev server
-Dockerfile.dev
+# LocalStack configuration
+**/tmp
