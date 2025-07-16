@@ -117,7 +117,7 @@ class Calculator:
         
         for component in component_list:
             # 시간 플로어링을 한 번에 계산
-            df[f"{component}_time_floored"] = df[f"{component}_on_pred"].dt.floor(f"{time_interval_min}T")
+            df[f"{component}_time_floored"] = df[f"{component}_on_pred"].dt.floor(f"{time_interval_min}min")
             
             # 모든 노드의 데이터를 한 번에 그룹화
             grouped = df.groupby([f"{component}_time_floored", f"{component}_pred"]).size().reset_index(name="Exp pax")
@@ -142,12 +142,12 @@ class Calculator:
         
         # 샘플 데이터 설정 (첫 번째 행만)
         if len(template) > 0:
-            template.loc[0, "Queue Start"] = template.loc[0, "Measurement Time"] + pd.Timedelta(12, unit="S")
+            template.loc[0, "Queue Start"] = template.loc[0, "Measurement Time"] + pd.Timedelta(12, unit="s")
             template.loc[0, "Sample Appearance"] = "Blue T-shirt"
             template.loc[0, "Queue Pax"] = 32
             template.loc[0, "Open Resources"] = 7
             template.loc[0, "Open Detail"] = "Desk 01~07"
-            template.loc[0, "Queue End"] = template.loc[0, "Measurement Time"] + pd.Timedelta(702, unit="S")
+            template.loc[0, "Queue End"] = template.loc[0, "Measurement Time"] + pd.Timedelta(702, unit="s")
 
         ###### SERVICE POINT INFO ######
         # 서비스 포인트 정보를 효율적으로 생성
