@@ -47,6 +47,8 @@ class HomeService:
         calculator = self._create_calculator(pax_df, "mean", facility_info)
 
         return {
+            "topview_service_point": calculator.get_topview_service_point_data(),
+            "topview_data": calculator.get_topview_data(),
             "alert_issues": calculator.get_alert_issues(),
             "flow_chart": calculator.get_flow_chart_data(),
             "histogram": calculator.get_histogram_data(),
@@ -78,5 +80,5 @@ class HomeService:
         if pax_df is None or facility_info is None:
             return None
 
-        calculator = self._create_calculator(pax_df, "mean", facility_info)
+        calculator = self._create_calculator(pax_df, facility_info)
         return calculator.get_aemos_template()

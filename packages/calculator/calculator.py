@@ -537,11 +537,9 @@ class Calculator:
         
         for component in self.facility_info['components']:
             comp_name = component['name']
-            # component name을 display name으로 변환 (snake_case -> Title Case)
-            display_comp_name = comp_name.replace('_', ' ').title()
             
             component_mapping[comp_name] = {
-                'display_name': display_comp_name,
+                'display_name': comp_name,  # 원본 component name 사용
                 'nodes': {}
             }
             
@@ -551,7 +549,7 @@ class Calculator:
                 node_id_to_info[node_id] = {
                     'name': node_name,
                     'component': comp_name,
-                    'display_component': display_comp_name
+                    'display_component': comp_name  # 원본 component name 사용
                 }
                 component_mapping[comp_name]['nodes'][node_name] = node_id
         
@@ -577,8 +575,6 @@ class Calculator:
                     # get_flow_chart_data와 동일한 방식: on_floored와 pred로 그룹화하고 que 평균 계산
                     queue_agg = process_data.groupby([f'{comp_name}_on_floored', pred_col])[queue_col].mean()
                     
-                    display_comp_name = component_mapping[comp_name]['display_name']
-                    
                     # 시간별, facility별로 데이터 구성
                     for (time_group, facility_name), queue_count in queue_agg.items():
                         time_str = time_group.strftime('%Y-%m-%d %H:%M:%S')
@@ -586,14 +582,14 @@ class Calculator:
                         # 결과 딕셔너리 초기화
                         if time_str not in result:
                             result[time_str] = {}
-                        if display_comp_name not in result[time_str]:
-                            result[time_str][display_comp_name] = {}
+                        if comp_name not in result[time_str]:
+                            result[time_str][comp_name] = {}
                         
                         # facility_name에서 node_name 추출 (get_flow_chart_data와 동일: split("_")[-1])
                         node_name = facility_name.split("_")[-1]
                         
                         # 정수로 반올림하여 저장
-                        result[time_str][display_comp_name][node_name] = int(round(queue_count))
+                        result[time_str][comp_name][node_name] = int(round(queue_count))
         
         return result
 
