@@ -501,6 +501,102 @@ class Calculator:
             "link": {"source": sources, "target": targets, "value": values},
         }
 
+
+    def get_topview_service_point_data(self):
+        """facility_info를 활용하여 service_point.json과 같은 형태로 변환"""
+        if self.facility_info is None:
+            raise ValueError("facility_info is required for get_topview_service_point_data")
+        
+        service_point_data = {}
+        
+        # facility_info의 components를 순회하며 수집
+        for component in self.facility_info.get('components', []):
+            component_name = component.get('name', '')
+            
+            # 해당 component의 모든 node name 수집
+            node_names = []
+            for node in component.get('nodes', []):
+                node_name = node.get('name', '')
+                if node_name:
+                    node_names.append(node_name)
+            
+            # component_name을 키로, node_names 리스트를 값으로 저장 (원본 그대로 사용)
+            if component_name and node_names:
+                service_point_data[component_name] = node_names
+        
+        return service_point_data
+
+    def get_topview_data(self):
+        """TopView 데이터 생성 - facility_info와 pax_df를 활용하여 topview_data.json 형태로 변환"""
+        if self.facility_info is None:
+            raise ValueError("facility_info is required for get_topview")
+        
+        # 1. Component와 Node 매핑 생성
+        component_mapping = {}
+        node_id_to_info = {}
+        
+        for component in self.facility_info['components']:
+            comp_name = component['name']
+            # component name을 display name으로 변환 (snake_case -> Title Case)
+            display_comp_name = comp_name.replace('_', ' ').title()
+            
+            component_mapping[comp_name] = {
+                'display_name': display_comp_name,
+                'nodes': {}
+            }
+            
+            for node in component['nodes']:
+                node_name = node['name']
+                node_id = node['id']
+                node_id_to_info[node_id] = {
+                    'name': node_name,
+                    'component': comp_name,
+                    'display_component': display_comp_name
+                }
+                component_mapping[comp_name]['nodes'][node_name] = node_id
+        
+        # 2. pax_df 처리 - get_flow_chart_data와 동일한 방식으로 queue 계산
+        df = self.pax_df.copy()
+        
+        result = {}
+        
+        # 각 component별로 동적 처리 (get_flow_chart_data 방식)
+        for comp_name in component_mapping.keys():
+            on_pred_col = f'{comp_name}_on_pred'
+            pred_col = f'{comp_name}_pred'
+            queue_col = f'{comp_name}_que'
+            
+            if all(col in df.columns for col in [on_pred_col, pred_col, queue_col]):
+                # 해당 process가 처리된 데이터만 필터링
+                process_data = df[df[pred_col].notna()].copy()
+                
+                if not process_data.empty:
+                    # on_pred 시간을 10분 단위로 floor (get_flow_chart_data와 동일)
+                    process_data[f'{comp_name}_on_floored'] = process_data[on_pred_col].dt.floor('10min')
+                    
+                    # get_flow_chart_data와 동일한 방식: on_floored와 pred로 그룹화하고 que 평균 계산
+                    queue_agg = process_data.groupby([f'{comp_name}_on_floored', pred_col])[queue_col].mean()
+                    
+                    display_comp_name = component_mapping[comp_name]['display_name']
+                    
+                    # 시간별, facility별로 데이터 구성
+                    for (time_group, facility_name), queue_count in queue_agg.items():
+                        time_str = time_group.strftime('%Y-%m-%d %H:%M:%S')
+                        
+                        # 결과 딕셔너리 초기화
+                        if time_str not in result:
+                            result[time_str] = {}
+                        if display_comp_name not in result[time_str]:
+                            result[time_str][display_comp_name] = {}
+                        
+                        # facility_name에서 node_name 추출 (get_flow_chart_data와 동일: split("_")[-1])
+                        node_name = facility_name.split("_")[-1]
+                        
+                        # 정수로 반올림하여 저장
+                        result[time_str][display_comp_name][node_name] = int(round(queue_count))
+        
+        return result
+
     # ===============================
     # 서브 함수들 (헬퍼 메소드)
     # ===============================
