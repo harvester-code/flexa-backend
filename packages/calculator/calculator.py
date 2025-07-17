@@ -526,7 +526,7 @@ class Calculator:
         
         return service_point_data
 
-    def get_topview_data(self):
+    def get_topview_data(self, time_unit: str = "10min"):
         """TopView 데이터 생성 - facility_info와 pax_df를 활용하여 topview_data.json 형태로 변환"""
         if self.facility_info is None:
             raise ValueError("facility_info is required for get_topview")
@@ -570,16 +570,25 @@ class Calculator:
                 
                 if not process_data.empty:
                     # on_pred 시간을 10분 단위로 floor (get_flow_chart_data와 동일)
-                    process_data[f'{comp_name}_on_floored'] = process_data[on_pred_col].dt.floor('10min')
+                    process_data[f'{comp_name}_on_floored'] = process_data[on_pred_col].dt.floor(time_unit)
                     
                     # get_flow_chart_data와 동일한 방식: on_floored와 pred로 그룹화하고 que 평균 계산
                     queue_agg = process_data.groupby([f'{comp_name}_on_floored', pred_col])[queue_col].mean()
+                    
+                    # time_unit에 따른 동적 계산: 2일치를 넘으면 1일치 제거
+                    time_unit_minutes = pd.Timedelta(time_unit).total_seconds() / 60
+                    one_day_slot = int(1440 / time_unit_minutes)  # 1일치 슬롯 개수
+                    two_day_slots = one_day_slot * 2  # 2일치 슬롯 개수
+                    if len(queue_agg) > two_day_slots:
+                        queue_agg = queue_agg.iloc[:-one_day_slot]
                     
                     # 시간별, facility별로 데이터 구성
                     for (time_group, facility_name), queue_count in queue_agg.items():
                         time_str = time_group.strftime('%Y-%m-%d %H:%M:%S')
                         
-                        # 결과 딕셔너리 초기화
+                        queue_count_rounded = int(round(queue_count))
+                        
+                        # 결과 딕셔너리 초기화 (시간대는 항상 유지)
                         if time_str not in result:
                             result[time_str] = {}
                         if comp_name not in result[time_str]:
@@ -588,10 +597,181 @@ class Calculator:
                         # facility_name에서 node_name 추출 (get_flow_chart_data와 동일: split("_")[-1])
                         node_name = facility_name.split("_")[-1]
                         
-                        # 정수로 반올림하여 저장
-                        result[time_str][comp_name][node_name] = int(round(queue_count))
+                        # 0이 아닌 값만 저장하여 JSON 크기 최적화
+                        if queue_count_rounded != 0:
+                            result[time_str][comp_name][node_name] = queue_count_rounded
         
         return result
+
+    def get_etc_info(self):
+        """기본 시뮬레이션 정보 생성"""
+        df = self.pax_df.copy()
+        
+        # 1. 공항 이름
+        airport_code = ""
+        if "departure_airport_iata" in df.columns and not df["departure_airport_iata"].empty:
+            airport_code = df["departure_airport_iata"].iloc[0]
+        elif "arrival_airport_iata" in df.columns and not df["arrival_airport_iata"].empty:
+            airport_code = df["arrival_airport_iata"].iloc[0]
+        
+        # 2. 첫 번째/마지막 승객 도착 시간
+        first_showup_passenger = None
+        last_showup_passenger = None
+        if "show_up_time" in df.columns and not df["show_up_time"].empty:
+            first_showup_passenger = df["show_up_time"].min().strftime("%Y-%m-%d %H:%M:%S")
+            last_showup_passenger = df["show_up_time"].max().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # 3. 항공기를 놓친 승객 수
+        missed_flight_passengers = 0
+        # 4. 정시 처리 승객 수
+        ontime_flight_passengers = 0
+        # 5. 상업시설 이용시간 평균 (분 단위)
+        commercial_usage_time_avg = 0
+        # 6. 평균 공항 체류 시간 (분 단위)
+        avg_airport_stay_time = 0
+        # 7. 항공기 출발전 처리완료된 승객비율 (%)
+        passengers_processed_before_departure_rate = 0.0
+        # 8. 러시아워 (가장 붐비는 시간대)
+        rush_hour = "N/A"
+        # 9. 병목 프로세스 (가장 오래 걸리는 프로세스)
+        bottleneck_process = "N/A"
+        # 10. 얼리버드 승객 비율 (2시간 이전 도착)
+        early_bird_ratio = 0.0
+        
+        if self.process_list and "scheduled_gate_departure_local" in df.columns:
+            last_process = self.process_list[-1]
+            last_done_col = f"{last_process}_done_pred"
+            
+            if last_done_col in df.columns and "show_up_time" in df.columns:
+                # 유효한 데이터만 필터링 (done 시간과 출발 시간이 모두 있는 경우)
+                valid_data = df.dropna(subset=[last_done_col, "scheduled_gate_departure_local", "show_up_time"])
+                
+                if not valid_data.empty:
+                    # 승객 분류
+                    missed_passengers_data = valid_data[
+                        valid_data[last_done_col] > valid_data["scheduled_gate_departure_local"]
+                    ]
+                    ontime_passengers_data = valid_data[
+                        valid_data[last_done_col] <= valid_data["scheduled_gate_departure_local"]
+                    ]
+                    
+                    # 3. 항공기를 놓친 승객 수
+                    missed_flight_passengers = len(missed_passengers_data)
+                    
+                    # 4. 정시 처리 승객 수
+                    ontime_flight_passengers = len(ontime_passengers_data)
+                    
+                    # 5. 상업시설 이용시간 평균 계산 (모든 승객 대상, 음수 포함, 총 분 단위)
+                    commercial_time_diff = (
+                        valid_data["scheduled_gate_departure_local"] - 
+                        valid_data[last_done_col]
+                    )
+                    avg_commercial_time_seconds = commercial_time_diff.mean().total_seconds()
+                    commercial_usage_time_avg = int(avg_commercial_time_seconds / 60)
+                    
+                    # 6. 평균 공항 체류 시간 계산 (show_up_time부터 실제 공항 떠나는 시점까지)
+                    # 실제 떠나는 시점 = max(마지막 프로세스 완료 시간, 항공기 출발 시간)
+                    actual_departure_time = pd.concat([
+                        valid_data[last_done_col], 
+                        valid_data["scheduled_gate_departure_local"]
+                    ], axis=1).max(axis=1)
+                    
+                    airport_stay_time_diff = (
+                        actual_departure_time - valid_data["show_up_time"]
+                    )
+                    avg_airport_stay_seconds = airport_stay_time_diff.mean().total_seconds()
+                    avg_airport_stay_time = int(avg_airport_stay_seconds / 60)
+
+        
+        # 8. 러시아워 분석 (가장 붐비는 시간대)
+        if "show_up_time" in df.columns and not df["show_up_time"].empty:
+            hourly_counts = df["show_up_time"].dt.hour.value_counts()
+            peak_hour = hourly_counts.index[0]
+            rush_hour = f"{peak_hour:02d}:00-{peak_hour+1:02d}:00"
+        
+        # 9. 병목 프로세스 분석 (가장 평균 대기시간이 긴 프로세스)
+        if self.process_list:
+            process_wait_times = {}
+            for process in self.process_list:
+                on_col = f"{process}_on_pred"
+                pt_col = f"{process}_pt_pred"
+                if on_col in df.columns and pt_col in df.columns:
+                    wait_time = (df[pt_col] - df[on_col]).dt.total_seconds().mean()
+                    if not pd.isna(wait_time):
+                        process_wait_times[process] = wait_time
+            
+            if process_wait_times:
+                bottleneck_process = max(process_wait_times, key=process_wait_times.get)
+        
+        # 10. 얼리버드 승객 비율 (2시간 이전 도착)
+        if "show_up_time" in df.columns and "scheduled_gate_departure_local" in df.columns:
+            early_arrival_data = df.dropna(subset=["show_up_time", "scheduled_gate_departure_local"])
+            if not early_arrival_data.empty:
+                time_before_departure = (
+                    early_arrival_data["scheduled_gate_departure_local"] - 
+                    early_arrival_data["show_up_time"]
+                ).dt.total_seconds() / 3600  # 시간 단위로 변환
+                
+                early_birds = early_arrival_data[time_before_departure >= 2]
+                early_bird_ratio = round((len(early_birds) / len(early_arrival_data)) * 100, 2)
+        
+        # 쇼핑 가능 여부 판단
+        shopping_available = "Possible" if commercial_usage_time_avg >= 0 else "Impossible"
+        
+        return {
+            "simulation_basic_info": {
+                "airport_code": {
+                    "value": airport_code,
+                    "description": "Airport IATA code (e.g., ICN, NRT)"
+                },
+                "first_showup_passenger": {
+                    "value": first_showup_passenger,
+                    "description": "Arrival time of the first passenger at the airport"
+                },
+                "last_showup_passenger": {
+                    "value": last_showup_passenger,
+                    "description": "Arrival time of the last passenger at the airport"
+                }
+            },
+            "performance_kpi": {
+                "missed_flight_passengers": {
+                    "value": missed_flight_passengers,
+                    "description": "Number of passengers who completed final process after flight departure time"
+                },
+                "ontime_flight_passengers": {
+                    "value": ontime_flight_passengers,
+                    "description": "Number of passengers who completed all processes before flight departure"
+                },
+                "avg_airport_dwell_time(min)": {
+                    "value": avg_airport_stay_time,
+                    "description": "Average passenger dwell time at airport (arrival to actual departure from airport)"
+                },
+            },
+            "commercial_info": {
+                "commercial_facility_usage_time_avg(min)": {
+                    "value": commercial_usage_time_avg,
+                    "description": "Average available time for commercial facilities after final process completion"
+                },
+                "shopping_available": {
+                    "value": shopping_available,
+                    "description": "Shopping availability based on average spare time (Possible if positive, Impossible if negative)"
+                }
+            },
+            "operational_insights": {
+                "rush_hour": {
+                    "value": rush_hour,
+                    "description": "Peak hour when most passengers arrive at the airport"
+                },
+                "bottleneck_process": {
+                    "value": bottleneck_process,
+                    "description": "Process with the longest average waiting time (improvement priority)"
+                },
+                "early_bird_ratio(%)": {
+                    "value": early_bird_ratio,
+                    "description": "Percentage of passengers arriving 2+ hours before departure"
+                }
+            }
+        }
 
     # ===============================
     # 서브 함수들 (헬퍼 메소드)
