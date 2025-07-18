@@ -15,6 +15,7 @@ from app.routes.facility.interface.controller import facility_router
 from app.routes.home.interface.controller import home_router
 from app.routes.passenger_flow.controller import passenger_flow_router
 from app.routes.simulation.interface.controller import simulation_router
+from app.routes.system.interface.controller import system_router
 from packages.constants import ALLOW_ORIGINS_MAP, API_PREFIX
 from packages.secrets import get_secret
 
@@ -44,3 +45,4 @@ app.include_router(home_router, prefix=API_PREFIX, tags=["Homes"])
 app.include_router(facility_router, prefix=API_PREFIX, tags=["Detailed-Facilities"])
 app.include_router(passenger_flow_router, prefix=API_PREFIX, tags=["Passenger-Flow"])
 app.include_router(admin_router, prefix=API_PREFIX, tags=["Admins"])
+app.include_router(system_router, prefix=API_PREFIX, tags=["System"])
