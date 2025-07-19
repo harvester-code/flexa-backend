@@ -19,7 +19,7 @@ from app.routes.system.interface.controller import system_router
 from packages.constants import ALLOW_ORIGINS_MAP, API_PREFIX
 from packages.secrets import get_secret
 
-if get_secret("ENVIRONMENT") == "dev":
+if get_secret("ENVIRONMENT") == "local":
     threading.Thread(target=monitor_memory, daemon=True).start()
 
 app = FastAPI(lifespan=lifespan)
