@@ -608,8 +608,6 @@ class SimulationService:
         destribution_conditions: list,
         scenario_id: str,
     ):
-        breakpoint()
-
         flight_schedule_data = await self.load_flight_schedule_data(
             db=db,
             date=flight_sch.date,
@@ -618,8 +616,6 @@ class SimulationService:
             scenario_id=scenario_id,
         )
         flight_schedule_df = pd.DataFrame(flight_schedule_data)
-
-        breakpoint()
 
         # ==============================================================
         # NOTE: ///
@@ -1645,8 +1641,8 @@ class SimulationService:
         s3 = boto3.client(
             "s3",
             config=Config(region_name="ap-northeast-2"),
-            aws_access_key_id=get_secret("AWS_ACCESS_KEY"),
-            aws_secret_access_key=get_secret("AWS_SECRET_ACCESS_KEY"),
+            # aws_access_key_id=get_secret("AWS_ACCESS_KEY"),
+            # aws_secret_access_key=get_secret("AWS_SECRET_ACCESS_KEY"),
         )
         s3.put_object(
             ContentType="application/json",

@@ -2,19 +2,10 @@ import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
 
-from packages.secrets import get_secret
-
 
 def get_s3_client():
-    config = Config(
-        region_name="ap-northeast-2",
-    )
-    return boto3.client(
-        "s3",
-        config=config,
-        aws_access_key_id=get_secret("AWS_ACCESS_KEY"),
-        aws_secret_access_key=get_secret("AWS_SECRET_ACCESS_KEY"),
-    )
+    config = Config(region_name="ap-northeast-2")
+    return boto3.client("s3", config=config)
 
 
 def check_s3_object_exists(bucket_name: str, object_key: str) -> bool:

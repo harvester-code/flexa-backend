@@ -14,8 +14,8 @@ class S3Downloader:
 
     def __init__(self, bucket_name: str = S3_BUCKET_NAME):
         self.bucket_name = bucket_name
-        self.aws_access_key_id = get_secret("AWS_ACCESS_KEY")
-        self.aws_secret_access_key = get_secret("AWS_SECRET_ACCESS_KEY")
+        # self.aws_access_key_id = get_secret("AWS_ACCESS_KEY")
+        # self.aws_secret_access_key = get_secret("AWS_SECRET_ACCESS_KEY")
         self.region_name = "ap-northeast-2"
 
     async def download_simulation_parquet_from_s3(
@@ -28,8 +28,8 @@ class S3Downloader:
         async with session.client(
             "s3",
             region_name=self.region_name,
-            aws_access_key_id=self.aws_access_key_id,
-            aws_secret_access_key=self.aws_secret_access_key,
+            # aws_access_key_id=self.aws_access_key_id,
+            # aws_secret_access_key=self.aws_secret_access_key,
         ) as s3_client:
             try:
                 response = await s3_client.get_object(
@@ -50,8 +50,8 @@ class S3Downloader:
         async with session.client(
             "s3",
             region_name=self.region_name,
-            aws_access_key_id=self.aws_access_key_id,
-            aws_secret_access_key=self.aws_secret_access_key,
+            # aws_access_key_id=self.aws_access_key_id,
+            # aws_secret_access_key=self.aws_secret_access_key,
         ) as s3_client:
             try:
                 response = await s3_client.get_object(
