@@ -5,13 +5,14 @@ from typing import Optional
 import aioboto3
 import pandas as pd
 
+from packages.constants import S3_BUCKET_NAME
 from packages.secrets import get_secret
 
 
 class S3Downloader:
     """S3 downloader for simulation data and facility information"""
 
-    def __init__(self, bucket_name: str = "flexa-dev-ap-northeast-2-data-storage"):
+    def __init__(self, bucket_name: str = S3_BUCKET_NAME):
         self.bucket_name = bucket_name
         self.aws_access_key_id = get_secret("AWS_ACCESS_KEY")
         self.aws_secret_access_key = get_secret("AWS_SECRET_ACCESS_KEY")

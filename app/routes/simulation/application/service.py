@@ -25,12 +25,12 @@ from app.routes.simulation.domain.simulation import (
     ScenarioInformation,
     ScenarioMetadata,
 )
-from app.routes.simulation.infra.repository import SimulationRepository
 from app.routes.simulation.infra.models import UserInformation
+from app.routes.simulation.infra.repository import SimulationRepository
 from app.routes.simulation.infra.sqs.producer import send_message_to_sqs
 from packages.boto3_session import boto3_session
 from packages.common import TimeStamp
-from packages.constants import COL_FILTER_MAP, CRITERIA_MAP
+from packages.constants import COL_FILTER_MAP, CRITERIA_MAP, S3_BUCKET_NAME
 from packages.secrets import get_secret
 from packages.storages import check_s3_object_exists, get_s3_client
 
@@ -248,7 +248,7 @@ class SimulationService:
         # NOTE: S3 데이터 확인
         if storage == "s3":
             object_exists = check_s3_object_exists(
-                bucket_name="flexa-dev-ap-northeast-2-data-storage",
+                bucket_name=S3_BUCKET_NAME,
                 object_key=f"simulations/flight-schedule-data/{scenario_id}.parquet",
             )
 
@@ -256,7 +256,7 @@ class SimulationService:
                 return flight_schedule_data
 
             flight_schedule_data = wr.s3.read_parquet(
-                path=f"s3://flexa-dev-ap-northeast-2-data-storage/simulations/flight-schedule-data/{scenario_id}.parquet",
+                path=f"s3://{S3_BUCKET_NAME}/simulations/flight-schedule-data/{scenario_id}.parquet",
                 boto3_session=boto3_session,
             )
             return flight_schedule_data.to_dict(orient="records")
@@ -319,7 +319,7 @@ class SimulationService:
         # ======================================================
         # NOTE: S3 데이터 확인
         object_exists = check_s3_object_exists(
-            bucket_name="flexa-dev-ap-northeast-2-data-storage",
+            bucket_name=S3_BUCKET_NAME,
             object_key=f"simulations/show-up-passenger-data/{scenario_id}.parquet",
         )
 
@@ -329,7 +329,7 @@ class SimulationService:
         # TODO: fetch_flight_schedule_data와 같이 반환 타입 맞추기
 
         showup_passenger_df = wr.s3.read_parquet(
-            path=f"s3://flexa-dev-ap-northeast-2-data-storage/simulations/show-up-passenger-data/{scenario_id}.parquet",
+            path=f"s3://{S3_BUCKET_NAME}/simulations/show-up-passenger-data/{scenario_id}.parquet",
             boto3_session=boto3_session,
         )
         return showup_passenger_df
@@ -431,7 +431,7 @@ class SimulationService:
         # NOTE: S3에 데이터 저장
         wr.s3.to_parquet(
             df=pd.DataFrame(flight_schedule_data),
-            path=f"s3://flexa-dev-ap-northeast-2-data-storage/simulations/flight-schedule-data/{scenario_id}.parquet",
+            path=f"s3://{S3_BUCKET_NAME}/simulations/flight-schedule-data/{scenario_id}.parquet",
             boto3_session=boto3_session,
         )
 
@@ -608,6 +608,8 @@ class SimulationService:
         destribution_conditions: list,
         scenario_id: str,
     ):
+        breakpoint()
+
         flight_schedule_data = await self.load_flight_schedule_data(
             db=db,
             date=flight_sch.date,
@@ -616,6 +618,8 @@ class SimulationService:
             scenario_id=scenario_id,
         )
         flight_schedule_df = pd.DataFrame(flight_schedule_data)
+
+        breakpoint()
 
         # ==============================================================
         # NOTE: ///
@@ -653,7 +657,7 @@ class SimulationService:
         # NOTE: S3에 데이터 저장
         wr.s3.to_parquet(
             df=pax_df,
-            path=f"s3://flexa-dev-ap-northeast-2-data-storage/simulations/show-up-passenger-data/{scenario_id}.parquet",
+            path=f"s3://{S3_BUCKET_NAME}/simulations/show-up-passenger-data/{scenario_id}.parquet",
             boto3_session=boto3_session,
         )
 
@@ -1634,7 +1638,7 @@ class SimulationService:
     ):
         # ====================================================================
         # NOTE: S3에 데이터 저장
-        bucket_name = "flexa-dev-ap-northeast-2-data-storage"
+        bucket_name = S3_BUCKET_NAME
         object_key = f"simulations/facility-information-data/{scenario_id}.json"
 
         # TODO: SQS처럼 infra폴더에 별도로 모듈화
@@ -1674,7 +1678,7 @@ class SimulationService:
         return {"status": "success", "message": "Simulation started successfully."}
 
     async def get_simulation(self, scenario_id: str):
-        bucket = "flexa-dev-ap-northeast-2-data-storage"
+        bucket = S3_BUCKET_NAME
         key = f"simulations/simulation-results-chart-data/{scenario_id}.json"
 
         if check_s3_object_exists(bucket_name=bucket, object_key=key):

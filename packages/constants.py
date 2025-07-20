@@ -1,3 +1,5 @@
+from packages.secrets import get_secret
+
 ALLOW_ORIGINS_MAP = {
     "local": ["*"],
     "dev": ["https://preview.flexa.expert", "http://localhost:3000"],
@@ -27,3 +29,5 @@ CRITERIA_MAP = {
     "country_code": "Country",
     "region_name": "Region",
 }
+
+S3_BUCKET_NAME = get_secret("AWS_S3_BUCKET_NAME")
