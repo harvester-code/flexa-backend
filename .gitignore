@@ -58,3 +58,6 @@ Thumbs.db
 
 # LocalStack configuration
 **/tmp
+
+# Supabase configuration
+**/supabase-local/volumes
