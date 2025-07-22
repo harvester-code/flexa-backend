@@ -558,6 +558,13 @@ class Calculator:
         
         result = {}
         
+        # 컴포넌트별 queue_agg 저장용
+        queue_aggs = {}
+        all_time_slots = set()
+        time_unit_minutes = int(time_unit.replace("min", ""))
+        one_day_slot = int(1440 / time_unit_minutes)  # 1일치 슬롯 개수
+        two_day_slots = one_day_slot * 2  # 2일치 슬롯 개수
+        
         # 각 component별로 동적 처리 (get_flow_chart_data 방식)
         for comp_name in component_mapping.keys():
             on_pred_col = f'{comp_name}_on_pred'
@@ -574,32 +581,31 @@ class Calculator:
                     
                     # get_flow_chart_data와 동일한 방식: on_floored와 pred로 그룹화하고 que 평균 계산
                     queue_agg = process_data.groupby([f'{comp_name}_on_floored', pred_col])[queue_col].mean()
-                    
-                    # time_unit에 따른 동적 계산: 2일치를 넘으면 1일치 제거
-                    time_unit_minutes = pd.Timedelta(time_unit).total_seconds() / 60
-                    one_day_slot = int(1440 / time_unit_minutes)  # 1일치 슬롯 개수
-                    two_day_slots = one_day_slot * 2  # 2일치 슬롯 개수
-                    if len(queue_agg) > two_day_slots:
-                        queue_agg = queue_agg.iloc[:-one_day_slot]
-                    
-                    # 시간별, facility별로 데이터 구성
-                    for (time_group, facility_name), queue_count in queue_agg.items():
-                        time_str = time_group.strftime('%Y-%m-%d %H:%M:%S')
-                        
-                        queue_count_rounded = int(round(queue_count))
-                        
-                        # 결과 딕셔너리 초기화 (시간대는 항상 유지)
-                        if time_str not in result:
-                            result[time_str] = {}
-                        if comp_name not in result[time_str]:
-                            result[time_str][comp_name] = {}
-                        
-                        # facility_name에서 node_name 추출 (get_flow_chart_data와 동일: split("_")[-1])
-                        node_name = facility_name.split("_")[-1]
-                        
-                        # 0이 아닌 값만 저장하여 JSON 크기 최적화
-                        if queue_count_rounded != 0:
-                            result[time_str][comp_name][node_name] = queue_count_rounded
+                    queue_aggs[comp_name] = queue_agg
+                    all_time_slots.update(queue_agg.index.get_level_values(0))
+        
+        # 전체 시간대 정렬 및 2일치 초과 시 가장 오래된 1일치 제거
+        all_time_slots = sorted(all_time_slots)
+        if len(all_time_slots) > two_day_slots:
+            all_time_slots = all_time_slots[:-one_day_slot]
+        
+        # 각 컴포넌트별로, 남은 시간대만 남기기
+        for comp_name, queue_agg in queue_aggs.items():
+            # 시간대 필터링
+            filtered_queue_agg = queue_agg[queue_agg.index.get_level_values(0).isin(all_time_slots)]
+            for (time_group, facility_name), queue_count in filtered_queue_agg.items():
+                time_str = time_group.strftime('%Y-%m-%d %H:%M:%S')
+                queue_count_rounded = int(round(queue_count))
+                # 결과 딕셔너리 초기화 (시간대는 항상 유지)
+                if time_str not in result:
+                    result[time_str] = {}
+                if comp_name not in result[time_str]:
+                    result[time_str][comp_name] = {}
+                # facility_name에서 node_name 추출 (get_flow_chart_data와 동일: split("_")[-1])
+                node_name = facility_name.split("_")[-1]
+                # 0이 아닌 값만 저장하여 JSON 크기 최적화
+                if queue_count_rounded != 0:
+                    result[time_str][comp_name][node_name] = queue_count_rounded
         
         return result
 
