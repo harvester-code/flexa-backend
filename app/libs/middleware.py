@@ -32,12 +32,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if request.method == "OPTIONS":
             return await call_next(request)
 
-        # ==============
-        # DEBUG
-        logger.info(f"🔍 Raw request path: '{path}'")
-        logger.info(f"🔍 Path bytes: {path.encode('utf-8')}")
-        # ==============
-
         if any(path.startswith(protected_path) for protected_path in PROTECTED_PATHS):
             auth_header = request.headers.get("Authorization")
 
@@ -51,30 +45,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
             # NOTE: 시스템(ex. Lambda) 환경에서는 다른 jwt 인증을 사용합니다.
             try:
-
-                # ==============
-                # DEBUG
-                logger.info(f"🔍 SYSTEM_PATHS: {SYSTEM_PATHS}")
-                for i, system_path in enumerate(SYSTEM_PATHS):
-                    logger.info(
-                        f"🔍 SYSTEM_PATH[{i}]: '{system_path}' (length: {len(system_path)})"
-                    )
-                    logger.info(f"🔍 Starts with check: {path.startswith(system_path)}")
-
                 if any(path.startswith(system_path) for system_path in SYSTEM_PATHS):
-                    logger.info("Inside lambda decode")
                     payload = decode_jwt(token=token)
-                    logger.info("get payload")
-                    logger.info(f"sub: {bool(payload.get('sub'))}")
-                    logger.info(payload.get("iss"))
                     request.state.user_id = payload.get("sub")
-                    logger.info("state fin")
-
                 else:
-                    logger.info("Inside supabase decode")
                     user = decode_supabase_token(token)
                     request.state.user_id = user.id
-                # ==============
 
             except Exception as e:
                 return JSONResponse(
