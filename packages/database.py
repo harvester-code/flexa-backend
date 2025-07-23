@@ -1,46 +1,36 @@
 import asyncio
-from queue import Empty, Queue
-from threading import Lock
 from typing import AsyncGenerator
 
 import redshift_connector
 from fastapi import HTTPException
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import QueuePool
 from supabase._async.client import AsyncClient, create_client
 
 from packages.secrets import get_secret
 
 # ============================================================
-# NOTE: Redshift 연결을 위한 설정
+# NOTE: Redshift 연결을 위한 설정 (Refactored for production)
 POOL_SIZE_MAP = {"development": 5, "production": 20}
 POOL_SIZE = POOL_SIZE_MAP.get(get_secret("ENVIRONMENT"), 1)
 TIMEOUT = 60
 
-redshift_connection_pool = Queue(maxsize=POOL_SIZE)
-redshift_pool_lock = Lock()
-
-
-def create_redshift_connection():
-    return redshift_connector.connect(
+# Create a SQLAlchemy QueuePool for Redshift connections
+redshift_pool = QueuePool(
+    lambda: redshift_connector.connect(
         host=get_secret("REDSHIFT_HOST"),
         database=get_secret("REDSHIFT_DBNAME"),
         port=get_secret("REDSHIFT_PORT"),
         user=get_secret("REDSHIFT_USERNAME"),
         password=get_secret("REDSHIFT_PASSWORD"),
-    )
-
-
-def initialize_redshift_pool():
-    with redshift_pool_lock:
-        while not redshift_connection_pool.full():
-            try:
-                conn = create_redshift_connection()
-                redshift_connection_pool.put(conn)
-            except redshift_connector.Error as e:
-                print(f"Error connecting to Redshift during pool initialization: {e}")
-                break
+    ),
+    max_overflow=10,  # Allow some overflow connections
+    pool_size=POOL_SIZE,
+    timeout=TIMEOUT,
+)
 
 
 async def validate_redshift_connection(conn):
@@ -49,7 +39,7 @@ async def validate_redshift_connection(conn):
         await asyncio.to_thread(conn.cursor().execute, "SELECT 1")
         return True
     except redshift_connector.Error as e:
-        print(f"Connection validation failed: {e}")
+        logger.error(f"Connection validation failed: {e}")
         return False
 
 
@@ -57,33 +47,25 @@ async def get_redshift_connection():
     conn = None
     try:
         # Retrieve a connection from the pool
-        conn = await asyncio.to_thread(
-            redshift_connection_pool.get, True, timeout=TIMEOUT
-        )
+        conn = await asyncio.to_thread(redshift_pool.connect)
 
         # Validate the connection
         if not await validate_redshift_connection(conn):
-            conn = create_redshift_connection()
+            conn.close()
+            raise HTTPException(status_code=500, detail="Invalid Redshift connection")
 
         yield conn
-    except Empty:
+    except Exception as e:
+        logger.error(f"Error acquiring Redshift connection: {e}")
         raise HTTPException(
-            status_code=503, detail="Redshift connection pool exhausted"
+            status_code=503, detail="Error acquiring Redshift connection"
         )
-    except redshift_connector.Error as connection_error:
-        print(f"Error using Redshift connection: {connection_error}")
-        raise HTTPException(status_code=500, detail="Error with Redshift connection")
     finally:
         if conn:
             try:
-                # Validate before returning to the pool
-                if not await validate_redshift_connection(conn):
-                    conn = create_redshift_connection()
-
-                await asyncio.to_thread(redshift_connection_pool.put, conn)
+                conn.close()  # Return the connection to the pool
             except Exception as e:
-                print(f"Error returning Redshift connection to pool: {e}")
-                pass  # Already full pool or other issue
+                logger.error(f"Error returning Redshift connection to pool: {e}")
 
 
 # ============================================================
