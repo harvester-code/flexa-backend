@@ -1,3 +1,4 @@
+import time
 from typing import Callable
 
 from fastapi import Request, status
@@ -22,6 +23,7 @@ SYSTEM_PATHS = [
 
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable):
+        start_time = time.time()
         path = request.url.path
 
         # NOTE: CORS 사전 요청(Preflight Request)을 처리하기 위해 OPTIONS 메서드는 인증을 우회합니다.
@@ -58,4 +60,20 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     status_code=status.HTTP_401_UNAUTHORIZED,
                 )
 
-        return await call_next(request)
+        response = await call_next(request)
+
+        processing_time = time.time() - start_time
+
+        logger.info(
+            {
+                "method": request.method,
+                "path": path,
+                "status_code": response.status_code,
+                "processing_time_ms": round(processing_time * 1000, 2),
+                "client_ip": request.client.host,
+                "user_id": getattr(request.state, "user_id", "anonymous"),
+                "user_agent": request.headers.get("user-agent", "unknown"),
+            }
+        )
+
+        return response
