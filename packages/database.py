@@ -50,6 +50,14 @@ async def get_redshift_connection():
         conn = await asyncio.to_thread(
             redshift_connection_pool.get, True, timeout=TIMEOUT
         )
+
+        # Health check to ensure the connection is valid
+        try:
+            await asyncio.to_thread(conn.cursor().execute, "SELECT 1")
+        except redshift_connector.Error as health_check_error:
+            print(f"Health check failed, reconnecting: {health_check_error}")
+            conn = create_redshift_connection()
+
         yield conn
     except Empty:
         raise HTTPException(
