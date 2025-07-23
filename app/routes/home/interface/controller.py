@@ -53,9 +53,9 @@ async def fetch_kpi_home_data(
 
 
 @home_router.get(
-    "/aemos_template/{scenario_id}",
+    "/aemos-template/{scenario_id}",
     status_code=200,
-    summary="aemos_template를 응답하는 엔드포인트",
+    summary="aemos-template를 응답하는 엔드포인트",
 )
 @inject
 async def fetch_aemos_template(

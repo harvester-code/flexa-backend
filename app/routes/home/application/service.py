@@ -1,4 +1,5 @@
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
+
 from dependency_injector.wiring import inject
 
 from app.routes.home.infra.repository import HomeRepository
@@ -40,6 +41,7 @@ class HomeService:
         self, scenario_id: Optional[str]
     ) -> Optional[Dict[str, Any]]:
         """KPI와 무관한 공통 데이터 반환"""
+
         pax_df, facility_info = await self._get_cached_data(scenario_id)
         if pax_df is None or facility_info is None:
             return None
@@ -63,6 +65,7 @@ class HomeService:
         percentile: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
         """KPI 의존적 데이터 반환"""
+
         pax_df, facility_info = await self._get_cached_data(scenario_id)
         if pax_df is None or facility_info is None:
             return None
@@ -76,16 +79,16 @@ class HomeService:
             "facility_details": calculator.get_facility_details(),
         }
 
-
     async def fetch_aemos_template(
         self, scenario_id: Optional[str]
     ) -> Optional[Dict[str, Any]]:
         """AEMOS 데이터 반환"""
+
         pax_df, facility_info = await self._get_cached_data(scenario_id)
+
         if pax_df is None or facility_info is None:
             return None
 
         calculator = self._create_calculator(pax_df, "mean", facility_info)
 
         return calculator.get_aemos_template()
-        
