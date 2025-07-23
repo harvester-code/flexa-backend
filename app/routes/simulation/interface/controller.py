@@ -1,11 +1,14 @@
 from operator import itemgetter
 
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, BackgroundTasks, Depends, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from loguru import logger
 from sqlalchemy import Connection
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.libs.containers import Container
+from app.libs.dependencies import verify_token
 from app.libs.exceptions import BadRequestException
 from app.routes.simulation.application.service import SimulationService
 from app.routes.simulation.interface.schema import (
@@ -21,7 +24,6 @@ from app.routes.simulation.interface.schema import (
     SimulationScenarioBody,
 )
 from packages.database import aget_supabase_session, get_redshift_connection
-from app.libs.dependencies import verify_token
 
 simulation_router = APIRouter(
     prefix="/simulations",
@@ -245,19 +247,34 @@ async def fetch_flight_schedule(
     if not scenario_id:
         raise BadRequestException("Scenario ID is required")
 
-    flight_sch = await sim_service.generate_flight_schedule(
-        redshift_db,
-        flight_schedule.date,
-        flight_schedule.airport,
-        flight_schedule.condition,
-        scenario_id=scenario_id,
-    )
+    try:
+        flight_sch = await sim_service.generate_flight_schedule(
+            redshift_db,
+            flight_schedule.date,
+            flight_schedule.airport,
+            flight_schedule.condition,
+            scenario_id=scenario_id,
+        )
 
-    await sim_service.update_scenario_target_flight_schedule_date(
-        supabase_db, scenario_id, flight_schedule.date
-    )
+        await sim_service.update_scenario_target_flight_schedule_date(
+            supabase_db, scenario_id, flight_schedule.date
+        )
 
-    return flight_sch
+        return flight_sch
+
+    except SQLAlchemyError as e:
+        logger.error(f"Database error while fetching scenario_id={scenario_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error occurred while fetching the flight schedule.",
+        )
+
+    except Exception as e:
+        logger.error(f"Unexpected error while fetching scenario_id={scenario_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred while fetching the flight schedule.",
+        )
 
 
 @simulation_router.post(

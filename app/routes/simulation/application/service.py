@@ -11,6 +11,7 @@ import pendulum
 from botocore.config import Config
 from dependency_injector.wiring import inject
 from fastapi import BackgroundTasks
+from loguru import logger
 from sqlalchemy import Connection
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -304,12 +305,12 @@ class SimulationService:
                 if where_conditions:
                     base_query += " AND " + " AND ".join(where_conditions)
 
-            return await self.simulation_repo.fetch_flight_schedule_data(
-                conn=db,
-                stmt_text=base_query,
-                params=params,
-                flight_io=FLIGHT_IO,
+            flight_schedule_data = (
+                await self.simulation_repo.fetch_flight_schedule_data(
+                    conn=db, stmt_text=base_query, params=params, flight_io=FLIGHT_IO
+                )
             )
+            return flight_schedule_data
 
         return flight_schedule_data
 
@@ -423,70 +424,103 @@ class SimulationService:
 
         # ==============================================================
         # NOTE: REDSHIFT 데이터 조회
-        flight_schedule_data = await self.load_flight_schedule_data(
-            db, date, airport, condition, scenario_id, storage="redshift"
-        )
+        try:
+            flight_schedule_data = await self.load_flight_schedule_data(
+                db, date, airport, condition, scenario_id, storage="redshift"
+            )
+        except Exception as e:
+            logger.error(f"Failed to load flight schedule data: {e}")
+            raise
+
+        if len(flight_schedule_data) == 0:
+            logger.info(
+                f"No flight schedule data found for date: {date}, airport: {airport}"
+            )
+            return {
+                "total": 0,
+                "add_conditions": [],
+                "add_priorities": [],
+                "chart_x_data": [],
+                "chart_y_data": {},
+            }
 
         # ==============================================================
         # NOTE: S3에 데이터 저장
-        wr.s3.to_parquet(
-            df=pd.DataFrame(flight_schedule_data),
-            path=f"s3://{S3_BUCKET_NAME}/simulations/flight-schedule-data/{scenario_id}.parquet",
-            boto3_session=boto3_session,
-        )
+        try:
+            wr.s3.to_parquet(
+                df=pd.DataFrame(flight_schedule_data),
+                path=f"s3://{S3_BUCKET_NAME}/simulations/flight-schedule-data/{scenario_id}.parquet",
+                boto3_session=boto3_session,
+            )
+        except Exception as e:
+            logger.error(f"Failed to save flight schedule data to S3: {e}")
+            raise
 
         # ==============================================================
         # NOTE: 데이터 전처리
-        flight_df = pd.DataFrame(flight_schedule_data)
+        try:
+            flight_df = pd.DataFrame(flight_schedule_data)
 
-        # Condition
-        # I/D, 항공사, 터미널
-        i_d = flight_df["flight_type"].unique().tolist()
-        terminal = flight_df["departure_terminal"].unique().tolist()
-        airline = []
-        airline_df = flight_df.drop_duplicates(
-            subset=["operating_carrier_iata", "operating_carrier_name"]
-        )
-        for _, row in airline_df.iterrows():
-            item = {
-                "iata": row["operating_carrier_iata"],
-                "name": row["operating_carrier_name"],
-            }
-            airline.append(item)
-
-        if None in terminal:
-            terminal = [t for t in terminal if t is not None]
-
-        add_conditions = [
-            {"name": "I/D", "operator": ["="], "value": i_d},
-            {"name": "Airline", "operator": ["is in"], "value": airline},
-            {"name": "Terminal", "operator": ["="], "value": terminal},
-        ]
-
-        # Prioirties
-        # ["Airline", "I/D", "Region", "Country"]
-        country = flight_df["country_code"].unique().tolist()
-        region = flight_df["region_name"].unique().tolist()
-
-        add_priorities = [
-            {"name": "I/D", "operator": ["="], "value": i_d},
-            {"name": "Airline", "operator": ["is in"], "value": airline},
-            {"name": "Country", "operator": ["is in"], "value": country},
-            {"name": "Region", "operator": ["is in"], "value": region},
-        ]
-
-        chart_result = {}
-        for group_column in [
-            "operating_carrier_name",  # 항공사 명으로 통일
-            "departure_terminal",
-            "flight_type",
-        ]:
-            chart_data = await self._create_flight_schedule_chart(
-                flight_df, group_column
+            # Condition
+            # I/D, 항공사, 터미널
+            i_d = flight_df["flight_type"].unique().tolist()
+            terminal = flight_df["departure_terminal"].unique().tolist()
+            airline = []
+            airline_df = flight_df.drop_duplicates(
+                subset=["operating_carrier_iata", "operating_carrier_name"]
             )
+            for _, row in airline_df.iterrows():
+                item = {
+                    "iata": row["operating_carrier_iata"],
+                    "name": row["operating_carrier_name"],
+                }
+                airline.append(item)
 
-            if chart_data:
-                chart_result[CRITERIA_MAP[group_column]] = chart_data["traces"]
+            if None in terminal:
+                terminal = [t for t in terminal if t is not None]
+
+            add_conditions = [
+                {"name": "I/D", "operator": ["="], "value": i_d},
+                {"name": "Airline", "operator": ["is in"], "value": airline},
+                {"name": "Terminal", "operator": ["="], "value": terminal},
+            ]
+
+            # Prioirties
+            # ["Airline", "I/D", "Region", "Country"]
+            country = flight_df["country_code"].unique().tolist()
+            region = flight_df["region_name"].unique().tolist()
+
+            add_priorities = [
+                {"name": "I/D", "operator": ["="], "value": i_d},
+                {"name": "Airline", "operator": ["is in"], "value": airline},
+                {"name": "Country", "operator": ["is in"], "value": country},
+                {"name": "Region", "operator": ["is in"], "value": region},
+            ]
+        except Exception as e:
+            logger.error(f"Failed to preprocess flight schedule data: {e}")
+            raise
+
+        # =============================================================
+        # NOTE: 차트 데이터 생성
+        chart_result = {}
+        chart_data = None
+
+        try:
+            for group_column in [
+                "operating_carrier_name",  # 항공사 명으로 통일
+                "departure_terminal",
+                "flight_type",
+            ]:
+                chart_data = await self._create_flight_schedule_chart(
+                    flight_df=flight_df,
+                    group_column=group_column,
+                )
+
+                if chart_data:
+                    chart_result[CRITERIA_MAP[group_column]] = chart_data["traces"]
+        except Exception as e:
+            logger.error(f"Failed to create flight schedule chart: {e}")
+            raise
 
         return {
             "total": flight_df.shape[0],
