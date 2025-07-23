@@ -247,7 +247,7 @@ class SimulationService:
         # ======================================================
         # NOTE: S3 데이터 확인
         if storage == "s3":
-            object_exists = check_s3_object_exists(
+            object_exists = await check_s3_object_exists(
                 bucket_name=S3_BUCKET_NAME,
                 object_key=f"simulations/flight-schedule-data/{scenario_id}.parquet",
             )
@@ -318,7 +318,7 @@ class SimulationService:
 
         # ======================================================
         # NOTE: S3 데이터 확인
-        object_exists = check_s3_object_exists(
+        object_exists = await check_s3_object_exists(
             bucket_name=S3_BUCKET_NAME,
             object_key=f"simulations/show-up-passenger-data/{scenario_id}.parquet",
         )
@@ -1677,15 +1677,18 @@ class SimulationService:
         bucket = S3_BUCKET_NAME
         key = f"simulations/simulation-results-chart-data/{scenario_id}.json"
 
-        if check_s3_object_exists(bucket_name=bucket, object_key=key):
-            s3 = get_s3_client()
-            response = s3.get_object(Bucket=bucket, Key=key)
+        if await check_s3_object_exists(bucket_name=bucket, object_key=key):
+            async with await get_s3_client() as s3:
+                response = await s3.get_object(Bucket=bucket, Key=key)
 
-            raw = response["Body"].read().decode("utf-8")
+                body = await response["Body"].read()
+                raw = body.decode("utf-8")
 
-            # HACK: NaN, Infinity, -Infinity를 null로 치환
-            cleaned = re.sub(r'(?<!")\b(?:NaN|Infinity|-Infinity)\b(?!")', "null", raw)
-            return json.loads(cleaned)
+                # HACK: NaN, Infinity, -Infinity를 null로 치환
+                cleaned = re.sub(
+                    r'(?<!")\b(?:NaN|Infinity|-Infinity)\b(?!")', "null", raw
+                )
+                return json.loads(cleaned)
         else:
             return None
 
