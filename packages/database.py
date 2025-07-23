@@ -39,23 +39,30 @@ def initialize_redshift_pool():
                 conn = create_redshift_connection()
                 redshift_connection_pool.put(conn)
             except redshift_connector.Error as e:
-                print(f"Error connecting to Redshift: {e}")
+                print(f"Error connecting to Redshift during pool initialization: {e}")
                 break
+
+
+async def validate_redshift_connection(conn):
+    """Validate a Redshift connection by executing a simple query."""
+    try:
+        await asyncio.to_thread(conn.cursor().execute, "SELECT 1")
+        return True
+    except redshift_connector.Error as e:
+        print(f"Connection validation failed: {e}")
+        return False
 
 
 async def get_redshift_connection():
     conn = None
     try:
-        # Redshift 연결을 스레드에서 가져옴 (동기 드라이버 대응)
+        # Retrieve a connection from the pool
         conn = await asyncio.to_thread(
             redshift_connection_pool.get, True, timeout=TIMEOUT
         )
 
-        # Health check to ensure the connection is valid
-        try:
-            await asyncio.to_thread(conn.cursor().execute, "SELECT 1")
-        except redshift_connector.Error as health_check_error:
-            print(f"Health check failed, reconnecting: {health_check_error}")
+        # Validate the connection
+        if not await validate_redshift_connection(conn):
             conn = create_redshift_connection()
 
         yield conn
@@ -63,13 +70,20 @@ async def get_redshift_connection():
         raise HTTPException(
             status_code=503, detail="Redshift connection pool exhausted"
         )
+    except redshift_connector.Error as connection_error:
+        print(f"Error using Redshift connection: {connection_error}")
+        raise HTTPException(status_code=500, detail="Error with Redshift connection")
     finally:
         if conn:
             try:
+                # Validate before returning to the pool
+                if not await validate_redshift_connection(conn):
+                    conn = create_redshift_connection()
+
                 await asyncio.to_thread(redshift_connection_pool.put, conn)
             except Exception as e:
                 print(f"Error returning Redshift connection to pool: {e}")
-                pass  # 이미 풀 꽉 찬 경우
+                pass  # Already full pool or other issue
 
 
 # ============================================================
