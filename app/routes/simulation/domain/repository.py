@@ -33,21 +33,6 @@ class ISimulationRepository(metaclass=ABCMeta):
     def update_master_scenario(self):
         raise NotImplementedError
 
-    @abstractmethod
-    def update_scenario_status(self):
-        raise NotImplementedError
-
-    # ===================================
-    # NOTE: 시뮬레이션 시나리오 메타데이터
-
-    @abstractmethod
-    def fetch_scenario_metadata(self):
-        raise NotImplementedError
-
-    @abstractmethod
-    def update_scenario_metadata(self):
-        raise NotImplementedError
-
     # ===================================
     # NOTE: 시뮬레이션 프로세스
 

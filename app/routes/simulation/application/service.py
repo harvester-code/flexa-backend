@@ -160,58 +160,7 @@ class SimulationService:
             db, user_group_id, scenario_id
         )
 
-    async def update_scenario_status(
-        self, db: AsyncSession, scenario_id: str, status: str
-    ):
-
-        await self.simulation_repo.update_scenario_status(db, scenario_id, status)
-
-    # =====================================
-    # NOTE: 시나리오 메타데이터
-
-    async def fetch_scenario_metadata(self, db: AsyncSession, scenario_id: str):
-
-        result = await self.simulation_repo.fetch_scenario_metadata(db, scenario_id)
-
-        checkpoint = self.timestamp.time_now()
-        result["checkpoint"] = checkpoint
-
-        return result
-
-    async def update_scenario_metadata(
-        self,
-        db: AsyncSession,
-        scenario_id: str,
-        overview: dict | None,
-        history: list | None,
-        flight_schedule: dict | None,
-        passenger_schedule: dict | None,
-        processing_procedures: dict | None,
-        facility_connection: dict | None,
-        facility_information: dict | None,
-    ):
-
-        # if history:
-        #     history["modification_date"] = self.timestamp.time_now()
-
-        scenario_metadata: ScenarioMetadata = ScenarioMetadata(
-            scenario_id=scenario_id,
-            overview=overview,
-            history=history,
-            flight_schedule=flight_schedule,
-            passenger_schedule=passenger_schedule,
-            processing_procedures=processing_procedures,
-            facility_connection=facility_connection,
-            facility_information=facility_information,
-        )
-
-        time_now = self.timestamp.time_now()
-
-        await self.simulation_repo.update_scenario_metadata(
-            db, scenario_metadata, time_now
-        )
-
-    async def load_flight_schedule_data(
+    async def fetch_flight_schedule_data(
         self,
         db: Connection,
         date: str,
@@ -237,9 +186,9 @@ class SimulationService:
         # ======================================================
         # NOTE: S3 데이터 확인
         if storage == "s3":
-            object_exists = await check_s3_object_exists(
-                bucket_name=S3_BUCKET_NAME,
-                object_key=f"simulations/flight-schedule-data/{scenario_id}.parquet",
+            object_exists = check_s3_object_exists(
+                bucket_name=get_secret("AWS_S3_BUCKET_NAME"),
+                object_key=f"scenarios/{scenario_id}/flight-schedule.parquet",
             )
 
             if not object_exists:
