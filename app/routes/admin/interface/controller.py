@@ -27,7 +27,8 @@ status 코드 정리
 @admin_router.get(
     "/operation-settings/group-id/{group_id}",
     status_code=status.HTTP_200_OK,
-    summary="운영세팅 get",
+    summary="운영 설정 조회",
+    description="그룹별 운영 설정 정보를 조회합니다. 터미널 구성, 프로세스별 운영 방식, 시설 용량 등 공항 운영에 필요한 모든 설정 정보를 반환합니다.",
 )
 @inject
 async def fetch_operation_setting(
@@ -46,7 +47,8 @@ async def fetch_operation_setting(
 @admin_router.post(
     "/operation-settings/group-id/{group_id}",
     status_code=status.HTTP_201_CREATED,
-    summary="운영세팅 create",
+    summary="운영 설정 생성",
+    description="새로운 그룹의 운영 설정을 생성합니다. 터미널 이름을 포함한 기본 운영 설정을 초기화하여 새로운 공항 환경을 구성할 수 있습니다.",
 )
 @inject
 async def create_operation_setting(
@@ -68,7 +70,8 @@ async def create_operation_setting(
 @admin_router.patch(
     "/operation-settings/operation-setting-id/{operation_setting_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="운영세팅 update",
+    summary="운영 설정 수정",
+    description="기존 운영 설정의 상세 정보를 수정합니다. 터미널 이름, 프로세스 구성, 처리 절차, 레이아웃 및 이미지 URL 등 운영에 필요한 모든 설정을 업데이트할 수 있습니다.",
 )
 @inject
 async def update_operation_setting(
@@ -96,7 +99,8 @@ async def update_operation_setting(
 @admin_router.patch(
     "/operation-settings/operation-setting-id/{operation_setting_id}/deactivate",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="운영세팅 delete",
+    summary="운영 설정 비활성화",
+    description="운영 설정을 소프트 삭제(비활성화)합니다. 데이터는 보존되지만 시스템에서 더 이상 사용되지 않도록 설정하여 안전하게 운영 환경에서 제거할 수 있습니다.",
 )
 @inject
 async def deactivate_operation_setting(
@@ -118,7 +122,8 @@ async def deactivate_operation_setting(
 @admin_router.patch(
     "/groups/group-id/{group_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="운영세팅 Airport name 변경",
+    summary="그룹 공항명 변경",
+    description="그룹의 공항명을 변경합니다. 관리 목적으로 공항의 표시명을 업데이트하여 더 명확한 식별과 관리를 가능하게 합니다.",
 )
 @inject
 async def update_group_name(
