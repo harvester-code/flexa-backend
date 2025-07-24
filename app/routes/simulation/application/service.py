@@ -246,7 +246,7 @@ class SimulationService:
                 return flight_schedule_data
 
             flight_schedule_data = wr.s3.read_parquet(
-                path=f"s3://{S3_BUCKET_NAME}/simulations/flight-schedule-data/{scenario_id}.parquet",
+                path=f"s3://{get_secret('AWS_S3_BUCKET_NAME')}/scenarios/{scenario_id}/flight-schedule.parquet",
                 boto3_session=boto3_session,
             )
             return flight_schedule_data.to_dict(orient="records")
@@ -312,9 +312,9 @@ class SimulationService:
 
         # ======================================================
         # NOTE: S3 데이터 확인
-        object_exists = await check_s3_object_exists(
-            bucket_name=S3_BUCKET_NAME,
-            object_key=f"simulations/show-up-passenger-data/{scenario_id}.parquet",
+        object_exists = check_s3_object_exists(
+            bucket_name=get_secret("AWS_S3_BUCKET_NAME"),
+            object_key=f"scenarios/{scenario_id}/show-up-passenger.parquet",
         )
 
         if not object_exists:
@@ -323,7 +323,7 @@ class SimulationService:
         # TODO: fetch_flight_schedule_data와 같이 반환 타입 맞추기
 
         showup_passenger_df = wr.s3.read_parquet(
-            path=f"s3://{S3_BUCKET_NAME}/simulations/show-up-passenger-data/{scenario_id}.parquet",
+            path=f"s3://{get_secret('AWS_S3_BUCKET_NAME')}/scenarios/{scenario_id}/show-up-passenger.parquet",
             boto3_session=boto3_session,
         )
         return showup_passenger_df
@@ -555,7 +555,7 @@ class SimulationService:
         # NOTE: S3에 데이터 저장
         wr.s3.to_parquet(
             df=pax_df,
-            path=f"s3://{S3_BUCKET_NAME}/simulations/show-up-passenger-data/{scenario_id}.parquet",
+            path=f"s3://{get_secret('AWS_S3_BUCKET_NAME')}/scenarios/{scenario_id}/show-up-passenger.parquet",
             boto3_session=boto3_session,
         )
 
@@ -1530,8 +1530,8 @@ class SimulationService:
     ):
         # ====================================================================
         # NOTE: S3에 데이터 저장
-        bucket_name = S3_BUCKET_NAME
-        object_key = f"simulations/facility-information-data/{scenario_id}.json"
+        bucket_name = get_secret("AWS_S3_BUCKET_NAME")
+        object_key = f"scenarios/{scenario_id}/facility-information-data.json"
 
         # TODO: SQS처럼 infra폴더에 별도로 모듈화
         s3 = boto3.client(
@@ -1570,8 +1570,8 @@ class SimulationService:
         return {"status": "success", "message": "Simulation started successfully."}
 
     async def get_simulation(self, scenario_id: str):
-        bucket = S3_BUCKET_NAME
-        key = f"simulations/simulation-results-chart-data/{scenario_id}.json"
+        bucket = get_secret("AWS_S3_BUCKET_NAME")
+        key = f"scenarios/{scenario_id}/simulation-results-chart-data.json"
 
         if await check_s3_object_exists(bucket_name=bucket, object_key=key):
             async with await get_s3_client() as s3:
