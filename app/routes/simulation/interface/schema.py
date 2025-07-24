@@ -84,17 +84,6 @@ class SimulationScenarioBody(BaseModel):
     memo: str | None
 
 
-class ScenarioMetadataBody(BaseModel):
-    # 여기서 dict는 jsonb 형태로 supabase에 저장될 예정
-    overview: dict | None
-    history: List[dict] | None
-    flight_schedule: dict | None
-    passenger_schedule: dict | None
-    processing_procedures: dict | None
-    facility_connection: dict | None
-    facility_information: dict | None
-
-
 class ScenarioUpdateBody(BaseModel):
     name: str | None
     terminal: str | None

@@ -17,7 +17,6 @@ from app.routes.simulation.interface.schema import (
     PassengerScheduleBody,
     RunSimulationBody,
     ScenarioDeactivateBody,
-    ScenarioMetadataBody,
     ScenarioUpdateBody,
     SetOpeningHoursBody,
     SimulationScenarioBody,
