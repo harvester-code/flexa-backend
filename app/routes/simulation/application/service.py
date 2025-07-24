@@ -145,17 +145,6 @@ class SimulationService:
 
         await self.simulation_repo.deactivate_scenario_information(db, ids)
 
-    async def duplicate_scenario_information(
-        self, db: AsyncSession, user_id: str, old_scenario_id: str, editor: str
-    ):
-
-        new_scenario_id = str(ULID())
-        time_now = self.timestamp.time_now()
-
-        await self.simulation_repo.duplicate_scenario_information(
-            db, user_id, old_scenario_id, new_scenario_id, editor, time_now
-        )
-
     async def update_master_scenario(
         self, db: AsyncSession, user_id: str, scenario_id: str
     ):

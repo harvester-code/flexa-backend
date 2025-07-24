@@ -180,61 +180,6 @@ class SimulationRepository(ISimulationRepository):
         await db.execute(stmt, {"ids": ids})
         await db.commit()
 
-    async def duplicate_scenario_information(
-        self,
-        db: AsyncSession,
-        user_id: str,
-        old_id: str,
-        new_id: str,
-        editor: str,
-        time_now,
-    ):
-        scenario_result = await db.execute(
-            select(ScenarioInformation)
-            .where(ScenarioInformation.scenario_id == old_id)
-            .where(ScenarioInformation.is_active.is_(true()))
-        )
-
-        origin_scenario = scenario_result.scalar_one()
-
-        scenario_state = inspect(origin_scenario)
-
-        scenario_data = {
-            attr.key: getattr(origin_scenario, attr.key)
-            for attr in scenario_state.mapper.column_attrs
-            if attr.key not in ("id", "user_id", "editor", "updated_at", "created_at")
-        }
-
-        cloned_scenario = origin_scenario.__class__(**scenario_data)
-
-        cloned_scenario.user_id = user_id
-        cloned_scenario.id = new_id
-        cloned_scenario.editor = editor
-        cloned_scenario.updated_at = time_now
-        cloned_scenario.created_at = time_now
-        db.add(cloned_scenario)
-        await db.flush()
-
-        metadata_result = await db.execute(
-            select(ScenarioMetadata).where(ScenarioMetadata.scenario_id == old_id)
-        )
-
-        origin_metadata = metadata_result.scalar_one()
-
-        metadata_state = inspect(origin_metadata)
-
-        metadata_data = {
-            attr.key: getattr(origin_metadata, attr.key)
-            for attr in metadata_state.mapper.column_attrs
-            if attr.key not in ("scenario_id")
-        }
-
-        cloned_metadata = origin_metadata.__class__(**metadata_data)
-
-        cloned_metadata.scenario_id = cloned_scenario.id
-        db.add(cloned_metadata)
-        await db.commit()
-
     async def update_master_scenario(
         self, db: AsyncSession, group_id: int, scenario_id: str
     ):

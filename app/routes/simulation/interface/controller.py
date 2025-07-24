@@ -12,7 +12,6 @@ from app.libs.dependencies import verify_token
 from app.libs.exceptions import BadRequestException
 from app.routes.simulation.application.service import SimulationService
 from app.routes.simulation.interface.schema import (
-    DuplicateScenarioBody,
     FacilityConnBody,
     FlightScheduleBody,
     PassengerScheduleBody,

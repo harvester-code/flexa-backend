@@ -30,10 +30,6 @@ class ISimulationRepository(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def duplicate_scenario_information(self):
-        raise NotImplementedError
-
-    @abstractmethod
     def update_master_scenario(self):
         raise NotImplementedError
 
