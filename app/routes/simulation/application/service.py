@@ -399,124 +399,6 @@ class SimulationService:
 
         return {"traces": traces, "default_x": default_x}
 
-    async def generate_flight_schedule(
-        self,
-        db: Connection,
-        date: str,
-        airport: str,
-        condition: list | None,
-        scenario_id: str,
-    ):
-        """
-        최초에 불러올때는 add condition에 사용될 데이터와, 그래프를 만들때 사용할 데이터를 둘다 챙겨야함
-        그 이후에는 add condition이 제공이 된다면, 그래프 데이터만 제공하면 된다.
-        만약 컨디션을 사용하지 않은 상태에서 진행을 한다면... first_load를 보고 구분한다.
-
-        현재 출도착은 출발을 고정으로 가져온다.
-        """
-
-        # ==============================================================
-        # NOTE: REDSHIFT 데이터 조회
-        try:
-            flight_schedule_data = await self.load_flight_schedule_data(
-                db, date, airport, condition, scenario_id, storage="redshift"
-            )
-        except Exception as e:
-            logger.error(f"Failed to load flight schedule data: {e}")
-            raise
-
-        if len(flight_schedule_data) == 0:
-            logger.info(
-                f"No flight schedule data found for date: {date}, airport: {airport}"
-            )
-            return {
-                "total": 0,
-                "add_conditions": [],
-                "add_priorities": [],
-                "chart_x_data": [],
-                "chart_y_data": {},
-            }
-
-        # ==============================================================
-        # NOTE: S3에 데이터 저장
-        try:
-            wr.s3.to_parquet(
-                df=pd.DataFrame(flight_schedule_data),
-                path=f"s3://{S3_BUCKET_NAME}/simulations/flight-schedule-data/{scenario_id}.parquet",
-                boto3_session=boto3_session,
-            )
-        except Exception as e:
-            logger.error(f"Failed to save flight schedule data to S3: {e}")
-            raise
-
-        # ==============================================================
-        # NOTE: 데이터 전처리
-        try:
-            flight_df = pd.DataFrame(flight_schedule_data)
-
-            # Condition
-            # ["Airline", "Terminal", "Flight", "I/D", "Region", "Country"]
-            i_d = flight_df["flight_type"].unique().tolist()
-            terminal = flight_df["departure_terminal"].unique().tolist()
-            country = flight_df["country_code"].unique().tolist()
-            region = flight_df["region_name"].unique().tolist()
-            flight = flight_df["flight_number"].unique().tolist()
-
-            airline = []
-            airline_df = flight_df.drop_duplicates(
-                subset=["operating_carrier_iata", "operating_carrier_name"]
-            )
-            for _, row in airline_df.iterrows():
-                item = {
-                    "iata": row["operating_carrier_iata"],
-                    "name": row["operating_carrier_name"],
-                }
-                airline.append(item)
-
-            if None in terminal:
-                terminal = [t for t in terminal if t is not None]
-
-            # Conditions
-            # HACK: 모든 condition과 properties에 같은 데이터를 필요하게끔 변경하게 되면서 하나로 합치게 되었음.
-            # 다만 아직 프론트에서 각각의 데이터를 따로 사용하고 있기에, return 값에는 중복 적용.
-            add_conditions = [
-                {"name": "Airline", "operator": ["is in"], "value": airline},
-                {"name": "Flight", "operator": ["is in"], "value": flight},
-                {"name": "I/D", "operator": ["="], "value": i_d},
-                {"name": "Terminal", "operator": ["="], "value": terminal},
-                {"name": "Country", "operator": ["is in"], "value": country},
-                {"name": "Region", "operator": ["is in"], "value": region},
-            ]
-        except Exception as e:
-            logger.error(f"Failed to preprocess flight schedule data: {e}")
-            raise
-
-        # =============================================================
-        # NOTE: 차트 데이터 생성
-        chart_result = {}
-        chart_data = None
-
-        try:
-            for group_column in list(CRITERIA_MAP.keys()):
-                chart_data = await self._create_flight_schedule_chart(
-                    flight_df=flight_df,
-                    group_column=group_column,
-                )
-
-                if chart_data:
-                    chart_result[CRITERIA_MAP[group_column]] = chart_data["traces"]
-        except Exception as e:
-            logger.error(f"Failed to create flight schedule chart: {e}")
-            raise
-
-        return {
-            "total": flight_df.shape[0],
-            "add_conditions": add_conditions,
-            "add_priorities": add_conditions,
-            "chart_x_data": chart_data["default_x"],
-            "chart_y_data": chart_result,
-        }
-
     async def _calculate_show_up_pattern(
         self, data: list, destribution_conditions: list
     ):
@@ -552,7 +434,6 @@ class SimulationService:
             pax_df = pd.concat([pax_df, partial_pax_df], ignore_index=True)
             df.drop(index=partial_df.index, inplace=True)
 
-        # pax_df.to_csv(".idea/pax_df.csv", index=False) # 분산처리 데이터검증목적
         return pax_df
 
     async def _create_normal_distribution(self, destribution_conditions: list):
