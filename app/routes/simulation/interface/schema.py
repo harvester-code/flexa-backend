@@ -9,6 +9,11 @@ class Condition(BaseModel):
     value: List[str] | str
 
 
+class FilterCondition(BaseModel):
+    criteria: str  # types, terminal, airline
+    value: List[str]
+
+
 class destribution_conditions(BaseModel):
     index: int
     conditions: List[Condition]
@@ -54,11 +59,10 @@ class SimulationBody(BaseModel):
 class FlightScheduleBody(BaseModel):
     airport: str
     date: str
-    condition: List[Condition] | None
+    condition: List[FilterCondition] | None
 
 
 class PassengerScheduleBody(BaseModel):
-    flight_schedule: FlightScheduleBody
     destribution_conditions: List[destribution_conditions]
 
 
@@ -106,4 +110,10 @@ class ScenarioDeactivateBody(BaseModel):
 
 class SetOpeningHoursBody(BaseModel):
     time_unit: int
-    facility_schedules: List[List[float | None]]
+    facility_schedules: List[List[float]]
+
+
+class MetadataUploadUrlResponse(BaseModel):
+    upload_url: str
+    s3_key: str
+    expires_in: int

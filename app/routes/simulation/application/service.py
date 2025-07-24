@@ -9,9 +9,9 @@ import numpy as np
 import pandas as pd
 import pendulum
 from botocore.config import Config
+from botocore.exceptions import ClientError
 from dependency_injector.wiring import inject
 from fastapi import BackgroundTasks, HTTPException, status
-from loguru import logger
 from sqlalchemy import Connection
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -228,21 +228,27 @@ class SimulationService:
             where_conditions = []
             if condition:
                 for con in condition:
-                    if con.criteria == "I/D":
-                        where_conditions.append("FLIGHT_TYPE = %s")
-                        params.append(con.value[0])
+                    # con이 dict인지 객체인지 확인하여 처리
+                    criteria = (
+                        con.get("criteria") if isinstance(con, dict) else con.criteria
+                    )
+                    value = con.get("value") if isinstance(con, dict) else con.value
 
-                    if con.criteria == "Terminal":
-                        where_conditions.append("DEPARTURE_TERMINAL = %s")
-                        params.append(con.value[0])
+                    if criteria == "I/D":
+                        where_conditions.append("FLIGHT_TYPE = %(i_d)s")
+                        params["i_d"] = value[0]
 
-                    if con.criteria == "Airline":
-                        where_conditions.append("OPERATING_CARRIER_IATA = ANY(%s)")
-                        params.append(con.value)
+                    if criteria == "Terminal":
+                        where_conditions.append(
+                            "DEPARTURE_TERMINAL = ANY(%(terminal)s)"
+                        )
+                        params["terminal"] = value
 
-                    if con.criteria == "Flight":
-                        where_conditions.append("FLIGHT_NUMBER = ANY(%s)")
-                        params.append(con.value)
+                    if criteria == "Airline":
+                        where_conditions.append(
+                            "OPERATING_CARRIER_IATA = ANY(%(airline)s)"
+                        )
+                        params["airline"] = value
 
                 if where_conditions:
                     base_query += " AND " + " AND ".join(where_conditions)
@@ -452,20 +458,296 @@ class SimulationService:
 
         return {"default_x": default_x, "traces": traces}
 
+    async def generate_scenario_flight_schedule(
+        self,
+        db: Connection,
+        date: str,
+        airport: str,
+        condition: list | None,
+        scenario_id: str,
+    ):
+        """시나리오별 항공편 스케줄 조회 및 차트 데이터 생성"""
+        try:
+            # 1. 조건 변환
+            converted_conditions = (
+                self._convert_filter_conditions(condition) if condition else None
+            )
+
+            # 2. 데이터 조회
+            flight_schedule_data = await self.fetch_flight_schedule_data(
+                db, date, airport, converted_conditions, scenario_id, storage="redshift"
+            )
+
+            # 3. S3 저장 (병렬 처리 가능)
+            await self._save_flight_schedule_to_s3(flight_schedule_data, scenario_id)
+
+            # 4. 메타데이터 자동 저장 (항공편 스케줄 성공 시)
+            await self._auto_save_flight_schedule_metadata(
+                scenario_id, date, airport, condition
+            )
+
+            # 5. 응답 생성
+            return await self._build_flight_schedule_response(
+                flight_schedule_data, condition
+            )
+
+        except Exception as e:
+            raise HTTPException(
+                status_code=500, detail=f"Failed to process flight schedule: {str(e)}"
+            )
+
+    async def _auto_save_flight_schedule_metadata(
+        self, scenario_id: str, date: str, airport: str, condition: list | None
+    ):
+        """항공편 스케줄 성공 시 메타데이터 자동 저장"""
+        try:
+            # 1. 기존 메타데이터 로드 (없으면 기본 구조 생성)
+            try:
+                metadata_response = await self.load_scenario_metadata(scenario_id)
+                metadata = metadata_response["metadata"]
+            except:
+                # 메타데이터가 없으면 기본 구조 생성
+                metadata = {
+                    "tabs": {
+                        "overview": {},
+                        "flightSchedule": {},
+                        "passengerSchedule": {},
+                        "processingProcedures": {},
+                        "facilityConnection": {},
+                        "facilityInformation": {},
+                    }
+                }
+
+            # 2. flightSchedule 탭 정보 업데이트
+            metadata["tabs"]["flightSchedule"] = {
+                "airport": airport,
+                "date": date,
+                "condition": condition or [],
+                "lastUpdated": datetime.now().isoformat(),
+                "status": "completed",
+            }
+
+            # 3. 전체 메타데이터 lastUpdated 업데이트
+            metadata["lastUpdated"] = datetime.now().isoformat()
+
+            # 4. S3에 메타데이터 저장
+            await self.save_scenario_metadata(scenario_id, metadata)
+
+        except Exception as e:
+            # 메타데이터 저장 실패는 로그만 남기고 메인 프로세스를 방해하지 않음
+            print(
+                f"Warning: Failed to auto-save metadata for scenario {scenario_id}: {str(e)}"
+            )
+
+    def _convert_filter_conditions(self, filter_conditions: list) -> list:
+        """FilterCondition을 기존 Condition 형식으로 변환 (최적화)"""
+        if not filter_conditions:
+            return []
+
+        # 매핑 테이블로 조건 변환 최적화
+        criteria_mapping = {
+            "types": "I/D",
+            "airline": "Airline",
+            "terminal": "Terminal",
+        }
+
+        converted = []
+        for filter_cond in filter_conditions:
+            criteria = (
+                filter_cond.get("criteria")
+                if isinstance(filter_cond, dict)
+                else filter_cond.criteria
+            )
+            value = (
+                filter_cond.get("value")
+                if isinstance(filter_cond, dict)
+                else filter_cond.value
+            )
+
+            if mapped_criteria := criteria_mapping.get(criteria):
+                converted.append({"criteria": mapped_criteria, "value": value})
+
+        return converted
+
+    async def _save_flight_schedule_to_s3(
+        self, flight_schedule_data: list, scenario_id: str
+    ):
+        """S3에 항공편 스케줄 데이터 저장"""
+        if not flight_schedule_data:
+            return
+
+        wr.s3.to_parquet(
+            df=pd.DataFrame(flight_schedule_data),
+            path=f"s3://{get_secret('AWS_S3_BUCKET_NAME')}/scenarios/{scenario_id}/flight-schedule.parquet",
+            boto3_session=boto3_session,
+        )
+
+    async def _build_flight_schedule_response(
+        self, flight_schedule_data: list, applied_conditions: list | None
+    ) -> dict:
+        """항공편 스케줄 응답 데이터 구성 (최적화)"""
+        if not flight_schedule_data:
+            return self._get_empty_response()
+
+        flight_df = pd.DataFrame(flight_schedule_data)
+
+        # 1. 항공사별 타입 분류 (벡터화 연산)
+        types_data = self._build_airline_types(flight_df)
+
+        # 2. 터미널별 항공사 분류 (그룹화 최적화)
+        terminals_data = self._build_terminal_airlines(flight_df)
+
+        # 3. 차트 데이터 생성 (병렬 처리 가능)
+        chart_data = await self._build_chart_data(flight_df)
+
+        return {
+            "total": len(flight_df),
+            "types": types_data,
+            "terminals": terminals_data,
+            "chart_x_data": chart_data.get("x_data", []),
+            "chart_y_data": chart_data.get("y_data", {}),
+        }
+
+    def _get_empty_response(self) -> dict:
+        """빈 응답 데이터"""
+        return {
+            "total": 0,
+            "types": {"International": [], "Domestic": []},
+            "terminals": {},
+            "chart_x_data": [],
+            "chart_y_data": {},
+        }
+
+    def _build_airline_types(self, flight_df: pd.DataFrame) -> dict:
+        """항공사별 타입 분류 (벡터화 연산으로 최적화)"""
+        # 항공사별 고유 데이터 추출
+        airline_df = flight_df[
+            ["operating_carrier_iata", "operating_carrier_name", "flight_type"]
+        ].drop_duplicates()
+
+        # 벡터화 연산으로 타입별 항공사 분류
+        international_mask = airline_df["flight_type"] == "International"
+        domestic_mask = airline_df["flight_type"] == "Domestic"
+
+        international_airlines = (
+            airline_df[international_mask][
+                ["operating_carrier_iata", "operating_carrier_name"]
+            ]
+            .rename(
+                columns={
+                    "operating_carrier_iata": "iata",
+                    "operating_carrier_name": "name",
+                }
+            )
+            .to_dict("records")
+        )
+
+        domestic_airlines = (
+            airline_df[domestic_mask][
+                ["operating_carrier_iata", "operating_carrier_name"]
+            ]
+            .rename(
+                columns={
+                    "operating_carrier_iata": "iata",
+                    "operating_carrier_name": "name",
+                }
+            )
+            .to_dict("records")
+        )
+
+        return {
+            "International": international_airlines,
+            "Domestic": domestic_airlines,
+        }
+
+    def _build_terminal_airlines(self, flight_df: pd.DataFrame) -> dict:
+        """터미널별 항공사 분류 (그룹화 최적화)"""
+        # 터미널별 항공사 그룹화 (중복 제거)
+        terminal_groups = (
+            flight_df[
+                [
+                    "departure_terminal",
+                    "operating_carrier_iata",
+                    "operating_carrier_name",
+                ]
+            ]
+            .fillna({"departure_terminal": "unknown"})
+            .drop_duplicates()
+            .groupby("departure_terminal")
+        )
+
+        terminals = {}
+        for terminal, group in terminal_groups:
+            airlines = (
+                group[["operating_carrier_iata", "operating_carrier_name"]]
+                .rename(
+                    columns={
+                        "operating_carrier_iata": "iata",
+                        "operating_carrier_name": "name",
+                    }
+                )
+                .to_dict("records")
+            )
+
+            terminals[str(terminal)] = airlines
+
+        return terminals
+
+    async def _build_chart_data(self, flight_df: pd.DataFrame) -> dict:
+        """차트 데이터 생성 (최적화)"""
+        chart_result = {}
+        chart_x_data = []
+
+        # 차트 생성을 위한 그룹 컬럼들
+        chart_groups = {
+            "operating_carrier_name": "Airline",
+            "departure_terminal": "Terminal",
+            "flight_type": "I/D",
+        }
+
+        for group_column, chart_key in chart_groups.items():
+            try:
+                chart_result_data = await self._create_flight_schedule_chart(
+                    flight_df, group_column
+                )
+
+                if chart_result_data:
+                    chart_result[CRITERIA_MAP[group_column]] = chart_result_data[
+                        "traces"
+                    ]
+                    if not chart_x_data:  # 첫 번째 차트의 x축 데이터 사용
+                        chart_x_data = chart_result_data.get("default_x", [])
+            except Exception as e:
+                # 차트 생성 실패 시 로그만 남기고 계속 진행
+                print(f"Chart generation failed for {group_column}: {str(e)}")
+
+        return {
+            "x_data": chart_x_data,
+            "y_data": chart_result,
+        }
+
     async def generate_passenger_schedule(
         self,
         db: Connection,
-        flight_sch: dict,
         destribution_conditions: list,
         scenario_id: str,
     ):
-        flight_schedule_data = await self.load_flight_schedule_data(
+        # S3에서 기존 항공편 스케줄 데이터 읽어오기
+        flight_schedule_data = await self.fetch_flight_schedule_data(
             db=db,
-            date=flight_sch.date,
-            airport=flight_sch.airport,
-            condition=flight_sch.condition,
+            date="",  # S3에서 읽을 때는 필요 없음
+            airport="",  # S3에서 읽을 때는 필요 없음
+            condition=None,  # S3에서 읽을 때는 필요 없음
             scenario_id=scenario_id,
+            storage="s3",  # S3에서 읽기
         )
+
+        if not flight_schedule_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Flight schedule data not found. Please load flight schedule first.",
+            )
+
         flight_schedule_df = pd.DataFrame(flight_schedule_data)
 
         # ==============================================================
@@ -1582,3 +1864,102 @@ class SimulationService:
         await self.simulation_repo.update_simulation_start_end_at(
             db, scenario_id=scenario_id, column="error", time=current_timestamp
         )
+
+    async def save_scenario_metadata(self, scenario_id: str, metadata: dict) -> dict:
+        """
+        시나리오 메타데이터를 S3에 직접 저장합니다.
+
+        Args:
+            scenario_id (str): 시나리오 ID
+            metadata (dict): 저장할 메타데이터
+
+        Returns:
+            dict: 저장 결과 정보
+        """
+        bucket_name = get_secret("AWS_S3_BUCKET_NAME")
+        object_key = f"scenarios/{scenario_id}/metadata-for-frontend.json"
+
+        try:
+            # TODO: SQS처럼 infra폴더에 별도로 모듈화
+            s3 = boto3.client(
+                "s3",
+                config=Config(region_name="ap-northeast-2"),
+            )
+
+            # S3에 메타데이터 저장
+            s3.put_object(
+                ContentType="application/json",
+                Bucket=bucket_name,
+                Key=object_key,
+                Body=json.dumps(metadata, ensure_ascii=False, indent=2),
+            )
+
+            return {
+                "s3_key": object_key,
+                "bucket": bucket_name,
+                "saved_at": datetime.now().isoformat(),
+            }
+
+        except Exception as e:
+            raise Exception(f"Failed to save metadata to S3: {str(e)}")
+
+    async def load_scenario_metadata(self, scenario_id: str) -> dict:
+        """
+        S3에서 시나리오 메타데이터를 불러옵니다.
+
+        Args:
+            scenario_id (str): 시나리오 ID
+
+        Returns:
+            dict: S3에서 불러온 메타데이터
+        """
+        bucket_name = get_secret("AWS_S3_BUCKET_NAME")
+        object_key = f"scenarios/{scenario_id}/metadata-for-frontend.json"
+
+        try:
+            # TODO: SQS처럼 infra폴더에 별도로 모듈화
+            s3 = boto3.client(
+                "s3",
+                config=Config(region_name="ap-northeast-2"),
+            )
+
+            # S3에서 메타데이터 가져오기
+            response = s3.get_object(Bucket=bucket_name, Key=object_key)
+            metadata = json.loads(response["Body"].read().decode("utf-8"))
+
+            return {
+                "scenario_id": scenario_id,
+                "metadata": metadata,
+                "s3_key": object_key,
+                "loaded_at": datetime.now().isoformat(),
+            }
+
+        except ClientError as e:
+            error_code = e.response["Error"]["Code"]
+            if error_code == "NoSuchKey":
+                # 파일이 없으면 기본 구조를 반환 (새 시나리오용)
+                return {
+                    "scenario_id": scenario_id,
+                    "metadata": {
+                        "tabs": {
+                            "overview": {},
+                            "flightSchedule": {},
+                            "passengerSchedule": {},
+                            "processingProcedures": {},
+                            "facilityConnection": {},
+                            "facilityInformation": {},
+                        }
+                    },
+                    "s3_key": object_key,
+                    "loaded_at": datetime.now().isoformat(),
+                }
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"S3 error ({error_code}): {str(e)}",
+                )
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to load metadata from S3: {str(e)}",
+            )

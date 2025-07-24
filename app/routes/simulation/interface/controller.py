@@ -14,6 +14,7 @@ from app.routes.simulation.application.service import SimulationService
 from app.routes.simulation.interface.schema import (
     FacilityConnBody,
     FlightScheduleBody,
+    MetadataUploadUrlResponse,
     PassengerScheduleBody,
     RunSimulationBody,
     ScenarioDeactivateBody,
@@ -155,71 +156,58 @@ async def update_master_scenario(
 # NOTE: 시나리오 메타데이터
 
 
-@private_simulation_router.get(
-    "/scenarios/metadatas/scenario-id/{scenario_id}",
+@simulation_router.post(
+    "/{scenario_id}/metadata",
     status_code=status.HTTP_200_OK,
-    summary="06_SI_001",
-    description="06_SI_001에서 이미 존재하는 시나리오의 데이터를 불러오는 엔드포인트",
+    summary="시나리오 메타데이터 S3 저장",
+    description="시나리오 메타데이터를 S3에 직접 저장합니다",
 )
 @inject
-async def fetch_scenario_metadata(
+async def save_scenario_metadata(
     scenario_id: str,
+    metadata: dict,
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
-    db: AsyncSession = Depends(aget_supabase_session),
-):
-
-    if not scenario_id:
-        raise BadRequestException("Scenario ID is required")
-
-    return await sim_service.fetch_scenario_metadata(db=db, scenario_id=scenario_id)
-
-
-@private_simulation_router.put(
-    "/scenarios/metadatas/scenario-id/{scenario_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="06_SI_002 ~ 021",
-    description="06_SI_002 ~ 021에서 우상단의 save버튼을 눌렀을때 각 항목의 필터값들을 저장하는 엔드포인트",
-)
-@inject
-async def update_scenario_metadata(
-    scenario_id: str,
-    metadata: ScenarioMetadataBody,
-    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
-    db: AsyncSession = Depends(aget_supabase_session),
 ):
     if not scenario_id:
         raise BadRequestException("Scenario ID is required")
 
-    return await sim_service.update_scenario_metadata(
-        db,
-        scenario_id,
-        metadata.overview,
-        metadata.history,
-        metadata.flight_schedule,
-        metadata.passenger_schedule,
-        metadata.processing_procedures,
-        metadata.facility_connection,
-        metadata.facility_information,
-    )
+    if not metadata:
+        raise BadRequestException("Metadata is required")
+
+    return await sim_service.save_scenario_metadata(scenario_id, metadata)
 
 
-# ==============================
-# NOTE: 시뮬레이션 프로세스
-@private_simulation_router.post(
-    "/flight-schedules/scenario-id/{scenario_id}",
+@simulation_router.get(
+    "/{scenario_id}/metadata",
     status_code=status.HTTP_200_OK,
-    summary="06_SI_003, 06_SI_006",
-    description="06_SI_003에서 LOAD 버튼과 06_SI_006에서 Apply 버튼을 눌렀을 때 실행되는 엔드포인트",
+    summary="시나리오 메타데이터 S3 로드",
+    description="S3에서 시나리오 메타데이터를 불러옵니다",
 )
 @inject
-async def fetch_flight_schedule(
+async def load_scenario_metadata(
+    scenario_id: str,
+    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
+):
+    if not scenario_id:
+        raise BadRequestException("Scenario ID is required")
+
+    return await sim_service.load_scenario_metadata(scenario_id)
+
+
+@simulation_router.post(
+    "/{scenario_id}/flight-schedules",
+    status_code=status.HTTP_200_OK,
+    summary="시나리오별 항공편 스케줄 조회",
+    description="지정된 날짜와 공항의 항공편 스케줄 데이터를 조회하고, 필터 조건에 따라 항공사별/터미널별/국내외별로 분류하여 차트 데이터를 생성합니다. 조회된 데이터는 S3에 저장되며, 시나리오의 대상 항공편 스케줄 날짜가 업데이트됩니다.",
+)
+@inject
+async def fetch_scenario_flight_schedule(
     scenario_id: str,
     flight_schedule: FlightScheduleBody,
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     redshift_db: Connection = Depends(get_redshift_connection),
     supabase_db: AsyncSession = Depends(aget_supabase_session),
 ):
-
     if not scenario_id:
         raise BadRequestException("Scenario ID is required")
 
@@ -253,11 +241,15 @@ async def fetch_flight_schedule(
         )
 
 
-@private_simulation_router.post(
-    "/passenger-schedules/scenario-id/{scenario_id}",
+# ==============================
+# NOTE: 시뮬레이션 프로세스
+
+
+@simulation_router.post(
+    "/{scenario_id}/show-up-passenger",
     status_code=status.HTTP_200_OK,
-    summary="06_SI_009",
-    description="06_SI_009에서 Apply 버튼을 눌렀을 때 실행되는 엔드포인트",
+    summary="승객 스케줄 생성",
+    description="분배 조건을 기반으로 승객 스케줄 데이터를 생성합니다. 승객별 도착 시간 분포와 시간별 승객 흐름을 계산하여 시뮬레이션에 사용할 승객 데이터를 제공합니다.",
 )
 @inject
 async def generate_passenger_schedule(
@@ -268,7 +260,6 @@ async def generate_passenger_schedule(
 ):
     return await sim_service.generate_passenger_schedule(
         db=db,
-        flight_sch=passenger_schedule.flight_schedule,
         destribution_conditions=passenger_schedule.destribution_conditions,
         scenario_id=scenario_id,
     )
@@ -277,8 +268,8 @@ async def generate_passenger_schedule(
 @private_simulation_router.post(
     "/processing-procedures",
     status_code=status.HTTP_200_OK,
-    summary="06_SI_012",
-    description="06_SI_012에서 설정한 운영세팅의 정보를 가져오는 엔드포인트",
+    summary="처리 절차 조회",
+    description="공항 내 다양한 처리 절차(체크인, 보안 검색, 출입국 심사 등)의 운영 설정 정보를 조회합니다. 각 프로세스별 처리 시간, 운영 방식, 대기열 관리 등의 설정값을 반환합니다.",
 )
 @inject
 async def fetch_processing_procedures(
@@ -292,8 +283,8 @@ async def fetch_processing_procedures(
 @private_simulation_router.post(
     "/facility-conns/scenario-id/{scenario_id}",
     status_code=status.HTTP_200_OK,
-    summary="06_SI_013",
-    description="06_SI_013에서 최종 Apply 버튼을 눌렀을 때 facility info에서 사용할 바차트 데이터가 나오는 엔드포인트",
+    summary="시설 연결 정보 생성",
+    description="선택된 프로세스들과 항공편 스케줄을 기반으로 시설 연결 정보를 생성하고, 시설별 용량 및 처리량을 분석한 바차트 데이터를 제공합니다. 시설 간 연결 관계와 병목 지점을 시각화할 수 있는 데이터를 반환합니다.",
 )
 @inject
 async def generate_facility_conn(
@@ -312,7 +303,8 @@ async def generate_facility_conn(
 @private_simulation_router.post(
     "/facility-info/charts/line",
     status_code=status.HTTP_200_OK,
-    summary="입력한 시설 용량을 기반으로 라인 차트 데이터를 생성하는 엔드포인트",
+    summary="시설 운영 시간 차트 생성",
+    description="시설의 운영 시간 설정에 따른 라인 차트 데이터를 생성합니다. 시간대별 시설 이용률, 대기 시간, 처리량 등의 변화를 시각화할 수 있는 차트 데이터를 제공하여 운영 시간 최적화를 지원합니다.",
 )
 @inject
 async def generate_set_opening_hours(
@@ -326,8 +318,8 @@ async def generate_set_opening_hours(
 @private_simulation_router.post(
     "/run-simulation/overview/scenario-id/{scenario_id}",
     status_code=status.HTTP_200_OK,
-    summary="06_SI_018",
-    description="06_SI_018로 들어올때 overview 화면에서 필요한 데이터를 응답하는 엔드포인트",
+    summary="시뮬레이션 개요 데이터 생성",
+    description="시뮬레이션 실행을 위한 개요 데이터를 생성합니다. 시나리오의 전체 설정 요약, 예상 실행 시간, 리소스 사용량, 주요 KPI 지표 등 시뮬레이션 실행 전 확인이 필요한 종합 정보를 제공합니다.",
 )
 @inject
 async def generate_simulation_overview(
