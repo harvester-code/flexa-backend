@@ -92,10 +92,10 @@ class SimulationService:
         airport: str | None,
         memo: str | None,
     ):
-        id = str(ULID())
+        scenario_id = str(ULID())
 
         scenario_information: ScenarioInformation = ScenarioInformation(
-            id=id,
+            scenario_id=scenario_id,
             user_id=user_id,
             editor=editor,
             name=name,
@@ -108,7 +108,7 @@ class SimulationService:
         )
 
         scenario_metadata: ScenarioMetadata = ScenarioMetadata(
-            scenario_id=id,
+            scenario_id=scenario_id,
             overview=None,
             history=[],
             flight_schedule=None,
@@ -123,7 +123,7 @@ class SimulationService:
         )
 
         return {
-            "scenario_id": id,
+            "scenario_id": scenario_id,
             "message": "Scenario created successfully",
         }
 

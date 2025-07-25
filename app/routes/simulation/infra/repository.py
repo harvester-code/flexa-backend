@@ -111,7 +111,7 @@ class SimulationRepository(ISimulationRepository):
     ):
 
         new_scenario = ScenarioInformation(
-            id=scenario_information.id,
+            scenario_id=scenario_information.scenario_id,
             user_id=scenario_information.user_id,
             editor=scenario_information.editor,
             name=scenario_information.name,
@@ -127,7 +127,7 @@ class SimulationRepository(ISimulationRepository):
         await db.flush()
 
         new_metadata = ScenarioMetadata(
-            scenario_id=new_scenario.id,
+            scenario_id=new_scenario.scenario_id,
             overview=scenario_metadata.overview,
             history=scenario_metadata.history,
             flight_schedule=scenario_metadata.flight_schedule,
@@ -162,7 +162,7 @@ class SimulationRepository(ISimulationRepository):
 
         await db.execute(
             update(ScenarioInformation)
-            .where(ScenarioInformation.id == id)
+            .where(ScenarioInformation.scenario_id == id)
             .values(values_to_update)
         )
         await db.commit()
@@ -171,7 +171,9 @@ class SimulationRepository(ISimulationRepository):
 
         stmt = (
             update(ScenarioInformation)
-            .where(ScenarioInformation.id.in_(bindparam("ids", expanding=True)))
+            .where(
+                ScenarioInformation.scenario_id.in_(bindparam("ids", expanding=True))
+            )
             .values(is_active=False)
         )
         await db.execute(stmt, {"ids": ids})
@@ -188,7 +190,7 @@ class SimulationRepository(ISimulationRepository):
     ):
         scenario_result = await db.execute(
             select(ScenarioInformation)
-            .where(ScenarioInformation.id == old_id)
+            .where(ScenarioInformation.scenario_id == old_id)
             .where(ScenarioInformation.is_active.is_(true()))
         )
 
@@ -249,7 +251,7 @@ class SimulationRepository(ISimulationRepository):
 
         await db.execute(
             update(ScenarioInformation)
-            .where(ScenarioInformation.id == scenario_id)
+            .where(ScenarioInformation.scenario_id == scenario_id)
             .values({ScenarioInformation.status: status})
         )
         await db.commit()
@@ -266,7 +268,7 @@ class SimulationRepository(ISimulationRepository):
                     ScenarioInformation.memo,
                     ScenarioInformation.editor,
                     ScenarioInformation.terminal,
-                ).where(ScenarioInformation.id == scenario_id)
+                ).where(ScenarioInformation.scenario_id == scenario_id)
             )
 
             scenario_info = result.mappings().first()
@@ -308,7 +310,7 @@ class SimulationRepository(ISimulationRepository):
 
             result = await db.execute(
                 update(ScenarioInformation)
-                .where(ScenarioInformation.id == scenario_metadata.scenario_id)
+                .where(ScenarioInformation.scenario_id == scenario_metadata.scenario_id)
                 .values({ScenarioInformation.updated_at: time_now})
             )
 
@@ -362,7 +364,7 @@ class SimulationRepository(ISimulationRepository):
     ):
         await db.execute(
             update(ScenarioInformation)
-            .where(ScenarioInformation.id == scenario_id)
+            .where(ScenarioInformation.scenario_id == scenario_id)
             .values(
                 {
                     ScenarioInformation.target_flight_schedule_date: target_flight_schedule_date
@@ -393,7 +395,7 @@ class SimulationRepository(ISimulationRepository):
         if column == "start":
             await db.execute(
                 update(ScenarioInformation)
-                .where(ScenarioInformation.id == scenario_id)
+                .where(ScenarioInformation.scenario_id == scenario_id)
                 .values(
                     {
                         ScenarioInformation.simulation_start_at: time,
@@ -405,7 +407,7 @@ class SimulationRepository(ISimulationRepository):
         elif column == "end":
             await db.execute(
                 update(ScenarioInformation)
-                .where(ScenarioInformation.id == scenario_id)
+                .where(ScenarioInformation.scenario_id == scenario_id)
                 .values({ScenarioInformation.simulation_end_at: time})
             )
 
@@ -419,7 +421,7 @@ class SimulationRepository(ISimulationRepository):
     ):
         result = await db.execute(
             select(1)
-            .where(ScenarioInformation.id == scenario_id)
+            .where(ScenarioInformation.scenario_id == scenario_id)
             .where(ScenarioInformation.user_id == user_id)
         )
         exists = result.scalar() is not None

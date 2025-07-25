@@ -5,7 +5,7 @@ from typing import List
 
 @dataclass
 class ScenarioInformation:
-    id: str
+    scenario_id: str
     user_id: str
     editor: str
     name: str

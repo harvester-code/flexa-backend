@@ -11,7 +11,8 @@ from packages.database import Base
 class ScenarioInformation(Base):
     __tablename__ = "scenario_information"
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    scenario_id: Mapped[str] = mapped_column(String(36), nullable=False)
     user_id: Mapped[UUID] = mapped_column(UUID, nullable=False)
     editor: Mapped[str] = mapped_column(String(36), nullable=False)
     name: Mapped[str] = mapped_column(String(50), nullable=False)
