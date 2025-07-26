@@ -417,8 +417,11 @@ async def request_simulation(
     )
 
 
-@simulation_router.patch(
-    "/end-simulation/scenario-id/{scenario_id}", status_code=status.HTTP_204_NO_CONTENT
+@public_simulation_router.patch(
+    "/end-simulation/scenario-id/{scenario_id}",  # TODO: /scenario/{scenario_id}/end
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="시나리오 시뮬레이션 종료 시간 업데이트",
+    description="시나리오의 시뮬레이션 종료 시간을 기록합니다. 시뮬레이터 Lambda 함수가 시뮬레이션을 종료할 때 호출합니다.",
 )
 @inject
 async def end_simulation(
@@ -427,10 +430,9 @@ async def end_simulation(
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     supabase_db: AsyncSession = Depends(aget_supabase_session),
 ):
-
     if not scenario_id:
         raise BadRequestException("Scenario ID is required")
 
-    await sim_service.end_simulation(
+    await sim_service.update_simulation_status(
         db=supabase_db, user_id=request.state.user_id, scenario_id=scenario_id
     )

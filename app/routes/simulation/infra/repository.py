@@ -1,6 +1,7 @@
 from typing import List
 
 import redshift_connector
+from pendulum import DateTime
 from sqlalchemy import bindparam, text, true, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -389,32 +390,73 @@ class SimulationRepository(ISimulationRepository):
         return default_procedures
 
     async def update_simulation_start_end_at(
-        self, db: AsyncSession, scenario_id: str, column: str, time
+        self, db: AsyncSession, scenario_id: str, column: str, time: DateTime
     ):
+        """Update the start or end time of a simulation scenario.
 
-        if column == "start":
-            await db.execute(
-                update(ScenarioInformation)
-                .where(ScenarioInformation.scenario_id == scenario_id)
-                .values(
-                    {
-                        ScenarioInformation.simulation_start_at: time,
-                        ScenarioInformation.simulation_end_at: None,
-                    }
-                )
-            )
+        Args:
+            db (AsyncSession): Database session.
+            scenario_id (str): Scenario ID to update.
+            column (str): Column to update ('start' or 'end').
+            time (DateTime): The time to set.
 
-        elif column == "end":
-            await db.execute(
-                update(ScenarioInformation)
-                .where(ScenarioInformation.scenario_id == scenario_id)
-                .values({ScenarioInformation.simulation_end_at: time})
-            )
+        Raises:
+            ValueError: If column is not 'start' or 'end', or if scenario_id is invalid.
+            Exception: If database operation fails.
+        """
 
-        else:
+        # Input validation
+        if not scenario_id or not scenario_id.strip():
+            raise ValueError("Scenario ID cannot be empty")
+
+        if column not in ["start", "end"]:
             raise ValueError("Invalid time parameter. Use 'start' or 'end'")
 
-        await db.commit()
+        if not time:
+            raise ValueError("Time parameter cannot be None")
+
+        try:
+            if column == "start":
+                result = await db.execute(
+                    update(ScenarioInformation)
+                    .where(ScenarioInformation.scenario_id == scenario_id)
+                    .values(
+                        {
+                            ScenarioInformation.status: "running",
+                            ScenarioInformation.simulation_start_at: time,
+                            ScenarioInformation.simulation_end_at: None,
+                        }
+                    )
+                )
+
+            elif column == "end":
+                result = await db.execute(
+                    update(ScenarioInformation)
+                    .where(ScenarioInformation.scenario_id == scenario_id)
+                    .values(
+                        {
+                            ScenarioInformation.status: "done",
+                            ScenarioInformation.simulation_end_at: time,
+                        }
+                    )
+                )
+
+            # Check if any rows were affected
+            if result.rowcount == 0:
+                raise ValueError(f"No scenario found with ID: {scenario_id}")
+
+            await db.commit()
+
+        except ValueError:
+            # Re-raise ValueError as is
+            await db.rollback()
+            raise
+        except Exception as e:
+            # Rollback transaction and re-raise with more context
+            await db.rollback()
+            raise Exception(
+                f"Failed to update simulation time for scenario {scenario_id}: {str(e)}"
+            ) from e
 
     async def check_user_scenario_permission(
         self, db: AsyncSession, user_id: str, scenario_id: str
@@ -424,6 +466,7 @@ class SimulationRepository(ISimulationRepository):
             .where(ScenarioInformation.scenario_id == scenario_id)
             .where(ScenarioInformation.user_id == user_id)
         )
+
         exists = result.scalar() is not None
         if not exists:
             raise ValueError("User does not have permission for this scenario")

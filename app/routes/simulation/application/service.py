@@ -10,7 +10,7 @@ import pandas as pd
 import pendulum
 from botocore.config import Config
 from dependency_injector.wiring import inject
-from fastapi import BackgroundTasks
+from fastapi import BackgroundTasks, HTTPException, status
 from loguru import logger
 from sqlalchemy import Connection
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -1726,21 +1726,25 @@ class SimulationService:
         else:
             return None
 
-    async def end_simulation(
+    async def update_simulation_status(
         self,
         db: AsyncSession,
         user_id: str,
         scenario_id: str,
     ):
+        # ====================================================================
+        # NOTE: 권한 체크
+        try:
+            await self.simulation_repo.check_user_scenario_permission(
+                db=db, user_id=user_id, scenario_id=scenario_id
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
 
         # ====================================================================
         # NOTE: 시뮬레이션 종료 시간 DB 저장
-        time_now = self.timestamp.time_now()
-
-        await self.simulation_repo.check_user_scenario_permission(
-            db=db, user_id=user_id, scenario_id=scenario_id
-        )
+        current_timestamp = self.timestamp.time_now()
 
         await self.simulation_repo.update_simulation_start_end_at(
-            db=db, scenario_id=scenario_id, column="end", time=time_now
+            db, scenario_id=scenario_id, column="end", time=current_timestamp
         )
