@@ -1,8 +1,11 @@
 import os
+import threading
 import time
 
 import psutil
 from loguru import logger
+
+from packages.secrets import get_secret
 
 
 def monitor_memory():
@@ -19,3 +22,15 @@ def monitor_memory():
         rss_mb = mem_info.rss / (1024**2)  # Convert bytes to MB
         logger.info(f"[Memory Monitor] RSS: {rss_mb:.2f} MB")
         time.sleep(5)
+
+
+def setup_memory_monitor():
+    """
+    메모리 모니터링을 설정합니다. 이 함수는 모니터링 스레드를 시작합니다.
+    """
+
+    if get_secret("ENVIRONMENT") == "local":
+        threading.Thread(target=monitor_memory, daemon=True).start()
+        logger.info("Memory monitoring started.")
+    else:
+        logger.info("Memory monitoring is disabled in non-local environments.")

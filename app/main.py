@@ -1,5 +1,3 @@
-import threading
-
 from fastapi import FastAPI
 from fastapi.middleware.gzip import GZipMiddleware
 from starlette.middleware.cors import CORSMiddleware
@@ -7,7 +5,7 @@ from starlette.middleware.cors import CORSMiddleware
 from app.libs.containers import Container
 from app.libs.exceptions import add_exception_handlers
 from app.libs.middleware import AuthMiddleware
-from app.libs.monitor_memory import monitor_memory
+from app.libs.monitor_memory import setup_memory_monitor
 from app.routes.admin.interface.controller import admin_router
 from app.routes.auth.interface.controller import auth_router
 from app.routes.facility.interface.controller import facility_router
@@ -20,8 +18,7 @@ from app.routes.system.interface.controller import system_router
 from packages.constants import ALLOW_ORIGINS_MAP, API_PREFIX
 from packages.secrets import get_secret
 
-if get_secret("ENVIRONMENT") == "local":
-    threading.Thread(target=monitor_memory, daemon=True).start()
+setup_memory_monitor()
 
 app = FastAPI()
 
