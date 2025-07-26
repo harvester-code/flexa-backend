@@ -25,9 +25,13 @@ from app.routes.simulation.interface.schema import (
 )
 from packages.database import aget_supabase_session, get_redshift_connection
 
-simulation_router = APIRouter(
+private_simulation_router = APIRouter(
+    prefix="/simulations", dependencies=[Depends(verify_token)]
+)
+
+# NOTE: Lambda 함수에서 인증이 필요 없는 엔드포인트를 위한 라우터
+public_simulation_router = APIRouter(
     prefix="/simulations",
-    dependencies=[Depends(verify_token)],
 )
 
 
@@ -43,7 +47,7 @@ status 코드 정리
 # NOTE: 시뮬레이션 시나리오
 
 
-@simulation_router.get(
+@private_simulation_router.get(
     "/scenarios",
     status_code=status.HTTP_200_OK,
     summary="시나리오 목록 조회",
@@ -61,7 +65,7 @@ async def get_scenarios(
     )
 
 
-@simulation_router.post(
+@private_simulation_router.post(
     "/scenarios",
     status_code=status.HTTP_201_CREATED,
     summary="시나리오 생성",
@@ -85,7 +89,7 @@ async def create_scenario(
     )
 
 
-@simulation_router.put(
+@private_simulation_router.put(
     "/scenarios/{scenario_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="시나리오 수정",
@@ -111,7 +115,7 @@ async def update_scenario(
     )
 
 
-@simulation_router.delete(
+@private_simulation_router.delete(
     "/scenarios",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="시나리오 삭제",
@@ -128,7 +132,7 @@ async def delete_scenarios(
     )
 
 
-@simulation_router.patch(
+@private_simulation_router.patch(
     "/scenarios/{scenario_id}/master",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="마스터 시나리오 설정",
@@ -149,7 +153,7 @@ async def update_master_scenario(
     )
 
 
-@simulation_router.patch(
+@private_simulation_router.patch(
     "/scenarios/scenario-id/{scenario_id}/status",
     status_code=204,
     summary="시나리오의 시뮬레이션 상태를 업데이트하는 엔드포인트",
@@ -179,7 +183,7 @@ async def update_scenario_status(
 # NOTE: 시나리오 메타데이터
 
 
-@simulation_router.get(
+@private_simulation_router.get(
     "/scenarios/metadatas/scenario-id/{scenario_id}",
     status_code=status.HTTP_200_OK,
     summary="06_SI_001",
@@ -198,7 +202,7 @@ async def fetch_scenario_metadata(
     return await sim_service.fetch_scenario_metadata(db=db, scenario_id=scenario_id)
 
 
-@simulation_router.put(
+@private_simulation_router.put(
     "/scenarios/metadatas/scenario-id/{scenario_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="06_SI_002 ~ 021",
@@ -229,7 +233,7 @@ async def update_scenario_metadata(
 
 # ==============================
 # NOTE: 시뮬레이션 프로세스
-@simulation_router.post(
+@private_simulation_router.post(
     "/flight-schedules/scenario-id/{scenario_id}",
     status_code=status.HTTP_200_OK,
     summary="06_SI_003, 06_SI_006",
@@ -277,7 +281,7 @@ async def fetch_flight_schedule(
         )
 
 
-@simulation_router.post(
+@private_simulation_router.post(
     "/passenger-schedules/scenario-id/{scenario_id}",
     status_code=status.HTTP_200_OK,
     summary="06_SI_009",
@@ -298,7 +302,7 @@ async def generate_passenger_schedule(
     )
 
 
-@simulation_router.post(
+@private_simulation_router.post(
     "/processing-procedures",
     status_code=status.HTTP_200_OK,
     summary="06_SI_012",
@@ -313,7 +317,7 @@ async def fetch_processing_procedures(
     return await sim_service.fetch_processing_procedures()
 
 
-@simulation_router.post(
+@private_simulation_router.post(
     "/facility-conns/scenario-id/{scenario_id}",
     status_code=status.HTTP_200_OK,
     summary="06_SI_013",
@@ -333,7 +337,7 @@ async def generate_facility_conn(
     )
 
 
-@simulation_router.post(
+@private_simulation_router.post(
     "/facility-info/charts/line",
     status_code=status.HTTP_200_OK,
     summary="06_SI_015",
@@ -348,7 +352,7 @@ async def generate_set_opening_hours(
     return await sim_service.generate_set_opening_hours(facility_info=facility_info)
 
 
-@simulation_router.post(
+@private_simulation_router.post(
     "/run-simulation/overview/scenario-id/{scenario_id}",
     status_code=status.HTTP_200_OK,
     summary="06_SI_018",
@@ -372,8 +376,9 @@ async def generate_simulation_overview(
     )
 
 
-@simulation_router.get(
-    "/request-simulation/scenario-id/{scenario_id}", status_code=status.HTTP_200_OK
+@private_simulation_router.get(
+    "/request-simulation/scenario-id/{scenario_id}",  # TODO: /scenario/{scenario_id}/request
+    status_code=status.HTTP_200_OK,
 )
 @inject
 async def fetch_simulation(
@@ -383,8 +388,9 @@ async def fetch_simulation(
     return await sim_service.get_simulation(scenario_id=scenario_id)
 
 
-@simulation_router.post(
-    "/request-simulation/scenario-id/{scenario_id}", status_code=status.HTTP_200_OK
+@private_simulation_router.post(
+    "/request-simulation/scenario-id/{scenario_id}",  # TODO: /scenario/{scenario_id}/request
+    status_code=status.HTTP_200_OK,
 )
 @inject
 async def request_simulation(
