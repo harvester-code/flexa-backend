@@ -4,6 +4,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from app.libs.containers import Container
 from app.libs.exceptions import add_exception_handlers
+from app.libs.logging_config import setup_logging
 from app.libs.middleware import AuthMiddleware
 from app.libs.monitor_memory import setup_memory_monitor
 from app.routes.admin.interface.controller import admin_router
@@ -18,6 +19,7 @@ from app.routes.system.interface.controller import system_router
 from packages.constants import ALLOW_ORIGINS_MAP, API_PREFIX
 from packages.secrets import get_secret
 
+setup_logging()
 setup_memory_monitor()
 
 app = FastAPI()
