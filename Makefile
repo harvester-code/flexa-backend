@@ -1,13 +1,3 @@
-# Variables
-PROFILE ?= flexa-waitfree-dev
-
-# Functions
-define start_server
-	doppler setup -p flexa-waitfree-api -c $(1) && \
-	aws-vault exec $(PROFILE) -- \
-	doppler run -- fastapi $(2) app/main.py
-endef
-
 # Targets
 start-localstack:
 	docker-compose -f docker-compose.local.yml up -d
@@ -16,7 +6,9 @@ stop-localstack:
 	docker-compose -f docker-compose.local.yml down
 
 start-development:
-	$(call start_server,dev,dev)
+	doppler setup -p flexa-waitfree-api -c dev && \
+	doppler run -- uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 start-production:
-	$(call start_server,prd,run)
+	doppler setup -p flexa-waitfree-api -c prd && \
+	doppler run -- uvicorn app.main:app --host 0.0.0.0 --port 8000
