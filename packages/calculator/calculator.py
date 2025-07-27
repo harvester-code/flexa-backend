@@ -32,8 +32,7 @@ class Calculator:
         self.percentile = percentile
         self.time_unit = "10min"
         self.process_list = self._get_process_list()
-        # self.facility_ratio = self.make_facility_ratio() if self.facility_info is not None else {}
-        self.facility_ratio = {}
+        self.facility_ratio = self.make_facility_ratio() if self.facility_info is not None else {}
 
     # ===============================
     # 메인 함수들
