@@ -909,25 +909,28 @@ class SimulationService:
 
         return capacity
 
-    async def _calculate_capacity(self, facility_schedule: List[int], time_unit: int):
-        BY_PASS = 1e-10
+    async def _calculate_capacity(
+        self,
+        facility_schedule: List[float | None],
+        time_unit: int,
+    ) -> float:
+        total_capacity = 0
+        time_unit_sec = 60 * time_unit
 
-        if BY_PASS in facility_schedule:
-            return None
+        passenger_processing_times_sec = [
+            processing_time
+            for processing_time in facility_schedule
+            if processing_time is not None
+        ]
 
-        return sum(
-            1 / (schedule / 60) * time_unit if schedule != 0 else 0
-            for schedule in facility_schedule
-        )
-        # NOTE: 위 코드의 의미를 파악하기 어려워서 아래와 같이 작성함.
-        # 계산식이 맞다면 사용 예정.
-        # total_capacity = 0
-        # for schedule in facility_schedule:
-        #     if schedule == 0:
-        #         continue
-        #     capacity = (60 / schedule) * time_unit  # 분모에 0 안 들어가는 것 주의
-        #     total_capacity += capacity
-        # return total_capacity
+        for processing_time in passenger_processing_times_sec:
+            if processing_time == 0:
+                return float("-inf")  # 음의 무한대 처리
+
+            throughput = time_unit_sec / processing_time
+            total_capacity += throughput
+
+        return total_capacity
 
     async def generate_set_opening_hours(self, facility_info):
         time_list = [
@@ -942,17 +945,13 @@ class SimulationService:
             for facility_schedule in facility_info.facility_schedules
         ]
 
-        valid_data = []
-        for data in data_list:
-            if data is not None:
-                valid_data.append(data)
-
-        max_data = max(valid_data) if valid_data else 0
+        highest_capacity = max(data_list) if len(data_list) > 0 else 0
 
         y_data = []
         for data in data_list:
-            if data is None:
-                y_data.append(max_data * 2)
+            if data == float("-inf"):
+                # HACK: 2배로 처리하는게 맞는가?
+                y_data.append(highest_capacity * 2)
             else:
                 y_data.append(data)
 

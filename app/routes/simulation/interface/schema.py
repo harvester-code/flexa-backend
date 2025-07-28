@@ -121,4 +121,4 @@ class DuplicateScenarioBody(BaseModel):
 
 class SetOpeningHoursBody(BaseModel):
     time_unit: int
-    facility_schedules: List[List[float]]
+    facility_schedules: List[List[float | None]]

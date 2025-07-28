@@ -340,8 +340,7 @@ async def generate_facility_conn(
 @private_simulation_router.post(
     "/facility-info/charts/line",
     status_code=status.HTTP_200_OK,
-    summary="06_SI_015",
-    description="06_SI_015에서 set_opening_hours의 apply버튼을 눌렀을 때 line chart 데이터를 응답하는 엔드포인트",
+    summary="입력한 시설 용량을 기반으로 라인 차트 데이터를 생성하는 엔드포인트",
 )
 @inject
 async def generate_set_opening_hours(
