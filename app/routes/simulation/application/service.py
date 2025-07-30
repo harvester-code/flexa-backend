@@ -302,6 +302,10 @@ class SimulationService:
                         where_conditions.append("OPERATING_CARRIER_IATA = ANY(%s)")
                         params.append(con.value)
 
+                    if con.criteria == "Flight":
+                        where_conditions.append("FLIGHT_NUMBER = ANY(%s)")
+                        params.append(con.value)
+
                 if where_conditions:
                     base_query += " AND " + " AND ".join(where_conditions)
 
@@ -462,9 +466,13 @@ class SimulationService:
             flight_df = pd.DataFrame(flight_schedule_data)
 
             # Condition
-            # I/D, 항공사, 터미널
+            # ["Airline", "Terminal", "Flight", "I/D", "Region", "Country"]
             i_d = flight_df["flight_type"].unique().tolist()
             terminal = flight_df["departure_terminal"].unique().tolist()
+            country = flight_df["country_code"].unique().tolist()
+            region = flight_df["region_name"].unique().tolist()
+            flight = flight_df["flight_number"].unique().tolist()
+
             airline = []
             airline_df = flight_df.drop_duplicates(
                 subset=["operating_carrier_iata", "operating_carrier_name"]
@@ -479,20 +487,14 @@ class SimulationService:
             if None in terminal:
                 terminal = [t for t in terminal if t is not None]
 
+            # Conditions
+            # HACK: 모든 condition과 properties에 같은 데이터를 필요하게끔 변경하게 되면서 하나로 합치게 되었음.
+            # 다만 아직 프론트에서 각각의 데이터를 따로 사용하고 있기에, return 값에는 중복 적용.
             add_conditions = [
-                {"name": "I/D", "operator": ["="], "value": i_d},
                 {"name": "Airline", "operator": ["is in"], "value": airline},
+                {"name": "Flight", "operator": ["is in"], "value": flight},
+                {"name": "I/D", "operator": ["="], "value": i_d},
                 {"name": "Terminal", "operator": ["="], "value": terminal},
-            ]
-
-            # Prioirties
-            # ["Airline", "I/D", "Region", "Country"]
-            country = flight_df["country_code"].unique().tolist()
-            region = flight_df["region_name"].unique().tolist()
-
-            add_priorities = [
-                {"name": "I/D", "operator": ["="], "value": i_d},
-                {"name": "Airline", "operator": ["is in"], "value": airline},
                 {"name": "Country", "operator": ["is in"], "value": country},
                 {"name": "Region", "operator": ["is in"], "value": region},
             ]
@@ -506,11 +508,7 @@ class SimulationService:
         chart_data = None
 
         try:
-            for group_column in [
-                "operating_carrier_name",  # 항공사 명으로 통일
-                "departure_terminal",
-                "flight_type",
-            ]:
+            for group_column in list(CRITERIA_MAP.keys()):
                 chart_data = await self._create_flight_schedule_chart(
                     flight_df=flight_df,
                     group_column=group_column,
@@ -525,7 +523,7 @@ class SimulationService:
         return {
             "total": flight_df.shape[0],
             "add_conditions": add_conditions,
-            "add_priorities": add_priorities,
+            "add_priorities": add_conditions,
             "chart_x_data": chart_data["default_x"],
             "chart_y_data": chart_result,
         }
@@ -694,12 +692,7 @@ class SimulationService:
         # ==============================================================
         # NOTE: 차트 데이터 생성
         chart_result = {}
-        for group_column in [
-            "operating_carrier_name",
-            "departure_terminal",
-            "country_code",
-            "region_name",
-        ]:
+        for group_column in list(CRITERIA_MAP.keys()):
             chart_data = await self._create_show_up_summary(pax_df, group_column)
             chart_result[CRITERIA_MAP[group_column]] = chart_data["traces"]
 
