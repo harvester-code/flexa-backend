@@ -435,3 +435,21 @@ async def end_simulation(
     await sim_service.update_simulation_status(
         db=supabase_db, user_id=request.state.user_id, scenario_id=scenario_id
     )
+
+
+@public_simulation_router.patch(
+    "/scenario/{scenario_id}/error",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="시뮬레이션 오류 발생 시 오류 상태 업데이트",
+    description="시뮬레이션 오류 발생 시 오류 상태를 업데이트합니다.",
+)
+@inject
+async def update_simulation_error_status(
+    request: Request,
+    scenario_id: str,
+    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
+    supabase_db: AsyncSession = Depends(aget_supabase_session),
+):
+    return await sim_service.update_simulation_error_status(
+        db=supabase_db, user_id=request.state.user_id, scenario_id=scenario_id
+    )

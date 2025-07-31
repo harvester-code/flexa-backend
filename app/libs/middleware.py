@@ -19,6 +19,7 @@ PROTECTED_PATHS = [
 # HACK: 현재는 PROTECTED_PATHS와 SYSTEM_PATHS가 동일한 경로를 포함하고 있습니다.
 SYSTEM_PATHS = [
     f"{API_PREFIX}/simulations/end-simulation",
+    f"{API_PREFIX}/simulations/scenario",
 ]
 
 

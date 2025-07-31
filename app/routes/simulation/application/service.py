@@ -1740,3 +1740,26 @@ class SimulationService:
         await self.simulation_repo.update_simulation_start_end_at(
             db, scenario_id=scenario_id, column="end", time=current_timestamp
         )
+
+    async def update_simulation_error_status(
+        self,
+        db: AsyncSession,
+        user_id: str,
+        scenario_id: str,
+    ):
+        # ====================================================================
+        # NOTE: 권한 체크
+        try:
+            await self.simulation_repo.check_user_scenario_permission(
+                db=db, user_id=user_id, scenario_id=scenario_id
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+
+        # ====================================================================
+        # NOTE: 시뮬레이션 오류 상태 DB 저장
+        current_timestamp = self.timestamp.time_now()
+
+        await self.simulation_repo.update_simulation_start_end_at(
+            db, scenario_id=scenario_id, column="error", time=current_timestamp
+        )

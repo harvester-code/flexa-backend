@@ -397,11 +397,11 @@ class SimulationRepository(ISimulationRepository):
         Args:
             db (AsyncSession): Database session.
             scenario_id (str): Scenario ID to update.
-            column (str): Column to update ('start' or 'end').
+            column (str): Column to update ('start' or 'end' or 'error').
             time (DateTime): The time to set.
 
         Raises:
-            ValueError: If column is not 'start' or 'end', or if scenario_id is invalid.
+            ValueError: If column is not 'start' or 'end' or 'error', or if scenario_id is invalid.
             Exception: If database operation fails.
         """
 
@@ -409,8 +409,8 @@ class SimulationRepository(ISimulationRepository):
         if not scenario_id or not scenario_id.strip():
             raise ValueError("Scenario ID cannot be empty")
 
-        if column not in ["start", "end"]:
-            raise ValueError("Invalid time parameter. Use 'start' or 'end'")
+        if column not in ["start", "end", "error"]:
+            raise ValueError("Invalid time parameter. Use 'start' or 'end' or 'error'")
 
         if not time:
             raise ValueError("Time parameter cannot be None")
@@ -437,6 +437,18 @@ class SimulationRepository(ISimulationRepository):
                         {
                             ScenarioInformation.status: "done",
                             ScenarioInformation.simulation_end_at: time,
+                        }
+                    )
+                )
+
+            elif column == "error":
+                result = await db.execute(
+                    update(ScenarioInformation)
+                    .where(ScenarioInformation.scenario_id == scenario_id)
+                    .values(
+                        {
+                            ScenarioInformation.status: "error",
+                            ScenarioInformation.simulation_end_at: None,
                         }
                     )
                 )
