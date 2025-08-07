@@ -438,7 +438,7 @@ async def end_simulation(
 
 
 @public_simulation_router.patch(
-    "/scenario/{scenario_id}/error",
+    "/error-simulation/scenario-id/{scenario_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="시뮬레이션 오류 발생 시 오류 상태 업데이트",
     description="시뮬레이션 오류 발생 시 오류 상태를 업데이트합니다.",
