@@ -31,12 +31,11 @@ COL_FILTER_MAP = {
 }
 
 CRITERIA_MAP = {
-    "operating_carrier_name": "Airline",
-    "departure_terminal": "Terminal",
-    "flight_type": "I/D",
-    "country_code": "Country",
-    "region_name": "Region",
-    "flight_number": "Flight",
+    "operating_carrier_name": "airline",
+    "departure_terminal": "terminal",
+    "flight_type": "type",
+    "country_code": "country",
+    "region_name": "region",
 }
 
 S3_BUCKET_NAME = get_secret("AWS_S3_BUCKET_NAME")
