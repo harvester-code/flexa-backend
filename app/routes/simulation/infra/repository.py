@@ -57,7 +57,7 @@ class SimulationRepository(ISimulationRepository):
                     """
                     SELECT 
                         si.*,
-                        CASE WHEN si.id = :master_scenario_id THEN true ELSE false END as is_master
+                        CASE WHEN si.scenario_id = :master_scenario_id THEN true ELSE false END as is_master
                     FROM scenario_information si
                     JOIN user_information ui ON si.user_id = ui.user_id
                     WHERE ui.group_id = :group_id 
@@ -110,9 +110,8 @@ class SimulationRepository(ISimulationRepository):
         scenario_information: ScenarioInformationVO,
         scenario_metadata: ScenarioMetadataVO,
     ):
-
+        # id는 자동 생성되므로 제외하고 객체 생성
         new_scenario = ScenarioInformation(
-            scenario_id=scenario_information.scenario_id,
             user_id=scenario_information.user_id,
             editor=scenario_information.editor,
             name=scenario_information.name,
@@ -122,6 +121,7 @@ class SimulationRepository(ISimulationRepository):
             target_flight_schedule_date=scenario_information.target_flight_schedule_date,
             created_at=scenario_information.created_at,
             updated_at=scenario_information.updated_at,
+            scenario_id=scenario_information.scenario_id,
         )
 
         db.add(new_scenario)
@@ -144,7 +144,7 @@ class SimulationRepository(ISimulationRepository):
     async def update_scenario_information(
         self,
         db: AsyncSession,
-        id: str,
+        scenario_id: str,
         name: str | None,
         terminal: str | None,
         airport: str | None,
@@ -163,7 +163,7 @@ class SimulationRepository(ISimulationRepository):
 
         await db.execute(
             update(ScenarioInformation)
-            .where(ScenarioInformation.scenario_id == id)
+            .where(ScenarioInformation.scenario_id == scenario_id)
             .values(values_to_update)
         )
         await db.commit()
