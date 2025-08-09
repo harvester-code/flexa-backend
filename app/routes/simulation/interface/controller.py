@@ -156,7 +156,7 @@ async def update_master_scenario(
 # NOTE: 시나리오 메타데이터
 
 
-@simulation_router.post(
+@private_simulation_router.post(
     "/{scenario_id}/metadata",
     status_code=status.HTTP_200_OK,
     summary="시나리오 메타데이터 S3 저장",
@@ -177,7 +177,7 @@ async def save_scenario_metadata(
     return await sim_service.save_scenario_metadata(scenario_id, metadata)
 
 
-@simulation_router.get(
+@private_simulation_router.get(
     "/{scenario_id}/metadata",
     status_code=status.HTTP_200_OK,
     summary="시나리오 메타데이터 S3 로드",
@@ -194,7 +194,7 @@ async def load_scenario_metadata(
     return await sim_service.load_scenario_metadata(scenario_id)
 
 
-@simulation_router.post(
+@private_simulation_router.post(
     "/{scenario_id}/flight-schedules",
     status_code=status.HTTP_200_OK,
     summary="시나리오별 항공편 스케줄 조회",
@@ -245,7 +245,7 @@ async def fetch_scenario_flight_schedule(
 # NOTE: 시뮬레이션 프로세스
 
 
-@simulation_router.post(
+@private_simulation_router.post(
     "/{scenario_id}/show-up-passenger",
     status_code=status.HTTP_200_OK,
     summary="승객 스케줄 생성",
@@ -265,7 +265,7 @@ async def generate_passenger_schedule(
     )
 
 
-@simulation_router.post(
+@private_simulation_router.post(
     "/facility-conns/scenario-id/{scenario_id}",
     status_code=status.HTTP_200_OK,
     summary="시설 연결 정보 생성",
