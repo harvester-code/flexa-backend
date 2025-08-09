@@ -1,9 +1,9 @@
 from datetime import datetime
+from typing import List, Optional
 
 from sqlalchemy import Boolean, DateTime, Integer, String
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
-from typing import List
 
 from packages.database import Base
 
@@ -11,8 +11,9 @@ from packages.database import Base
 class ScenarioInformation(Base):
     __tablename__ = "scenario_information"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    scenario_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    id: Mapped[Optional[int]] = mapped_column(
+        Integer, primary_key=True, autoincrement=True
+    )
     user_id: Mapped[UUID] = mapped_column(UUID, nullable=False)
     editor: Mapped[str] = mapped_column(String(36), nullable=False)
     name: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -36,6 +37,7 @@ class ScenarioInformation(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
+    scenario_id: Mapped[str] = mapped_column(String(36), nullable=True)
 
 
 class ScenarioMetadata(Base):

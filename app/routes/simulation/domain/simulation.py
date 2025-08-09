@@ -1,11 +1,11 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 
 @dataclass
 class ScenarioInformation:
-    scenario_id: str
+    id: Optional[int]
     user_id: str
     editor: str
     name: str
@@ -15,6 +15,7 @@ class ScenarioInformation:
     target_flight_schedule_date: str | None
     created_at: datetime
     updated_at: datetime
+    scenario_id: str
 
 
 @dataclass

@@ -106,7 +106,7 @@ async def update_scenario(
 
     await sim_service.update_scenario_information(
         db=db,
-        id=scenario_id,
+        scenario_id=scenario_id,
         name=scenario.name,
         terminal=scenario.terminal,
         airport=scenario.airport,
@@ -265,22 +265,7 @@ async def generate_passenger_schedule(
     )
 
 
-@private_simulation_router.post(
-    "/processing-procedures",
-    status_code=status.HTTP_200_OK,
-    summary="처리 절차 조회",
-    description="공항 내 다양한 처리 절차(체크인, 보안 검색, 출입국 심사 등)의 운영 설정 정보를 조회합니다. 각 프로세스별 처리 시간, 운영 방식, 대기열 관리 등의 설정값을 반환합니다.",
-)
-@inject
-async def fetch_processing_procedures(
-    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
-    db: Connection = Depends(get_redshift_connection),
-):
-
-    return await sim_service.fetch_processing_procedures()
-
-
-@private_simulation_router.post(
+@simulation_router.post(
     "/facility-conns/scenario-id/{scenario_id}",
     status_code=status.HTTP_200_OK,
     summary="시설 연결 정보 생성",

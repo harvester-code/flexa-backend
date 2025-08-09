@@ -16,6 +16,7 @@ class FilterCondition(BaseModel):
 
 class destribution_conditions(BaseModel):
     index: int
+    name: str | None = None  # 그룹 이름 (optional)
     conditions: List[Condition]
     mean: int
     standard_deviation: int

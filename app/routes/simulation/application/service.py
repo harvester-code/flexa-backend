@@ -92,10 +92,10 @@ class SimulationService:
         airport: str | None,
         memo: str | None,
     ):
-        scenario_id = str(ULID())
+        scenario_id = str(ULID())  # ULID는 scenario_id로만 사용
 
         scenario_information: ScenarioInformation = ScenarioInformation(
-            scenario_id=scenario_id,
+            id=None,  # 자동 생성되므로 None으로 설정
             user_id=user_id,
             editor=editor,
             name=name,
@@ -105,6 +105,7 @@ class SimulationService:
             target_flight_schedule_date=None,
             created_at=self.timestamp.time_now(timezone="UTC"),
             updated_at=self.timestamp.time_now(timezone="UTC"),
+            scenario_id=scenario_id,
         )
 
         scenario_metadata: ScenarioMetadata = ScenarioMetadata(
@@ -130,7 +131,7 @@ class SimulationService:
     async def update_scenario_information(
         self,
         db: AsyncSession,
-        id: str,
+        scenario_id: str,
         name: str | None,
         terminal: str | None,
         airport: str | None,
@@ -138,7 +139,7 @@ class SimulationService:
     ):
 
         await self.simulation_repo.update_scenario_information(
-            db, id, name, terminal, airport, memo
+            db, scenario_id, name, terminal, airport, memo
         )
 
     async def deactivate_scenario_information(self, db: AsyncSession, ids: List[str]):
@@ -391,26 +392,6 @@ class SimulationService:
 
         return pax_df
 
-    async def _create_normal_distribution(self, destribution_conditions: list):
-        distribution_xy_coords = []
-        for condition in destribution_conditions:
-            index = condition.index
-            mean = condition.mean
-            std_dev = condition.standard_deviation
-            x = np.linspace(mean - 4 * std_dev, mean + 4 * std_dev, 1000)
-            y = (1 / (std_dev * np.sqrt(2 * np.pi))) * np.exp(
-                -0.5 * ((x - mean) / std_dev) ** 2
-            )
-
-            dist_name = f"Priority{index+1}"
-            if index == 9999:
-                dist_name = "Default"
-
-            distribution_xy_coords.append(
-                {"name": dist_name, "x": x.tolist(), "y": y.tolist()}
-            )
-        return distribution_xy_coords
-
     async def _create_show_up_summary(self, pax_df: pd.DataFrame, group_column: str):
         time_unit = "10min"
         pax_df["show_up_time"] = pax_df["show_up_time"].dt.floor(time_unit)
@@ -481,12 +462,7 @@ class SimulationService:
             # 3. S3 저장 (병렬 처리 가능)
             await self._save_flight_schedule_to_s3(flight_schedule_data, scenario_id)
 
-            # 4. 메타데이터 자동 저장 (항공편 스케줄 성공 시)
-            await self._auto_save_flight_schedule_metadata(
-                scenario_id, date, airport, condition
-            )
-
-            # 5. 응답 생성
+            # 4. 응답 생성
             return await self._build_flight_schedule_response(
                 flight_schedule_data, condition
             )
@@ -494,49 +470,6 @@ class SimulationService:
         except Exception as e:
             raise HTTPException(
                 status_code=500, detail=f"Failed to process flight schedule: {str(e)}"
-            )
-
-    async def _auto_save_flight_schedule_metadata(
-        self, scenario_id: str, date: str, airport: str, condition: list | None
-    ):
-        """항공편 스케줄 성공 시 메타데이터 자동 저장"""
-        try:
-            # 1. 기존 메타데이터 로드 (없으면 기본 구조 생성)
-            try:
-                metadata_response = await self.load_scenario_metadata(scenario_id)
-                metadata = metadata_response["metadata"]
-            except:
-                # 메타데이터가 없으면 기본 구조 생성
-                metadata = {
-                    "tabs": {
-                        "overview": {},
-                        "flightSchedule": {},
-                        "passengerSchedule": {},
-                        "processingProcedures": {},
-                        "facilityConnection": {},
-                        "facilityInformation": {},
-                    }
-                }
-
-            # 2. flightSchedule 탭 정보 업데이트
-            metadata["tabs"]["flightSchedule"] = {
-                "airport": airport,
-                "date": date,
-                "condition": condition or [],
-                "lastUpdated": datetime.now().isoformat(),
-                "status": "completed",
-            }
-
-            # 3. 전체 메타데이터 lastUpdated 업데이트
-            metadata["lastUpdated"] = datetime.now().isoformat()
-
-            # 4. S3에 메타데이터 저장
-            await self.save_scenario_metadata(scenario_id, metadata)
-
-        except Exception as e:
-            # 메타데이터 저장 실패는 로그만 남기고 메인 프로세스를 방해하지 않음
-            print(
-                f"Warning: Failed to auto-save metadata for scenario {scenario_id}: {str(e)}"
             )
 
     def _convert_filter_conditions(self, filter_conditions: list) -> list:
@@ -751,32 +684,14 @@ class SimulationService:
         flight_schedule_df = pd.DataFrame(flight_schedule_data)
 
         # ==============================================================
-        # NOTE: ///
+        # NOTE: Summary 데이터 생성
         average_seats = flight_schedule_df["total_seat_count"].mean()
         total_flights = len(flight_schedule_df)
-        total_sub_result = [
-            {
-                "title": "Flights",
-                "value": f"{total_flights:,.0f}",
-                "unit": None,
-            },
-            {
-                "title": "Average Seats per Flight",
-                "value": f"{round(average_seats, 2)}",
-                "unit": None,
-            },
-            {
-                "title": "Load factor",
-                "value": "85",
-                "unit": "%",
-            },
-        ]
-
-        # ==============================================================
-        # NOTE: ///
-        distribution_xy_coords = await self._create_normal_distribution(
-            destribution_conditions
-        )
+        summary = {
+            "flights": total_flights,
+            "avg_seats": round(average_seats, 2),
+            "load_factor": 85,
+        }
 
         # ==============================================================
         # NOTE: 여객 데이터 생성
@@ -799,8 +714,7 @@ class SimulationService:
 
         return {
             "total": pax_df.shape[0],
-            "total_sub_obj": total_sub_result,
-            "dst_chart": distribution_xy_coords,
+            "summary": summary,
             "bar_chart_x_data": chart_data["default_x"],
             "bar_chart_y_data": chart_result,
         }
@@ -1945,7 +1859,6 @@ class SimulationService:
                             "overview": {},
                             "flightSchedule": {},
                             "passengerSchedule": {},
-                            "processingProcedures": {},
                             "facilityConnection": {},
                             "facilityInformation": {},
                         }
