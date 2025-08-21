@@ -36,9 +36,7 @@ class ISimulationRepository(metaclass=ABCMeta):
     # ===================================
     # NOTE: 시뮬레이션 프로세스
 
-    @abstractmethod
-    def fetch_flight_schedule_data(self):
-        raise NotImplementedError
+
 
     @abstractmethod
     def update_scenario_target_flight_schedule_date(self):

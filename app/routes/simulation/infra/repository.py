@@ -1,7 +1,5 @@
 from typing import List
 
-import redshift_connector
-from pendulum import DateTime
 from sqlalchemy import bindparam, text, true, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -21,10 +19,7 @@ from app.routes.simulation.infra.models import (
     ScenarioMetadata,
     UserInformation,
 )
-from app.routes.simulation.infra.schema import (
-    GeneralDeclarationArrival,
-    GeneralDeclarationDeparture,
-)
+
 
 
 class SimulationRepository(ISimulationRepository):
@@ -193,43 +188,6 @@ class SimulationRepository(ISimulationRepository):
 
     # ===================================
     # NOTE: 시뮬레이션 프로세스
-    async def fetch_flight_schedule_data(
-        self,
-        conn: redshift_connector.core.Connection,
-        stmt_text: str,
-        params: List[str],
-        flight_io: str,
-    ):
-        # NOTE: 추후 Snowflake로 변경시, 데이터소스를 분기하는 로직 추가할 것.
-        """Fetch flight schedule data from Redshift.
-
-        Args:
-            conn (redshift_connector.core.Connection): Connection to the Redshift database.
-            stmt_text (str): Query statement text to execute.
-            params (List[str]): Parameters to bind to the query.
-            flight_io (str): Flight I/O type, either 'arrival' or 'departure'.
-
-        Returns:
-            List[GeneralDeclarationArrival | GeneralDeclarationDeparture]: A list of flight schedule data
-        """
-
-        schema_map = {
-            "arrival": GeneralDeclarationArrival,
-            "departure": GeneralDeclarationDeparture,
-        }
-
-        try:
-            with conn.cursor() as cursor:
-                cursor.execute(stmt_text, params)
-                rows = cursor.fetchall()
-                columns = [desc[0] for desc in cursor.description]
-
-            results = [dict(zip(columns, row)) for row in rows]
-            return [dict(schema_map.get(flight_io)(**result)) for result in results]
-
-        except redshift_connector.Error as e:
-            print(f"Error executing query: {e}")
-            return []
 
     async def update_scenario_target_flight_schedule_date(
         self,
@@ -264,7 +222,7 @@ class SimulationRepository(ISimulationRepository):
         return default_procedures
 
     async def update_simulation_start_end_at(
-        self, db: AsyncSession, scenario_id: str, column: str, time: DateTime
+        self, db: AsyncSession, scenario_id: str, column: str, time
     ):
         """Update the start or end time of a simulation scenario.
 
@@ -272,7 +230,7 @@ class SimulationRepository(ISimulationRepository):
             db (AsyncSession): Database session.
             scenario_id (str): Scenario ID to update.
             column (str): Column to update ('start' or 'end' or 'error').
-            time (DateTime): The time to set.
+            time: The time to set.
 
         Raises:
             ValueError: If column is not 'start' or 'end' or 'error', or if scenario_id is invalid.
