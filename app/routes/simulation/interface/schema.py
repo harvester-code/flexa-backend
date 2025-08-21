@@ -22,40 +22,6 @@ class destribution_conditions(BaseModel):
     standard_deviation: int
 
 
-class PriorityMatrix(BaseModel):
-    condition: List[Condition]
-    matrix: Dict[str, Dict[str, float]]
-
-
-class Processes(BaseModel):
-    name: str
-    nodes: List[str]
-    source: str | None
-    destination: str | None
-    default_matrix: Dict[str, Dict[str, float]] | None
-    priority_matrix: list[PriorityMatrix] | None
-
-
-class Node(BaseModel):
-    id: int
-    name: str
-    facility_count: int
-    facility_type: str
-    max_queue_length: int
-    facility_schedules: List[List[float]]
-
-
-class Component(BaseModel):
-    name: str
-    nodes: List[Node]
-
-
-class SimulationBody(BaseModel):
-    data: List[Any]
-    destribution_conditions: List[destribution_conditions]
-    processes: Dict[str, Processes]
-    components: List[Component]
-
 
 class FlightScheduleBody(BaseModel):
     airport: str
@@ -65,20 +31,6 @@ class FlightScheduleBody(BaseModel):
 
 class PassengerScheduleBody(BaseModel):
     destribution_conditions: List[destribution_conditions]
-
-
-class FacilityConnBody(BaseModel):
-    flight_schedule: FlightScheduleBody
-    destribution_conditions: List[destribution_conditions]
-    processes: Dict[str, Processes]
-
-
-class RunSimulationBody(BaseModel):
-    scenario_id: str
-    flight_schedule: FlightScheduleBody
-    destribution_conditions: List[destribution_conditions]
-    processes: Dict[str, Processes]
-    components: List[Component]
 
 
 class SimulationScenarioBody(BaseModel):
@@ -96,25 +48,5 @@ class ScenarioUpdateBody(BaseModel):
     memo: str | None
 
 
-class TotalChartDict(BaseModel):
-    process: str
-    node: str
-
-
-class SimulationTotalChartBody(BaseModel):
-    total: List[TotalChartDict]
-
-
 class ScenarioDeactivateBody(BaseModel):
     scenario_ids: List[str]
-
-
-class SetOpeningHoursBody(BaseModel):
-    time_unit: int
-    facility_schedules: List[List[float]]
-
-
-class MetadataUploadUrlResponse(BaseModel):
-    upload_url: str
-    s3_key: str
-    expires_in: int
