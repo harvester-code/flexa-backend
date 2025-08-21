@@ -31,8 +31,6 @@ def get_sqs_client() -> boto3.client:
                         "mode": "standard",
                     },
                 ),
-                # aws_access_key_id=get_secret("AWS_ACCESS_KEY"),
-                # aws_secret_access_key=get_secret("AWS_SECRET_ACCESS_KEY"),
             )
 
         except (BotoCoreError, ClientError) as e:
