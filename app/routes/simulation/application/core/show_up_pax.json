@@ -1,0 +1,55 @@
+{
+  "settings": {
+    "load_factor": 0.85,
+    "min_arrival_minutes": 15,
+    "target_date": "2025-08-05",
+    "departure_airport": "ICN"
+  },
+  "pax_demographics": {
+    "nationality": {
+      "rules": [
+        {
+          "conditions": {
+            "operating_carrier_iata": ["KE"]
+          },
+          "distribution": {
+            "domestic": 0.5,
+            "foreigner": 0.5
+          }
+        }
+      ],
+      "default": {}
+    },
+    "profile": {
+      "rules": [
+        {
+          "conditions": {
+            "operating_carrier_iata": ["KE"]
+          },
+          "distribution": {
+            "business": 0.1,
+            "crew": 0.1,
+            "wheelchair": 0.1,
+            "general": 0.7
+          }
+        }
+      ],
+      "default": { "general": 1 }
+    }
+  },
+  "pax_arrival_patterns": {
+    "rules": [
+      {
+        "conditions": {
+          "operating_carrier_iata": ["KE"]
+        },
+        "mean": 90.0,
+        "std": 20.0
+      }
+    ],
+    "default": {
+      "mean": 120.0,
+      "std": 30.0
+    }
+  }
+}
