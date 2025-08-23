@@ -1,6 +1,7 @@
 # Standard Library
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from typing import Dict, List, Any, Optional
 
 # Third Party
@@ -31,9 +32,10 @@ from app.routes.simulation.domain.simulation import (
 from app.routes.simulation.infra.models import UserInformation
 from app.routes.simulation.infra.repository import SimulationRepository
 from packages.aws.sqs.sqs_client import SQSClient
-from packages.common import TimeStamp
-from packages.secrets import get_secret
-from packages.storages import boto3_session, check_s3_object_exists
+
+# 제거됨: TimeStamp 클래스 대신 표준 datetime 사용
+from packages.doppler.client import get_secret
+from packages.aws.s3.storage import boto3_session, check_s3_object_exists
 
 
 class SimulationService:
@@ -51,7 +53,6 @@ class SimulationService:
     @inject
     def __init__(self, simulation_repo: SimulationRepository):
         self.simulation_repo = simulation_repo
-        self.timestamp = TimeStamp()
         self.sqs_client = SQSClient()
 
     # =====================================
@@ -89,8 +90,8 @@ class SimulationService:
             airport=airport,
             memo=memo,
             target_flight_schedule_date=None,
-            created_at=self.timestamp.time_now(timezone="UTC"),
-            updated_at=self.timestamp.time_now(timezone="UTC"),
+            created_at=datetime.now(ZoneInfo("Asia/Seoul")),
+            updated_at=datetime.now(ZoneInfo("Asia/Seoul")),
             scenario_id=scenario_id,
         )
 
