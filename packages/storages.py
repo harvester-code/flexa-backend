@@ -1,7 +1,12 @@
 import aioboto3
+import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from loguru import logger
+
+
+# 공통 boto3 세션 (awswrangler 등에서 사용)
+boto3_session = boto3.Session(region_name="ap-northeast-2")
 
 
 async def get_s3_client():

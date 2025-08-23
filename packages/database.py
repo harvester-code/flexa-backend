@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import QueuePool
-from supabase._async.client import AsyncClient, create_client
+
 
 from packages.secrets import get_secret
 
@@ -145,22 +145,6 @@ async def aget_supabase_session() -> AsyncGenerator[AsyncSession, None]:
             raise
         # finally:
         #     await session.close()
-
-
-# ============================================================
-# HACK: Supabase 클라이언트 생성 함수. 현재는 백엔드에서 안쓰이나, 추후 db 리팩토링 이후 필요없을시 삭제 예정
-async def aget_supabase_client() -> AsyncClient:
-    SUPABASE_PROJECT_URL: str = get_secret("SUPABASE_PROJECT_URL")
-    SUPABASE_PUBLIC_KEY: str = get_secret("SUPABASE_PUBLIC_KEY")
-
-    return await create_client(SUPABASE_PROJECT_URL, SUPABASE_PUBLIC_KEY)
-
-
-async def aget_supabase_auth_client() -> AsyncClient:
-    SUPABASE_PROJECT_URL: str = get_secret("SUPABASE_PROJECT_URL")
-    SUPABASE_SECRET_KEY: str = get_secret("SUPABASE_SECRET_KEY")
-
-    return await create_client(SUPABASE_PROJECT_URL, SUPABASE_SECRET_KEY)
 
 
 # ============================================================
