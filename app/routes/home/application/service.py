@@ -3,7 +3,7 @@ from typing import Any, Dict, Optional
 from dependency_injector.wiring import inject
 
 from app.routes.home.infra.repository import HomeRepository
-from packages.calculator.calculator import Calculator
+from app.routes.home.application.core.home_analyzer import HomeAnalyzer
 
 
 class HomeService:
@@ -34,8 +34,8 @@ class HomeService:
         calculate_type: str,
         facility_info: Optional[dict] = None,
         percentile: Optional[int] = None,
-    ) -> Calculator:
-        return Calculator(pax_df, facility_info, calculate_type, percentile)
+    ) -> HomeAnalyzer:
+        return HomeAnalyzer(pax_df, facility_info, calculate_type, percentile)
 
     async def fetch_common_home_data(
         self, scenario_id: Optional[str]
