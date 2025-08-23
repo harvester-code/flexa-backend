@@ -5,14 +5,14 @@ from typing import Optional
 import aioboto3
 import pandas as pd
 
-from packages.constants import S3_BUCKET_NAME
+from packages.doppler.client import get_secret
 
 
 class S3Downloader:
     """S3 downloader for simulation data and facility information"""
 
-    def __init__(self, bucket_name: str = S3_BUCKET_NAME):
-        self.bucket_name = bucket_name
+    def __init__(self, bucket_name: str = None):
+        self.bucket_name = bucket_name or get_secret("AWS_S3_BUCKET_NAME")
         self.region_name = "ap-northeast-2"
 
     async def download_simulation_parquet_from_s3(

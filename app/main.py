@@ -16,8 +16,22 @@ from app.routes.simulation.interface.controller import (
     public_simulation_router,
 )
 from app.routes.system.interface.controller import system_router
-from packages.constants import ALLOW_ORIGINS_MAP, API_PREFIX
-from packages.secrets import get_secret
+from packages.doppler.client import get_secret
+
+# 애플리케이션 상수
+API_PREFIX = "/api/v1"
+
+ALLOW_ORIGINS_MAP = {
+    "local": ["*"],
+    "dev": [
+        "https://preview.flexa.expert",
+        "http://localhost:3943",
+    ],
+    "prod": [
+        "https://www.flexa.expert",
+        "http://localhost:3943",
+    ],
+}
 
 setup_logging()
 setup_memory_monitor()
