@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from packages.database import initialize_redshift_pool, redshift_connection_pool
+from packages.redshift.client import initialize_redshift_pool, redshift_connection_pool
 
 
 @asynccontextmanager

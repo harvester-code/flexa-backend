@@ -5,7 +5,7 @@ import time
 import psutil
 from loguru import logger
 
-from packages.secrets import get_secret
+from packages.doppler.client import get_secret
 
 
 def monitor_memory():

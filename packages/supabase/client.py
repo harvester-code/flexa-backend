@@ -1,6 +1,6 @@
 from supabase import create_client
 
-from packages.secrets import get_secret
+from packages.doppler.client import get_secret
 
 
 def get_supabase_client():

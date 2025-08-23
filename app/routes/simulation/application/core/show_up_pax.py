@@ -18,8 +18,8 @@ from fastapi import HTTPException, status
 from loguru import logger
 
 import awswrangler as wr
-from packages.secrets import get_secret
-from packages.storages import boto3_session, check_s3_object_exists
+from packages.doppler.client import get_secret
+from packages.aws.s3.storage import boto3_session, check_s3_object_exists
 
 
 class PassengerGenerator:

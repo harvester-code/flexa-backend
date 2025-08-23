@@ -8,7 +8,7 @@ from botocore.exceptions import ClientError
 from loguru import logger
 
 # Application
-from packages.secrets import get_secret
+from packages.doppler.client import get_secret
 
 
 class SQSClient:

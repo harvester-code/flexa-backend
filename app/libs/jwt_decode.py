@@ -2,7 +2,7 @@ import jwt
 from fastapi import HTTPException, status
 from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 
-from packages.secrets import get_secret
+from packages.doppler.client import get_secret
 
 SECRET = get_secret("SYSTEM_JWT_SECRET_KEY")
 ALGORITHM = "HS256"

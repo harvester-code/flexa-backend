@@ -22,7 +22,8 @@ from app.routes.simulation.interface.schema import (
     ScenarioUpdateBody,
     SimulationScenarioBody,
 )
-from packages.database import aget_supabase_session, get_redshift_connection
+from packages.supabase.database import aget_supabase_session
+from packages.redshift.client import get_redshift_connection
 
 private_simulation_router = APIRouter(
     prefix="/simulations", dependencies=[Depends(verify_token)]
