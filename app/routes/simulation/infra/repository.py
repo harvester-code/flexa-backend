@@ -1,15 +1,15 @@
+# Standard Library
 from typing import List
 
-from sqlalchemy import bindparam, text, true, update
+# Third Party
+from sqlalchemy import bindparam, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.inspection import inspect
 
+# Application
 from app.routes.simulation.domain.repository import ISimulationRepository
 from app.routes.simulation.domain.simulation import (
     ScenarioInformation as ScenarioInformationVO,
-)
-from app.routes.simulation.domain.simulation import (
     ScenarioMetadata as ScenarioMetadataVO,
 )
 from app.routes.simulation.infra.models import (
@@ -21,14 +21,27 @@ from app.routes.simulation.infra.models import (
 )
 
 
-
 class SimulationRepository(ISimulationRepository):
+    """
+    시뮬레이션 리포지토리 - Clean Architecture
+
+    레이어 순서:
+    1. 시나리오 관리 (기본 CRUD)
+    2. 항공편 스케줄 처리
+    3. 승객 스케줄 처리
+    4. 권한 및 유틸리티
+    """
+
+    # =====================================
+    # 1. 시나리오 관리 (기본 CRUD 기능)
+    # =====================================
 
     async def fetch_scenario_information(
         self,
         db: AsyncSession,
         user_id: str,
     ):
+        """시나리오 목록 조회 (마스터/사용자 시나리오 구분)"""
         async with db.begin():
             # 현재 유저의 group_id 조회
             result = await db.execute(
@@ -82,29 +95,13 @@ class SimulationRepository(ISimulationRepository):
                 "user_scenario": user_scenarios,
             }
 
-    async def fetch_scenario_location(
-        self,
-        db: AsyncSession,
-        group_id: str,
-    ):
-
-        async with db.begin():
-            result = await db.execute(
-                select(OperationSetting.terminal_name).where(
-                    OperationSetting.group_id == int(group_id)
-                )
-            )
-            scenario_info = [row["terminal_name"] for row in result.mappings().all()]
-            scenario_info.append("Un-decided")
-
-        return scenario_info
-
     async def create_scenario_information(
         self,
         db: AsyncSession,
         scenario_information: ScenarioInformationVO,
         scenario_metadata: ScenarioMetadataVO,
     ):
+        """새로운 시나리오 생성"""
         # id는 자동 생성되므로 제외하고 객체 생성
         new_scenario = ScenarioInformation(
             user_id=scenario_information.user_id,
@@ -145,6 +142,7 @@ class SimulationRepository(ISimulationRepository):
         airport: str | None,
         memo: str | None,
     ):
+        """시나리오 정보 수정"""
         values_to_update = {}
 
         if name:
@@ -164,7 +162,7 @@ class SimulationRepository(ISimulationRepository):
         await db.commit()
 
     async def deactivate_scenario_information(self, db: AsyncSession, ids: List[str]):
-
+        """시나리오 소프트 삭제"""
         stmt = (
             update(ScenarioInformation)
             .where(
@@ -178,7 +176,7 @@ class SimulationRepository(ISimulationRepository):
     async def update_master_scenario(
         self, db: AsyncSession, group_id: int, scenario_id: str
     ):
-
+        """마스터 시나리오 설정"""
         await db.execute(
             update(Group)
             .where(Group.id == group_id)
@@ -186,8 +184,9 @@ class SimulationRepository(ISimulationRepository):
         )
         await db.commit()
 
-    # ===================================
-    # NOTE: 시뮬레이션 프로세스
+    # =====================================
+    # 2. 항공편 스케줄 처리 (Flight Schedule)
+    # =====================================
 
     async def update_scenario_target_flight_schedule_date(
         self,
@@ -195,6 +194,7 @@ class SimulationRepository(ISimulationRepository):
         scenario_id: str,
         target_flight_schedule_date,
     ):
+        """시나리오 대상 항공편 스케줄 날짜 업데이트"""
         await db.execute(
             update(ScenarioInformation)
             .where(ScenarioInformation.scenario_id == scenario_id)
@@ -206,7 +206,12 @@ class SimulationRepository(ISimulationRepository):
         )
         await db.commit()
 
+    # =====================================
+    # 3. 승객 스케줄 처리 (Show-up Passenger)
+    # =====================================
+
     async def fetch_processing_procedures(self):
+        """기본 프로세싱 절차 조회"""
         default_procedures = {
             "process": [
                 {
@@ -221,10 +226,14 @@ class SimulationRepository(ISimulationRepository):
 
         return default_procedures
 
+    # =====================================
+    # 4. 시뮬레이션 상태 및 권한 관리
+    # =====================================
+
     async def update_simulation_start_end_at(
         self, db: AsyncSession, scenario_id: str, column: str, time
     ):
-        """Update the start or end time of a simulation scenario.
+        """시뮬레이션 시작/종료 시간 업데이트
 
         Args:
             db (AsyncSession): Database session.
@@ -236,7 +245,6 @@ class SimulationRepository(ISimulationRepository):
             ValueError: If column is not 'start' or 'end' or 'error', or if scenario_id is invalid.
             Exception: If database operation fails.
         """
-
         # Input validation
         if not scenario_id or not scenario_id.strip():
             raise ValueError("Scenario ID cannot be empty")
@@ -305,6 +313,7 @@ class SimulationRepository(ISimulationRepository):
     async def check_user_scenario_permission(
         self, db: AsyncSession, user_id: str, scenario_id: str
     ):
+        """사용자 시나리오 권한 확인"""
         result = await db.execute(
             select(1)
             .where(ScenarioInformation.scenario_id == scenario_id)
@@ -314,3 +323,63 @@ class SimulationRepository(ISimulationRepository):
         exists = result.scalar() is not None
         if not exists:
             raise ValueError("User does not have permission for this scenario")
+
+    async def check_scenario_exists(
+        self, db: AsyncSession, scenario_id: str, user_id: str | None = None
+    ) -> bool:
+        """시나리오 존재 여부 확인 (권한 검증 포함)"""
+        if not scenario_id or not scenario_id.strip():
+            return False
+
+        try:
+            if user_id:
+                # 사용자 권한까지 확인 (같은 그룹 내 시나리오인지 확인)
+                result = await db.execute(
+                    text(
+                        """
+                        SELECT COUNT(*) as count
+                        FROM scenario_information si
+                        JOIN user_information ui ON si.user_id = ui.user_id
+                        WHERE si.scenario_id = :scenario_id 
+                            AND ui.group_id = (
+                                SELECT group_id 
+                                FROM user_information 
+                                WHERE user_id = :current_user_id
+                            )
+                            AND si.is_active = true
+                    """
+                    ),
+                    {"scenario_id": scenario_id, "current_user_id": user_id},
+                )
+                count = result.scalar_one_or_none()
+                return count > 0 if count else False
+            else:
+                # 시나리오 존재 여부만 확인
+                result = await db.execute(
+                    select(ScenarioInformation.scenario_id).where(
+                        and_(
+                            ScenarioInformation.scenario_id == scenario_id,
+                            ScenarioInformation.is_active == True,
+                        )
+                    )
+                )
+                return result.scalar_one_or_none() is not None
+        except Exception:
+            return False
+
+    async def fetch_scenario_location(
+        self,
+        db: AsyncSession,
+        group_id: str,
+    ):
+        """시나리오 위치(터미널) 정보 조회"""
+        async with db.begin():
+            result = await db.execute(
+                select(OperationSetting.terminal_name).where(
+                    OperationSetting.group_id == int(group_id)
+                )
+            )
+            scenario_info = [row["terminal_name"] for row in result.mappings().all()]
+            scenario_info.append("Un-decided")
+
+        return scenario_info
