@@ -5,7 +5,7 @@ from sqlalchemy import Boolean, DateTime, Integer, String
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from packages.supabase.models import Base
+from packages.supabase.database import Base
 
 
 class ScenarioInformation(Base):
