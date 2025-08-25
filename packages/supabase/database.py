@@ -1,9 +1,13 @@
 from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
 from packages.doppler.client import get_secret
+
+# SQLAlchemy 모델 베이스
+Base = declarative_base()
 
 # ============================================================
 # FIXME: https://supabase.com/docs/reference/python/initializing 참고해서 다시 작성하기

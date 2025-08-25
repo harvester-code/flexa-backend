@@ -1,6 +1,20 @@
 from fastapi import HTTPException, status
+from supabase import create_client
 
-from packages.supabase.client import get_supabase_client
+from packages.doppler.client import get_secret
+
+
+def get_supabase_client():
+    """Supabase 클라이언트 생성"""
+    url = get_secret("SUPABASE_PROJECT_URL")
+    key = get_secret("SUPABASE_PUBLIC_KEY")
+
+    if not url or not key:
+        raise ValueError(
+            "Supabase project URL and public key must be set in environment variables."
+        )
+
+    return create_client(url, key)
 
 
 def decode_supabase_token(token: str):
