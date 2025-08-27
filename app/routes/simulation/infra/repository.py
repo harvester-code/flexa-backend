@@ -1,4 +1,5 @@
 # Standard Library
+from datetime import datetime
 from typing import List
 
 # Third Party
@@ -195,14 +196,16 @@ class SimulationRepository(ISimulationRepository):
         target_flight_schedule_date,
     ):
         """시나리오 대상 항공편 스케줄 날짜 업데이트"""
+        # 문자열 날짜를 datetime 객체로 변환
+        if isinstance(target_flight_schedule_date, str):
+            target_date = datetime.strptime(target_flight_schedule_date, "%Y-%m-%d")
+        else:
+            target_date = target_flight_schedule_date
+
         await db.execute(
             update(ScenarioInformation)
             .where(ScenarioInformation.scenario_id == scenario_id)
-            .values(
-                {
-                    ScenarioInformation.target_flight_schedule_date: target_flight_schedule_date
-                }
-            )
+            .values({ScenarioInformation.target_flight_schedule_date: target_date})
         )
         await db.commit()
 

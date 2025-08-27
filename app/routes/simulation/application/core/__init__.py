@@ -1,10 +1,24 @@
 """
-Simulation Core Business Logic
+Core module for simulation application logic.
 
-이 모듈은 시뮬레이션의 핵심 비즈니스 로직을 담고 있습니다.
-복잡한 도메인 로직을 독립적인 모듈로 분리하여 유지보수성과 테스트 용이성을 향상시킵니다.
+This module contains the core business logic for simulation processing:
+- Flight schedule processing (storage & response)
+- Show-up passenger processing (storage & response)
+- Run simulation processing (storage & response)
+
+Each core module combines both storage (parquet saving) and response (JSON formatting)
+functionality in a single file with two classes.
 """
 
-from .show_up_pax import PassengerGenerator
+from .flight_schedules import FlightScheduleStorage, FlightScheduleResponse
+from .show_up_pax import ShowUpPassengerStorage, ShowUpPassengerResponse
+from .run_simulation import RunSimulationStorage, RunSimulationResponse
 
-__all__ = ["PassengerGenerator"]
+__all__ = [
+    "FlightScheduleStorage",
+    "FlightScheduleResponse",
+    "ShowUpPassengerStorage",
+    "ShowUpPassengerResponse",
+    "RunSimulationStorage",
+    "RunSimulationResponse",
+]

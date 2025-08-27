@@ -203,11 +203,19 @@ async def fetch_scenario_flight_schedule(
         )
 
     try:
+        # 디버그용 로그
+        logger.info(f"🛩️ Flight Schedule Request - scenario_id: {scenario_id}")
+        logger.info(
+            f"📍 Request params: airport={flight_schedule.airport}, date={flight_schedule.date}, type={flight_schedule.type}"
+        )
+        logger.info(f"🔍 Conditions: {flight_schedule.conditions}")
+
         flight_sch = await sim_service.generate_scenario_flight_schedule(
             redshift_db,
             flight_schedule.date,
             flight_schedule.airport,
-            flight_schedule.condition,
+            flight_schedule.type,
+            flight_schedule.conditions,
             scenario_id=scenario_id,
         )
 
@@ -225,7 +233,13 @@ async def fetch_scenario_flight_schedule(
         )
 
     except Exception as e:
-        logger.error(f"Unexpected error while fetching scenario_id={scenario_id}: {e}")
+        logger.error(
+            f"❌ Unexpected error while fetching scenario_id={scenario_id}: {e}"
+        )
+        logger.error(f"❌ Exception type: {type(e)}")
+        import traceback
+
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred while fetching the flight schedule.",

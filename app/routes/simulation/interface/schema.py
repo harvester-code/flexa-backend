@@ -4,14 +4,15 @@ from pydantic import BaseModel
 
 
 class FilterCondition(BaseModel):
-    criteria: str  # types, terminal, airline
-    value: List[str]
+    field: str  # types, terminal, airline
+    values: List[str]
 
 
 class FlightScheduleBody(BaseModel):
     airport: str
     date: str
-    condition: List[FilterCondition] | None
+    type: str  # "departure" or "arrival"
+    conditions: List[FilterCondition] | None
 
 
 class PassengerScheduleBody(BaseModel):
