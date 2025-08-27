@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.13'",
@@ -481,6 +481,7 @@ dependencies = [
     { name = "boto3" },
     { name = "dependency-injector" },
     { name = "fastapi", extra = ["standard"] },
+    { name = "greenlet" },
     { name = "loguru" },
     { name = "pandas" },
     { name = "psutil" },
@@ -502,6 +503,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.38.27" },
     { name = "dependency-injector", specifier = ">=4.46.0" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.115.12" },
+    { name = "greenlet", specifier = ">=3.0.0" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "pandas", specifier = ">=2.2.3" },
     { name = "psutil", specifier = ">=7.0.0" },
