@@ -338,7 +338,7 @@ class SimulationService:
             # boto3를 사용하여 직접 S3에 업로드
             s3_client = boto3_session.client("s3")
             bucket_name = get_secret("AWS_S3_BUCKET_NAME")
-            s3_key = f"{scenario_id}/metadata.json"
+            s3_key = f"{scenario_id}/metadata-for-frontend.json"
 
             s3_client.put_object(
                 Bucket=bucket_name,
@@ -373,7 +373,7 @@ class SimulationService:
             from datetime import datetime
 
             bucket_name = get_secret("AWS_S3_BUCKET_NAME")
-            s3_key = f"{scenario_id}/metadata.json"
+            s3_key = f"{scenario_id}/metadata-for-frontend.json"
             s3_client = boto3_session.client("s3")
 
             try:

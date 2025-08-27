@@ -451,3 +451,4 @@ class ShowUpPassengerResponse:
         ]
 
         return {"traces": traces, "default_x": default_x}
+
