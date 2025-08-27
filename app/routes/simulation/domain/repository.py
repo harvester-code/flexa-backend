@@ -29,9 +29,7 @@ class ISimulationRepository(metaclass=ABCMeta):
     def deactivate_scenario_information(self):
         raise NotImplementedError
 
-    @abstractmethod
-    def update_master_scenario(self):
-        raise NotImplementedError
+
 
     # ===================================
     # NOTE: 시뮬레이션 프로세스

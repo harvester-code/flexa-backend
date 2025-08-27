@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import Boolean, DateTime, Integer, String
+from sqlalchemy import Boolean, DateTime, Integer, String, BigInteger, Text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -12,18 +12,19 @@ class ScenarioInformation(Base):
     __tablename__ = "scenario_information"
 
     id: Mapped[Optional[int]] = mapped_column(
-        Integer, primary_key=True, autoincrement=True
+        BigInteger, primary_key=True, autoincrement=True  # bigint
     )
+    scenario_id: Mapped[str] = mapped_column(Text, nullable=True)  # text
     user_id: Mapped[UUID] = mapped_column(UUID, nullable=False)
-    editor: Mapped[str] = mapped_column(String(36), nullable=False)
-    name: Mapped[str] = mapped_column(String(50), nullable=False)
-    terminal: Mapped[str] = mapped_column(String(36), nullable=False)
-    airport: Mapped[str] = mapped_column(String(36), nullable=True)
-    memo: Mapped[str] = mapped_column(String(200), nullable=True)
-    target_flight_schedule_date: Mapped[datetime] = mapped_column(
-        DateTime, nullable=True
+    editor: Mapped[str] = mapped_column(String, nullable=False)  # character varying
+    name: Mapped[str] = mapped_column(String, nullable=False)     # character varying
+    terminal: Mapped[str] = mapped_column(String, nullable=False) # character varying
+    airport: Mapped[str] = mapped_column(String, nullable=True)   # character varying
+    memo: Mapped[str] = mapped_column(Text, nullable=True)        # text
+    target_flight_schedule_date: Mapped[str] = mapped_column(     # character varying
+        String, nullable=True
     )
-    status: Mapped[str] = mapped_column(String(10), nullable=True, default="yet")
+    status: Mapped[str] = mapped_column(String, nullable=False, default="Yet")  # 기본값 'Yet'
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     simulation_start_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -37,32 +38,12 @@ class ScenarioInformation(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
-    scenario_id: Mapped[str] = mapped_column(String(36), nullable=True)
 
 
-class ScenarioMetadata(Base):
-    __tablename__ = "scenario_metadata"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    scenario_id: Mapped[str] = mapped_column(String(36), nullable=False)
-    overview: Mapped[dict] = mapped_column(JSONB, nullable=True)
-    history: Mapped[List[dict]] = mapped_column(JSONB, nullable=True)
-    flight_schedule: Mapped[dict] = mapped_column(JSONB, nullable=True)
-    passenger_schedule: Mapped[dict] = mapped_column(JSONB, nullable=True)
-    processing_procedures: Mapped[dict] = mapped_column(JSONB, nullable=True)
-    facility_connection: Mapped[dict] = mapped_column(JSONB, nullable=True)
-    facility_information: Mapped[dict] = mapped_column(JSONB, nullable=True)
+# ScenarioMetadata 테이블은 더 이상 사용하지 않음
 
 
-class Group(Base):
-    __tablename__ = "group"
-    __table_args__ = {"extend_existing": True}
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(String(36), nullable=False)
-    description: Mapped[str] = mapped_column(String(36), nullable=True)
-    master_scenario_id: Mapped[str] = mapped_column(String(36), nullable=True)
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
 
 class OperationSetting(Base):
@@ -70,7 +51,6 @@ class OperationSetting(Base):
     __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    group_id: Mapped[Integer] = mapped_column(Integer, nullable=False)
     terminal_name: Mapped[str] = mapped_column(String(36), nullable=False)
     terminal_process: Mapped[dict] = mapped_column(JSONB, nullable=True)
     processing_procedure: Mapped[dict] = mapped_column(JSONB, nullable=True)
@@ -87,11 +67,11 @@ class UserInformation(Base):
     email: Mapped[str] = mapped_column(String, nullable=False)
     first_name: Mapped[str] = mapped_column(String, nullable=False)
     last_name: Mapped[str] = mapped_column(String, nullable=False)
-    group_id: Mapped[int] = mapped_column(Integer, nullable=True)
-    role_id: Mapped[int] = mapped_column(Integer, nullable=True)
-    position: Mapped[str] = mapped_column(String, nullable=True)
-    bio: Mapped[str] = mapped_column(String, nullable=True)
     profile_image_url: Mapped[str] = mapped_column(String, nullable=True)
+    position: Mapped[str] = mapped_column(String, nullable=True)
+    introduction: Mapped[str] = mapped_column(String, nullable=True)  # bio → introduction
+    group_id: Mapped[int] = mapped_column(Integer, nullable=True)     # 데이터베이스에 존재함
+    timezone: Mapped[str] = mapped_column(String, nullable=False)     # 데이터베이스에 존재함
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False

@@ -109,6 +109,7 @@ async def create_scenario(
 )
 @inject
 async def update_scenario(
+    request: Request,
     scenario_id: str,
     scenario: ScenarioUpdateBody,
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
@@ -118,6 +119,16 @@ async def update_scenario(
 
     if not scenario_id:
         raise BadRequestException("Scenario ID is required")
+
+    # 🔒 시나리오 존재 여부 및 권한 검증
+    scenario_exists = await sim_service.validate_scenario_exists(
+        db, scenario_id, request.state.user_id
+    )
+    if not scenario_exists:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scenario '{scenario_id}' not found or you don't have permission to access it.",
+        )
 
     await sim_service.update_scenario_information(
         db=db,
@@ -139,34 +150,28 @@ async def update_scenario(
 )
 @inject
 async def delete_scenarios(
+    request: Request,
     scenario_ids: ScenarioDeactivateBody,
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
+    # 🔒 각 시나리오에 대한 권한 검증
+    for scenario_id in scenario_ids.scenario_ids:
+        scenario_exists = await sim_service.validate_scenario_exists(
+            db, scenario_id, request.state.user_id
+        )
+        if not scenario_exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Scenario '{scenario_id}' not found or you don't have permission to access it.",
+            )
+    
     await sim_service.deactivate_scenario_information(
         db=db, ids=scenario_ids.scenario_ids
     )
 
 
-@private_simulation_router.patch(
-    "/{scenario_id}/master",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="마스터 시나리오 설정",
-    description="특정 시나리오를 그룹의 마스터 시나리오로 설정합니다",
-)
-@inject
-async def update_master_scenario(
-    request: Request,
-    scenario_id: str,
-    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
-    db: AsyncSession = Depends(aget_supabase_session),
-):
-    if not scenario_id:
-        raise BadRequestException("Scenario ID is required")
 
-    return await sim_service.update_master_scenario(
-        db=db, user_id=request.state.user_id, scenario_id=scenario_id
-    )
 
 
 # =====================================

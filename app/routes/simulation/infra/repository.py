@@ -11,13 +11,10 @@ from sqlalchemy.future import select
 from app.routes.simulation.domain.repository import ISimulationRepository
 from app.routes.simulation.domain.simulation import (
     ScenarioInformation as ScenarioInformationVO,
-    ScenarioMetadata as ScenarioMetadataVO,
 )
 from app.routes.simulation.infra.models import (
-    Group,
     OperationSetting,
     ScenarioInformation,
-    ScenarioMetadata,
     UserInformation,
 )
 
@@ -42,65 +39,40 @@ class SimulationRepository(ISimulationRepository):
         db: AsyncSession,
         user_id: str,
     ):
-        """시나리오 목록 조회 (마스터/사용자 시나리오 구분)"""
+        """시나리오 목록 조회 (현재 사용자의 모든 시나리오)"""
         async with db.begin():
-            # 현재 유저의 group_id 조회
-            result = await db.execute(
-                select(UserInformation.group_id).where(
-                    UserInformation.user_id == user_id
-                )
-            )
-            user_group_id = result.scalar_one_or_none()
-            if not user_group_id:
-                return {"master_scenario": [], "user_scenario": []}
-
-            # 마스터 시나리오 ID 조회
-            result = await db.execute(
-                select(Group.master_scenario_id).where(Group.id == user_group_id)
-            )
-            master_scenario_id = result.scalar_one_or_none()
-
-            # 단일 쿼리로 모든 시나리오 조회 (마스터 여부 구분)
+            # 현재 유저의 모든 시나리오 조회 (그룹 개념 제거)
             result = await db.execute(
                 text(
                     """
                     SELECT 
                         si.*,
-                        CASE WHEN si.scenario_id = :master_scenario_id THEN true ELSE false END as is_master
+                        ui.first_name,
+                        ui.last_name,
+                        ui.email
                     FROM scenario_information si
                     JOIN user_information ui ON si.user_id = ui.user_id
-                    WHERE ui.group_id = :group_id 
+                    WHERE si.user_id = :user_id 
                         AND si.is_active = true
                     ORDER BY si.updated_at DESC
                     LIMIT 50
                 """
                 ),
-                {"group_id": user_group_id, "master_scenario_id": master_scenario_id},
+                {"user_id": user_id},
             )
 
-            # 결과를 마스터/사용자 시나리오로 분리
-            master_scenarios = []
-            user_scenarios = []
-
+            # 결과를 리스트로 반환
+            scenarios = []
             for row in result.mappings():
-                # is_master 필드를 제외한 시나리오 데이터 추출
-                scenario_dict = {k: v for k, v in row.items() if k != "is_master"}
+                scenario_dict = dict(row)
+                scenarios.append(scenario_dict)
 
-                if row["is_master"]:
-                    master_scenarios.append(scenario_dict)
-                else:
-                    user_scenarios.append(scenario_dict)
-
-            return {
-                "master_scenario": master_scenarios,
-                "user_scenario": user_scenarios,
-            }
+            return scenarios
 
     async def create_scenario_information(
         self,
         db: AsyncSession,
         scenario_information: ScenarioInformationVO,
-        scenario_metadata: ScenarioMetadataVO,
     ):
         """새로운 시나리오 생성"""
         # id는 자동 생성되므로 제외하고 객체 생성
@@ -118,21 +90,16 @@ class SimulationRepository(ISimulationRepository):
         )
 
         db.add(new_scenario)
-        await db.flush()
-
-        new_metadata = ScenarioMetadata(
-            scenario_id=new_scenario.scenario_id,
-            overview=scenario_metadata.overview,
-            history=scenario_metadata.history,
-            flight_schedule=scenario_metadata.flight_schedule,
-            passenger_schedule=scenario_metadata.passenger_schedule,
-            processing_procedures=scenario_metadata.processing_procedures,
-            facility_connection=scenario_metadata.facility_connection,
-            facility_information=scenario_metadata.facility_information,
-        )
-
-        db.add(new_metadata)
         await db.commit()
+        
+        return {
+            "scenario_id": new_scenario.scenario_id,
+            "name": new_scenario.name,
+            "editor": new_scenario.editor,
+            "terminal": new_scenario.terminal,
+            "airport": new_scenario.airport,
+            "memo": new_scenario.memo
+        }
 
     async def update_scenario_information(
         self,
@@ -174,16 +141,7 @@ class SimulationRepository(ISimulationRepository):
         await db.execute(stmt, {"ids": ids})
         await db.commit()
 
-    async def update_master_scenario(
-        self, db: AsyncSession, group_id: int, scenario_id: str
-    ):
-        """마스터 시나리오 설정"""
-        await db.execute(
-            update(Group)
-            .where(Group.id == group_id)
-            .values({Group.master_scenario_id: scenario_id})
-        )
-        await db.commit()
+
 
     # =====================================
     # 2. 항공편 스케줄 처리 (Flight Schedule)
@@ -196,16 +154,19 @@ class SimulationRepository(ISimulationRepository):
         target_flight_schedule_date,
     ):
         """시나리오 대상 항공편 스케줄 날짜 업데이트"""
-        # 문자열 날짜를 datetime 객체로 변환
+        # 문자열 날짜를 datetime 객체로 변환 후 다시 문자열로 변환 (검증 목적)
         if isinstance(target_flight_schedule_date, str):
-            target_date = datetime.strptime(target_flight_schedule_date, "%Y-%m-%d")
+            # 날짜 형식 검증을 위해 datetime으로 파싱 후 다시 문자열로 변환
+            target_date_obj = datetime.strptime(target_flight_schedule_date, "%Y-%m-%d")
+            target_date_str = target_date_obj.strftime("%Y-%m-%d")
         else:
-            target_date = target_flight_schedule_date
+            # datetime 객체인 경우 문자열로 변환
+            target_date_str = target_flight_schedule_date.strftime("%Y-%m-%d")
 
         await db.execute(
             update(ScenarioInformation)
             .where(ScenarioInformation.scenario_id == scenario_id)
-            .values({ScenarioInformation.target_flight_schedule_date: target_date})
+            .values({ScenarioInformation.target_flight_schedule_date: target_date_str})
         )
         await db.commit()
 
@@ -336,19 +297,14 @@ class SimulationRepository(ISimulationRepository):
 
         try:
             if user_id:
-                # 사용자 권한까지 확인 (같은 그룹 내 시나리오인지 확인)
+                # 사용자 권한까지 확인 (해당 사용자의 시나리오인지 확인)
                 result = await db.execute(
                     text(
                         """
                         SELECT COUNT(*) as count
                         FROM scenario_information si
-                        JOIN user_information ui ON si.user_id = ui.user_id
                         WHERE si.scenario_id = :scenario_id 
-                            AND ui.group_id = (
-                                SELECT group_id 
-                                FROM user_information 
-                                WHERE user_id = :current_user_id
-                            )
+                            AND si.user_id = :current_user_id
                             AND si.is_active = true
                     """
                     ),

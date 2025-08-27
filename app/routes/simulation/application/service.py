@@ -31,7 +31,6 @@ from app.routes.simulation.application.core import (
 )
 from app.routes.simulation.domain.simulation import (
     ScenarioInformation,
-    ScenarioMetadata,
 )
 from app.routes.simulation.infra.models import UserInformation
 
@@ -99,20 +98,8 @@ class SimulationService:
                 scenario_id=scenario_id,
             )
 
-            # 빈 ScenarioMetadata 생성
-            scenario_metadata = ScenarioMetadata(
-                scenario_id=scenario_id,
-                overview=None,
-                history=None,
-                flight_schedule=None,
-                passenger_schedule=None,
-                processing_procedures=None,
-                facility_connection=None,
-                facility_information=None,
-            )
-
             return await self.simulation_repo.create_scenario_information(
-                db, scenario_info, scenario_metadata
+                db, scenario_info
             )
         except Exception as e:
             logger.error(f"Failed to create scenario: {str(e)}")
@@ -153,22 +140,7 @@ class SimulationService:
                 detail="Failed to deactivate scenarios",
             )
 
-    async def update_master_scenario(
-        self, db: AsyncSession, user_id: str, scenario_id: str
-    ):
-        """마스터 시나리오 설정"""
-        try:
-            return await self.simulation_repo.update_master_scenario(
-                db, user_id, scenario_id
-            )
-        except Exception as e:
-            logger.error(
-                f"Failed to update master scenario {scenario_id} for user {user_id}: {str(e)}"
-            )
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to update master scenario",
-            )
+
 
     async def update_scenario_target_flight_schedule_date(
         self, db: AsyncSession, scenario_id: str, date: str
