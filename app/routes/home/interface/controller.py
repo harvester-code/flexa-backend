@@ -2,9 +2,9 @@ from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, status
 
 from app.libs.containers import Container
-from app.libs.dependencies import verify_token
+from packages.supabase.dependencies import verify_token
 from app.routes.home.application.service import HomeService
-from packages.response import SuccessResponse
+from app.libs.response import SuccessResponse
 
 """
 status 코드 정리

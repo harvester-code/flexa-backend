@@ -140,7 +140,38 @@ class SimulationService:
                 detail="Failed to deactivate scenarios",
             )
 
+    async def deactivate_scenario_information_with_validation(
+        self, db: AsyncSession, scenario_ids: List[str], user_id: str
+    ):
+        """권한 검증을 포함한 시나리오 bulk 소프트 삭제"""
+        try:
+            # 🔒 각 시나리오에 대한 권한 검증
+            for scenario_id in scenario_ids:
+                scenario_exists = await self.validate_scenario_exists(
+                    db, scenario_id, user_id
+                )
+                if not scenario_exists:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Scenario '{scenario_id}' not found or you don't have permission to access it.",
+                    )
 
+            # ✅ 권한 검증 완료, bulk 삭제 실행
+            return await self.simulation_repo.deactivate_scenario_information(
+                db, scenario_ids
+            )
+
+        except HTTPException:
+            # HTTPException은 그대로 재발생
+            raise
+        except Exception as e:
+            logger.error(
+                f"Failed to deactivate scenarios with validation {scenario_ids}: {str(e)}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to deactivate scenarios",
+            )
 
     async def update_scenario_target_flight_schedule_date(
         self, db: AsyncSession, scenario_id: str, date: str

@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 # Application
 from app.libs.containers import Container
-from app.libs.dependencies import verify_token
+from packages.supabase.dependencies import verify_token
 from app.libs.exceptions import BadRequestException
 from app.routes.simulation.application.service import SimulationService
 from app.routes.simulation.interface.schema import (
@@ -23,6 +23,7 @@ from app.routes.simulation.interface.schema import (
     SimulationScenarioBody,
 )
 from packages.supabase.database import aget_supabase_session
+from packages.supabase.dependencies import verify_scenario_ownership
 from packages.redshift.client import get_redshift_connection
 
 private_simulation_router = APIRouter(
@@ -109,27 +110,16 @@ async def create_scenario(
 )
 @inject
 async def update_scenario(
-    request: Request,
-    scenario_id: str,
     scenario: ScenarioUpdateBody,
+    scenario_id: str = Depends(
+        verify_scenario_ownership
+    ),  # 🔧 @inject 추가된 의존성 재테스트!
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
     logger.info(f"PUT /simulations/{scenario_id} called with data: {scenario}")
 
-    if not scenario_id:
-        raise BadRequestException("Scenario ID is required")
-
-    # 🔒 시나리오 존재 여부 및 권한 검증
-    scenario_exists = await sim_service.validate_scenario_exists(
-        db, scenario_id, request.state.user_id
-    )
-    if not scenario_exists:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Scenario '{scenario_id}' not found or you don't have permission to access it.",
-        )
-
+    # ✅ 권한 검증은 의존성에서 이미 처리됨, 바로 비즈니스 로직 실행
     await sim_service.update_scenario_information(
         db=db,
         scenario_id=scenario_id,
@@ -155,23 +145,10 @@ async def delete_scenarios(
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
-    # 🔒 각 시나리오에 대한 권한 검증
-    for scenario_id in scenario_ids.scenario_ids:
-        scenario_exists = await sim_service.validate_scenario_exists(
-            db, scenario_id, request.state.user_id
-        )
-        if not scenario_exists:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Scenario '{scenario_id}' not found or you don't have permission to access it.",
-            )
-    
-    await sim_service.deactivate_scenario_information(
-        db=db, ids=scenario_ids.scenario_ids
+    # ✅ Service layer에서 bulk 권한 검증과 삭제를 일괄 처리
+    await sim_service.deactivate_scenario_information_with_validation(
+        db=db, scenario_ids=scenario_ids.scenario_ids, user_id=request.state.user_id
     )
-
-
-
 
 
 # =====================================
@@ -187,26 +164,13 @@ async def delete_scenarios(
 )
 @inject
 async def fetch_scenario_flight_schedule(
-    request: Request,
-    scenario_id: str,
     flight_schedule: FlightScheduleBody,
+    scenario_id: str = Depends(verify_scenario_ownership),  # ✅ 의존성 방식으로 통일
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     redshift_db: Connection = Depends(get_redshift_connection),
     supabase_db: AsyncSession = Depends(aget_supabase_session),
 ):
-    if not scenario_id:
-        raise BadRequestException("Scenario ID is required")
-
-    # 🔒 시나리오 존재 여부 및 권한 검증
-    scenario_exists = await sim_service.validate_scenario_exists(
-        supabase_db, scenario_id, request.state.user_id
-    )
-    if not scenario_exists:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Scenario '{scenario_id}' not found or you don't have permission to access it.",
-        )
-
+    # ✅ 권한 검증은 의존성에서 이미 처리됨, 바로 비즈니스 로직 실행
     try:
         # 디버그용 로그
         logger.info(f"🛩️ Flight Schedule Request - scenario_id: {scenario_id}")
@@ -264,26 +228,13 @@ async def fetch_scenario_flight_schedule(
 )
 @inject
 async def generate_passenger_schedule(
-    request: Request,
-    scenario_id: str,
     passenger_schedule: PassengerScheduleBody,
+    scenario_id: str = Depends(verify_scenario_ownership),  # ✅ 의존성 방식으로 통일
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
     """승객 스케줄 생성 - pax_simple.json 구조 기반"""
-    if not scenario_id:
-        raise BadRequestException("Scenario ID is required")
-
-    # 🔒 시나리오 존재 여부 및 권한 검증
-    scenario_exists = await sim_service.validate_scenario_exists(
-        db, scenario_id, request.state.user_id
-    )
-    if not scenario_exists:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Scenario '{scenario_id}' not found or you don't have permission to access it.",
-        )
-
+    # ✅ 권한 검증은 의존성에서 이미 처리됨, 바로 비즈니스 로직 실행
     try:
         # PassengerScheduleBody를 dict로 변환
         config = passenger_schedule.model_dump()
@@ -316,26 +267,13 @@ async def generate_passenger_schedule(
 )
 @inject
 async def run_simulation(
-    request: Request,
-    scenario_id: str,
     simulation_request: RunSimulationBody,
+    scenario_id: str = Depends(verify_scenario_ownership),  # ✅ 의존성 방식으로 통일
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
     """시뮬레이션 실행 - SQS 메시지 전송을 통한 Lambda 트리거"""
-    if not scenario_id:
-        raise BadRequestException("Scenario ID is required")
-
-    # 🔒 시나리오 존재 여부 및 권한 검증
-    scenario_exists = await sim_service.validate_scenario_exists(
-        db, scenario_id, request.state.user_id
-    )
-    if not scenario_exists:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Scenario '{scenario_id}' not found or you don't have permission to access it.",
-        )
-
+    # ✅ 권한 검증은 의존성에서 이미 처리됨, 바로 비즈니스 로직 실행
     try:
         # 시뮬레이션 실행 요청 - SQS 메시지 전송
         result = await sim_service.run_simulation(
@@ -371,28 +309,15 @@ async def run_simulation(
 )
 @inject
 async def save_scenario_metadata(
-    request: Request,
-    scenario_id: str,
     metadata: dict,
+    scenario_id: str = Depends(verify_scenario_ownership),  # ✅ 의존성 방식으로 통일
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
-    if not scenario_id:
-        raise BadRequestException("Scenario ID is required")
-
     if not metadata:
         raise BadRequestException("Metadata is required")
 
-    # 🔒 시나리오 존재 여부 및 권한 검증
-    scenario_exists = await sim_service.validate_scenario_exists(
-        db, scenario_id, request.state.user_id
-    )
-    if not scenario_exists:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Scenario '{scenario_id}' not found or you don't have permission to access it.",
-        )
-
+    # ✅ 권한 검증은 의존성에서 이미 처리됨, 바로 비즈니스 로직 실행
     return await sim_service.save_scenario_metadata(scenario_id, metadata)
 
 
@@ -404,22 +329,9 @@ async def save_scenario_metadata(
 )
 @inject
 async def load_scenario_metadata(
-    request: Request,
-    scenario_id: str,
+    scenario_id: str = Depends(verify_scenario_ownership),  # ✅ 의존성 방식으로 통일
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
-    if not scenario_id:
-        raise BadRequestException("Scenario ID is required")
-
-    # 🔒 시나리오 존재 여부 및 권한 검증
-    scenario_exists = await sim_service.validate_scenario_exists(
-        db, scenario_id, request.state.user_id
-    )
-    if not scenario_exists:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Scenario '{scenario_id}' not found or you don't have permission to access it.",
-        )
-
+    # ✅ 권한 검증은 의존성에서 이미 처리됨, 바로 비즈니스 로직 실행
     return await sim_service.load_scenario_metadata(scenario_id)

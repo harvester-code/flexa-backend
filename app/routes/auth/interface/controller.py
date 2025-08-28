@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from app.libs.dependencies import verify_token
+from packages.supabase.dependencies import verify_token
 from packages.supabase.auth import sign_in_with_password
 
 auth_router = APIRouter(

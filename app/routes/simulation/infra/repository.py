@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import List
 
 # Third Party
-from sqlalchemy import bindparam, text, update
+from sqlalchemy import bindparam, update, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -41,30 +41,56 @@ class SimulationRepository(ISimulationRepository):
     ):
         """시나리오 목록 조회 (현재 사용자의 모든 시나리오)"""
         async with db.begin():
-            # 현재 유저의 모든 시나리오 조회 (그룹 개념 제거)
-            result = await db.execute(
-                text(
-                    """
-                    SELECT 
-                        si.*,
-                        ui.first_name,
-                        ui.last_name,
-                        ui.email
-                    FROM scenario_information si
-                    JOIN user_information ui ON si.user_id = ui.user_id
-                    WHERE si.user_id = :user_id 
-                        AND si.is_active = true
-                    ORDER BY si.updated_at DESC
-                    LIMIT 50
-                """
-                ),
-                {"user_id": user_id},
+            # ORM을 사용한 JOIN 쿼리
+            stmt = (
+                select(
+                    ScenarioInformation,
+                    UserInformation.first_name,
+                    UserInformation.last_name,
+                    UserInformation.email,
+                )
+                .join(
+                    UserInformation,
+                    ScenarioInformation.user_id == UserInformation.user_id,
+                )
+                .where(
+                    and_(
+                        ScenarioInformation.user_id == user_id,
+                        ScenarioInformation.is_active == True,
+                    )
+                )
+                .order_by(ScenarioInformation.updated_at.desc())
+                .limit(50)
             )
+
+            result = await db.execute(stmt)
 
             # 결과를 리스트로 반환
             scenarios = []
-            for row in result.mappings():
-                scenario_dict = dict(row)
+            for row in result:
+                scenario_info = row[0]  # ScenarioInformation 객체
+                scenario_dict = {
+                    # ScenarioInformation 필드들
+                    "id": scenario_info.id,
+                    "scenario_id": scenario_info.scenario_id,
+                    "user_id": str(scenario_info.user_id),
+                    "editor": scenario_info.editor,
+                    "name": scenario_info.name,
+                    "terminal": scenario_info.terminal,
+                    "airport": scenario_info.airport,
+                    "memo": scenario_info.memo,
+                    "target_flight_schedule_date": scenario_info.target_flight_schedule_date,
+                    "status": scenario_info.status,
+                    "is_active": scenario_info.is_active,
+                    "simulation_start_at": scenario_info.simulation_start_at,
+                    "simulation_end_at": scenario_info.simulation_end_at,
+                    "created_at": scenario_info.created_at,
+                    "updated_at": scenario_info.updated_at,
+                    # UserInformation 필드들
+                    "first_name": row[1],
+                    "last_name": row[2],
+                    "email": row[3],
+                }
                 scenarios.append(scenario_dict)
 
             return scenarios
@@ -91,14 +117,14 @@ class SimulationRepository(ISimulationRepository):
 
         db.add(new_scenario)
         await db.commit()
-        
+
         return {
             "scenario_id": new_scenario.scenario_id,
             "name": new_scenario.name,
             "editor": new_scenario.editor,
             "terminal": new_scenario.terminal,
             "airport": new_scenario.airport,
-            "memo": new_scenario.memo
+            "memo": new_scenario.memo,
         }
 
     async def update_scenario_information(
@@ -140,8 +166,6 @@ class SimulationRepository(ISimulationRepository):
         )
         await db.execute(stmt, {"ids": ids})
         await db.commit()
-
-
 
     # =====================================
     # 2. 항공편 스케줄 처리 (Flight Schedule)
@@ -297,19 +321,19 @@ class SimulationRepository(ISimulationRepository):
 
         try:
             if user_id:
-                # 사용자 권한까지 확인 (해당 사용자의 시나리오인지 확인)
-                result = await db.execute(
-                    text(
-                        """
-                        SELECT COUNT(*) as count
-                        FROM scenario_information si
-                        WHERE si.scenario_id = :scenario_id 
-                            AND si.user_id = :current_user_id
-                            AND si.is_active = true
-                    """
-                    ),
-                    {"scenario_id": scenario_id, "current_user_id": user_id},
+                # 사용자 권한까지 확인 (해당 사용자의 시나리오인지 확인) - ORM 사용
+                stmt = (
+                    select(func.count())
+                    .select_from(ScenarioInformation)
+                    .where(
+                        and_(
+                            ScenarioInformation.scenario_id == scenario_id,
+                            ScenarioInformation.user_id == user_id,
+                            ScenarioInformation.is_active == True,
+                        )
+                    )
                 )
+                result = await db.execute(stmt)
                 count = result.scalar_one_or_none()
                 return count > 0 if count else False
             else:

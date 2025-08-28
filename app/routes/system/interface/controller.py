@@ -1,5 +1,5 @@
 from fastapi import APIRouter, status
-from packages.response import SuccessResponse
+from app.libs.response import SuccessResponse
 
 system_router = APIRouter()
 
