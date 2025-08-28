@@ -13,6 +13,7 @@ class Container(containers.DeclarativeContainer):
         packages=[
             "app.routes.home",
             "app.routes.simulation",
+            "packages.supabase",  # 🔧 Supabase 패키지 추가
         ]
     )
 

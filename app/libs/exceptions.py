@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Request, status
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.responses import JSONResponse
 
-from packages.response import ErrorResponse
+from app.libs.response import ErrorResponse
 
 
 # ==================================================

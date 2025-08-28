@@ -6,10 +6,11 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.libs.jwt_decode import decode_jwt
+from packages.aws.lambda_service.auth import decode_jwt
+from packages.supabase.auth import decode_supabase_token
+
 # API 상수
 API_PREFIX = "/api/v1"
-from packages.supabase.auth import decode_supabase_token
 
 PROTECTED_PATHS = [
     f"{API_PREFIX}/simulations",
