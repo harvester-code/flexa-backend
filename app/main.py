@@ -17,6 +17,7 @@ from app.routes.simulation.interface.controller import (
 )
 from app.routes.system.interface.controller import system_router
 from packages.doppler.client import get_secret
+from packages.redshift.lifespan import lifespan
 
 # 애플리케이션 상수
 API_PREFIX = "/api/v1"
@@ -36,9 +37,10 @@ ALLOW_ORIGINS_MAP = {
 setup_logging()
 setup_memory_monitor()
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 app.container = Container()
+app.container.wire()  # 🔧 의존성 주입 활성화!
 
 app.add_middleware(
     CORSMiddleware,
