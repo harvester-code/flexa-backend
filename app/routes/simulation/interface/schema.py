@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -81,3 +81,25 @@ class RunSimulationBody(BaseModel):
     """
 
     process_flow: List[Dict[str, Any]]  # 공항 프로세스 단계별 설정
+
+
+class FlightFiltersResponse(BaseModel):
+    """
+    항공편 필터링 메타데이터 응답 스키마
+
+    Departure/Arrival 모드별 필터 옵션을 제공합니다:
+    - departure: ICN에서 출발하는 편들의 필터 (어느 터미널에서 출발? 어디로 가는가?)
+    - arrival: ICN에 도착하는 편들의 필터 (어느 터미널에 도착? 어디서 출발?)
+    """
+
+    # Request context (for data identification and tracking)
+    airport: str  # Airport IATA code (e.g., "ICN")
+    date: str  # Target date (YYYY-MM-DD)
+    scenario_id: str  # Scenario identifier for tracking and data management
+
+    # Flight data summary
+    total_flights: int
+    airlines: Dict[str, str]  # Airlines mapping: {"KE": "Korean Air", "7C": "Jeju Air"}
+
+    # Filter options
+    filters: Dict[str, Any]  # {"departure": {...}, "arrival": {...}}

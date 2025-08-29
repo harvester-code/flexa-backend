@@ -3,7 +3,7 @@ from typing import List
 
 # Third Party
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from loguru import logger
 from sqlalchemy import Connection
 from sqlalchemy.exc import SQLAlchemyError
@@ -16,6 +16,7 @@ from app.libs.exceptions import BadRequestException
 from app.routes.simulation.application.service import SimulationService
 from app.routes.simulation.interface.schema import (
     FlightScheduleBody,
+    FlightFiltersResponse,
     PassengerScheduleBody,
     RunSimulationBody,
     ScenarioDeactivateBody,
@@ -335,3 +336,58 @@ async def load_scenario_metadata(
 ):
     # ✅ 권한 검증은 의존성에서 이미 처리됨, 바로 비즈니스 로직 실행
     return await sim_service.load_scenario_metadata(scenario_id)
+
+
+# =====================================
+# 6. 항공편 필터링 메타데이터 (Flight Filters)
+# =====================================
+
+
+@private_simulation_router.get(
+    "/{scenario_id}/flight-filters",
+    status_code=status.HTTP_200_OK,
+    response_model=FlightFiltersResponse,
+    summary="항공편 필터링 메타데이터 조회",
+    description="시나리오별 항공편 필터링 옵션을 제공합니다. Departure/Arrival 모드별로 사용 가능한 필터들(터미널, 지역, 항공사 등)과 각 필터별 항공편 수를 반환합니다.",
+)
+@inject
+async def get_flight_filters(
+    scenario_id: str = Depends(verify_scenario_ownership),  # ✅ 권한 검증
+    airport: str = Query("ICN", description="공항 IATA 코드 (예: ICN)"),
+    date: str = Query("2025-08-29", description="대상 날짜 (YYYY-MM-DD)"),
+    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
+    redshift_db: Connection = Depends(get_redshift_connection),
+    db: AsyncSession = Depends(aget_supabase_session),
+):
+    """
+    항공편 필터링 메타데이터 조회
+
+    사용자가 항공편을 필터링할 수 있는 모든 옵션을 제공합니다:
+    - departure: ICN 출발편 필터들 (출발터미널, 도착지역/국가 등)
+    - arrival: ICN 도착편 필터들 (도착터미널, 출발지역/국가 등)
+
+    각 필터별로 항공편 수와 실제 편명 리스트도 함께 제공됩니다.
+    """
+    try:
+        logger.info(f"🔍 Flight filters request - scenario_id: {scenario_id}")
+        logger.info(f"📍 Parameters: airport={airport}, date={date}")
+
+        # ✅ 권한 검증은 의존성에서 이미 처리됨, 바로 비즈니스 로직 실행
+        filters_metadata = await sim_service.get_flight_filters_metadata(
+            redshift_db=redshift_db, scenario_id=scenario_id, airport=airport, date=date
+        )
+
+        logger.info(
+            f"✅ Flight filters generated successfully for scenario {scenario_id}"
+        )
+        return filters_metadata
+
+    except HTTPException:
+        # HTTPException은 그대로 재발생
+        raise
+    except Exception as e:
+        logger.error(f"❌ Unexpected error in flight filters: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred while generating flight filters.",
+        )

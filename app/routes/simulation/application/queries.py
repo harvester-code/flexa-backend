@@ -60,6 +60,7 @@ SELECT
 FROM flights_extended fe
 LEFT JOIN airports dep_apt ON fe.departure_airport_iata = dep_apt.airport_iata
 LEFT JOIN airports arr_apt ON fe.arrival_airport_iata = arr_apt.airport_iata
+LEFT JOIN carriers c ON c.carrier_icao = fe.operating_carrier_icao
 WHERE fe.flight_date_local = %s
 AND (fe.departure_airport_iata = %s OR fe.arrival_airport_iata = %s)
 AND (COALESCE(fe.first_class_seat_count,0) + 
@@ -124,7 +125,7 @@ SELECT
 FROM schedule s
 LEFT JOIN airports dep_apt ON s.departure_station_code_iata = dep_apt.airport_iata
 LEFT JOIN airports arr_apt ON s.arrival_station_code_iata = arr_apt.airport_iata
-LEFT JOIN carriers c ON c.carrier_iata = s.operating_carrier_iata
+LEFT JOIN carriers c ON c.carrier_id = s.operating_carrier_id
 WHERE s.operating_date_local = %s
 AND (s.departure_station_code_iata = %s OR s.arrival_station_code_iata = %s)
 AND s.total_seats > 0
