@@ -338,6 +338,22 @@ async def load_scenario_metadata(
     return await sim_service.load_scenario_metadata(scenario_id)
 
 
+@private_simulation_router.delete(
+    "/{scenario_id}/metadata",
+    status_code=status.HTTP_200_OK,
+    summary="시나리오 메타데이터 S3 삭제",
+    description="S3에서 시나리오 메타데이터를 삭제합니다",
+)
+@inject
+async def delete_scenario_metadata(
+    scenario_id: str = Depends(verify_scenario_ownership),  # ✅ 의존성 방식으로 통일
+    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
+    db: AsyncSession = Depends(aget_supabase_session),
+):
+    # ✅ 권한 검증은 의존성에서 이미 처리됨, 바로 비즈니스 로직 실행
+    return await sim_service.delete_scenario_metadata(scenario_id)
+
+
 # =====================================
 # 6. 항공편 필터링 메타데이터 (Flight Filters)
 # =====================================

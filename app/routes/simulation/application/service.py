@@ -418,6 +418,51 @@ class SimulationService:
                 detail=f"Failed to load metadata from S3: {str(e)}",
             )
 
+    async def delete_scenario_metadata(self, scenario_id: str):
+        """S3에서 시나리오 메타데이터 삭제"""
+        try:
+            from datetime import datetime
+
+            bucket_name = get_secret("AWS_S3_BUCKET_NAME")
+            s3_key = f"{scenario_id}/metadata-for-frontend.json"
+            s3_client = boto3_session.client("s3")
+
+            try:
+                # S3에서 객체 삭제
+                s3_client.delete_object(Bucket=bucket_name, Key=s3_key)
+
+                logger.info(
+                    f"Successfully deleted metadata from S3: s3://{bucket_name}/{s3_key}"
+                )
+
+                return {
+                    "message": "Metadata deleted successfully",
+                    "scenario_id": scenario_id,
+                    "s3_key": s3_key,
+                    "bucket": bucket_name,
+                    "deleted_at": datetime.now().isoformat(),
+                }
+
+            except s3_client.exceptions.NoSuchKey:
+                # 파일이 이미 없는 경우 - 성공으로 처리
+                logger.info(
+                    f"Metadata file for scenario {scenario_id} was already deleted or does not exist"
+                )
+                return {
+                    "message": "Metadata was already deleted or does not exist",
+                    "scenario_id": scenario_id,
+                    "s3_key": s3_key,
+                    "bucket": bucket_name,
+                    "deleted_at": datetime.now().isoformat(),
+                }
+
+        except Exception as e:
+            logger.error(f"Failed to delete metadata from S3: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to delete metadata from S3: {str(e)}",
+            )
+
     async def get_flight_filters_metadata(
         self, redshift_db: Connection, scenario_id: str, airport: str, date: str
     ) -> dict:
