@@ -196,8 +196,14 @@ class ShowUpPassengerStorage:
 
     def _assign_demographic_value(
         self, pax_row: pd.Series, distribution_type: str, distribution_config: Dict
-    ) -> str:
-        """개별 승객의 인구통계 값 할당"""
+    ):
+        """
+        개별 승객의 인구통계 값 할당
+        
+        Returns:
+            str: 할당된 인구통계 값
+            None: distribution이 설정되지 않은 경우 (pandas에서 NaN으로 처리됨)
+        """
         rules = distribution_config.get("rules", [])
 
         # 조건 확인
@@ -217,7 +223,9 @@ class ShowUpPassengerStorage:
             probs = list(default.values())
             return np.random.choice(values, p=probs)
 
-        return "Unknown"
+        # distribution이 설정되지 않은 경우 None 반환 (pandas에서 NaN으로 처리)
+        logger.debug(f"No distribution found for {distribution_type}, returning None (will be NaN in pandas)")
+        return None
 
     async def _assign_show_up_times(
         self, pax_df: pd.DataFrame, config: Dict

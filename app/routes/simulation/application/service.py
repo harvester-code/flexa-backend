@@ -332,10 +332,25 @@ class SimulationService:
     # =====================================
 
     async def save_scenario_metadata(self, scenario_id: str, metadata: dict):
-        """시나리오 메타데이터를 S3에 저장"""
+        """
+        시나리오 메타데이터를 S3에 저장
+        
+        메타데이터 구조:
+        - tabs: 각 탭별 백엔드 body 데이터
+        - simulationUI: UI 전용 상태 데이터 (parquetMetadata 등)
+        """
         try:
             import json
             from datetime import datetime
+
+            # 메타데이터 구조 로깅 (디버깅용)
+            tabs_count = len(metadata.get("tabs", {}))
+            has_simulation_ui = "simulationUI" in metadata
+            
+            logger.info(
+                f"💾 Saving metadata for scenario {scenario_id}: "
+                f"{tabs_count} tabs, simulationUI: {has_simulation_ui}"
+            )
 
             # JSON 문자열로 변환
             json_content = json.dumps(metadata, ensure_ascii=False, indent=2)
@@ -405,7 +420,14 @@ class SimulationService:
                 )
                 return {
                     "scenario_id": scenario_id,
-                    "metadata": {"tabs": {}},
+                    "metadata": {
+                        "tabs": {},
+                        "simulationUI": {
+                            "flightSchedule": {},
+                            "passengerSchedule": {},
+                            "processingProcedures": {}
+                        }
+                    },
                     "s3_key": s3_key,
                     "loaded_at": datetime.now().isoformat(),
                 }
@@ -419,7 +441,13 @@ class SimulationService:
             )
 
     async def delete_scenario_metadata(self, scenario_id: str):
-        """S3에서 시나리오 메타데이터 삭제"""
+        """
+        S3에서 시나리오 메타데이터 삭제
+        
+        모든 메타데이터를 삭제합니다:
+        - tabs: 각 탭별 백엔드 body 데이터  
+        - simulationUI: UI 전용 상태 데이터
+        """
         try:
             from datetime import datetime
 
