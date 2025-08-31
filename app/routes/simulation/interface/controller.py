@@ -231,7 +231,7 @@ async def fetch_scenario_flight_schedule(
         # 디버그용 로그
         logger.info(f"🛩️ Flight Schedule Request - scenario_id: {scenario_id}")
         logger.info(
-            f"📍 Request params: airport={flight_schedule.airport}, date={flight_schedule.date}"
+            f"📍 Request params: airport={flight_schedule.airport}, date={flight_schedule.date}, type={flight_schedule.type}"
         )
         logger.info(f"🔍 Conditions: {flight_schedule.conditions}")
 
@@ -239,6 +239,7 @@ async def fetch_scenario_flight_schedule(
             redshift_db,
             flight_schedule.date,
             flight_schedule.airport,
+            flight_schedule.type,
             flight_schedule.conditions,
             scenario_id=scenario_id,
         )
