@@ -152,10 +152,7 @@ class FlightScheduleStorage:
                         values = cond["values"]
                         flight_value = flight.get(field)
 
-                        if flight_value is None:
-                            include_flight = False
-                            break
-
+                        # 🔧 NULL 값도 올바르게 비교 (None in [None] 허용)
                         # values 중 하나라도 매치되면 됨 (OR 조건)
                         if flight_value not in values:
                             include_flight = False
@@ -169,16 +166,11 @@ class FlightScheduleStorage:
         return flight_schedule_data
 
     def _convert_filter_conditions(self, filter_conditions: list) -> list:
-        """필터 조건을 데이터베이스 컬럼명으로 매핑"""
+        """✅ 필터 조건을 그대로 사용 (매핑 제거) + unknown → NULL 변환"""
         if not filter_conditions:
             return []
 
-        field_mapping = {
-            "types": "flight_type",
-            "terminal": "departure_terminal",  # 기본값, flight_type에 따라 동적으로 변경됨
-            "airline": "operating_carrier_iata",
-        }
-
+        # ✅ 매핑 없이 받은 컬럼명 그대로 사용
         converted = []
         for filter_cond in filter_conditions:
             field = (
@@ -192,8 +184,16 @@ class FlightScheduleStorage:
                 else filter_cond.values
             )
 
-            if mapped_field := field_mapping.get(field):
-                converted.append({"field": mapped_field, "values": values})
+            # 🆕 범용 로직: 모든 "unknown" 값을 NULL로 변환
+            processed_values = []
+            for value in values:
+                if value == "unknown":
+                    processed_values.append(None)  # NULL 조건으로 변환
+                else:
+                    processed_values.append(value)
+
+            # ✅ 변환된 조건 추가
+            converted.append({"field": field, "values": processed_values})
 
         return converted
 
