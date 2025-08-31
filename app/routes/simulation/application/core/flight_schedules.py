@@ -235,12 +235,16 @@ class FlightScheduleResponse:
         # 차트 데이터 생성 (flight_type에 따라 구분)
         chart_data = await self._build_chart_data(flight_df, flight_type)
 
+        # Parquet 메타데이터 생성 (Passenger Schedule에서 사용)
+        parquet_metadata = self._build_parquet_metadata(flight_df)
+
         return {
             "total": len(flight_df),
             "types": types_data,
             "terminals": terminals_data,
             "chart_x_data": chart_data.get("x_data", []),
             "chart_y_data": chart_data.get("y_data", {}),
+            "parquet_metadata": parquet_metadata,
         }
 
     def _get_empty_response(self) -> dict:
@@ -251,6 +255,7 @@ class FlightScheduleResponse:
             "terminals": {},
             "chart_x_data": [],
             "chart_y_data": {},
+            "parquet_metadata": {"columns": []},
         }
 
     def _build_airline_types(self, flight_df: pd.DataFrame) -> dict:
@@ -427,3 +432,54 @@ class FlightScheduleResponse:
         ]
 
         return {"traces": traces, "default_x": default_x}
+
+    def _build_parquet_metadata(self, flight_df: pd.DataFrame) -> dict:
+        """
+        Parquet 파일의 컬럼별 유니크값 메타데이터 생성
+        
+        Passenger Schedule에서 동적 조건 설정을 위해 사용됩니다.
+        각 컬럼의 고유값들을 추출하여 프론트엔드에서 드롭다운 옵션으로 활용할 수 있도록 합니다.
+        
+        Args:
+            flight_df: 항공편 스케줄 DataFrame
+            
+        Returns:
+            컬럼별 메타데이터 딕셔너리
+        """
+        if flight_df.empty:
+            return {"columns": []}
+        
+        columns = []
+        
+        for column_name in flight_df.columns:
+            try:
+                # NaN 값 제거 후 유니크값 추출
+                unique_values = flight_df[column_name].dropna().unique()
+                
+                # numpy 타입을 Python 기본 타입으로 변환 (JSON 직렬화 대응)
+                unique_values_list = [
+                    str(value) if pd.notna(value) else None 
+                    for value in unique_values
+                ]
+                
+                # None 값 제거 및 정렬
+                unique_values_list = sorted([v for v in unique_values_list if v is not None])
+                
+                columns.append({
+                    "name": column_name,
+                    "unique_values": unique_values_list,
+                    "count": len(unique_values_list)
+                })
+                
+            except Exception as e:
+                logger.warning(f"컬럼 '{column_name}' 메타데이터 생성 실패: {str(e)}")
+                # 에러가 발생한 컬럼은 빈 유니크값으로 처리
+                columns.append({
+                    "name": column_name,
+                    "unique_values": [],
+                    "count": 0
+                })
+        
+        logger.info(f"📊 Parquet 메타데이터 생성 완료: {len(columns)}개 컬럼")
+        
+        return {"columns": columns}
