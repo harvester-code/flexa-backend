@@ -99,7 +99,9 @@ class FlightFiltersResponse(BaseModel):
 
     # Flight data summary
     total_flights: int
-    airlines: Dict[str, str]  # Airlines mapping: {"KE": "Korean Air", "7C": "Jeju Air"}
-
-    # Filter options
+    
+    # Filter options (먼저 나와야 함)
     filters: Dict[str, Any]  # {"departure": {...}, "arrival": {...}}
+    
+    # Airlines mapping (나중에 나와야 함)
+    airlines: Dict[str, str]  # Airlines mapping: {"KE": "Korean Air", "7C": "Jeju Air"}

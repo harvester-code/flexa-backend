@@ -83,8 +83,8 @@ class FlightFiltersResponse:
             "scenario_id": scenario_id,
             # Flight data summary
             "total_flights": total_flights,
-            "airlines": airlines,
             "filters": {"departure": departure_filters, "arrival": arrival_filters},
+            "airlines": airlines,
         }
 
         # 4. Save raw flight data to S3 (temporary)
@@ -223,17 +223,12 @@ class FlightFiltersResponse:
             departure_data, "departure_terminal", "unknown"
         )
 
-        # 2. Group by arrival region
-        filters["arrival_region"] = self._group_by_field(
-            departure_data, "arrival_region", "Unknown"
+        # 2. Group by arrival region with nested countries (NEW!)
+        filters["arrival_region"] = self._group_by_region_with_countries(
+            departure_data, "arrival_region", "arrival_country", "Unknown"
         )
 
-        # 3. Group by arrival country
-        filters["arrival_country"] = self._group_by_field(
-            departure_data, "arrival_country", "Unknown"
-        )
-
-        # 4. Group by flight type
+        # 3. Group by flight type
         filters["flight_type"] = self._group_by_field(
             departure_data, "flight_type", "Unknown"
         )
@@ -255,17 +250,12 @@ class FlightFiltersResponse:
             arrival_data, "arrival_terminal", "unknown"
         )
 
-        # 2. Group by departure region
-        filters["departure_region"] = self._group_by_field(
-            arrival_data, "departure_region", "Unknown"
+        # 2. Group by departure region with nested countries (NEW!)
+        filters["departure_region"] = self._group_by_region_with_countries(
+            arrival_data, "departure_region", "departure_country", "Unknown"
         )
 
-        # 3. Group by departure country
-        filters["departure_country"] = self._group_by_field(
-            arrival_data, "departure_country", "Unknown"
-        )
-
-        # 4. Group by flight type
+        # 3. Group by flight type
         filters["flight_type"] = self._group_by_field(
             arrival_data, "flight_type", "Unknown"
         )
@@ -322,6 +312,109 @@ class FlightFiltersResponse:
             }
 
         return result
+
+    def _group_by_region_with_countries(
+        self,
+        flight_data: List[Dict[str, Any]],
+        region_field: str,
+        country_field: str,
+        default_value: str = "Unknown",
+    ) -> Dict[str, Any]:
+        """
+        Group flight data by region, with countries nested inside each region
+        
+        Returns:
+        {
+            "Asia": {
+                "total_flights": 436,
+                "countries": {
+                    "China": {
+                        "total_flights": 15,
+                        "airlines": {...}
+                    },
+                    "Japan": {
+                        "total_flights": 56,
+                        "airlines": {...}
+                    }
+                }
+            },
+            "Europe": {...}
+        }
+        """
+        # Step 1: Group by region
+        region_groups = defaultdict(list)
+        
+        for flight in flight_data:
+            region_value = flight.get(region_field, default_value)
+            if region_value is None or region_value == "":
+                region_value = default_value
+            region_groups[str(region_value)].append(flight)
+        
+        # Step 2: For each region, create nested structure
+        result = {}
+        
+        for region_name, region_flights in region_groups.items():
+            # Step 3: Group region flights by country
+            country_groups = defaultdict(list)
+            for flight in region_flights:
+                country_value = flight.get(country_field, default_value)
+                if country_value is None or country_value == "":
+                    country_value = default_value
+                country_groups[str(country_value)].append(flight)
+            
+            # Step 4: Generate country statistics
+            countries = {}
+            for country_name, country_flights in country_groups.items():
+                # Country level airline statistics
+                country_airlines = defaultdict(list)
+                for flight in country_flights:
+                    airline_code = flight.get("operating_carrier_iata", "XX")
+                    if airline_code:
+                        country_airlines[airline_code].append(flight)
+                
+                # Generate country level airline stats
+                country_airline_stats = {}
+                for airline_code, airline_flights in country_airlines.items():
+                    flight_numbers = [
+                        flight.get("flight_number", 0)
+                        for flight in airline_flights
+                        if flight.get("flight_number")
+                    ]
+                    country_airline_stats[airline_code] = {
+                        "count": len(airline_flights),
+                        "flight_numbers": sorted(flight_numbers),
+                    }
+                
+                countries[country_name] = {
+                    "total_flights": len(country_flights),
+                    "airlines": dict(sorted(country_airline_stats.items())),
+                }
+            
+            # Step 5: Combine region and country data (sort countries by total_flights DESC)
+            sorted_countries = dict(sorted(
+                countries.items(), 
+                key=lambda x: x[1]["total_flights"], 
+                reverse=True  # 많은 순서부터 정렬
+            ))
+            
+            result[region_name] = {
+                "total_flights": len(region_flights),
+                "countries": sorted_countries,
+            }
+        
+        # Step 6: Sort regions by total_flights DESC
+        sorted_result = dict(sorted(
+            result.items(), 
+            key=lambda x: x[1]["total_flights"], 
+            reverse=True  # 많은 순서부터 정렬
+        ))
+        
+        logger.info(f"📊 Generated region-country hierarchy for {region_field}: {len(sorted_result)} regions")
+        for region_name, region_data in sorted_result.items():
+            countries_count = len(region_data["countries"])
+            logger.info(f"  - {region_name}: {region_data['total_flights']} flights, {countries_count} countries")
+        
+        return sorted_result
 
     async def _save_flight_data_to_s3(
         self, flight_data: List[Dict[str, Any]], scenario_id: str
