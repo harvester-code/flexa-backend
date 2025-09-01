@@ -140,8 +140,13 @@ class FlightScheduleStorage:
             flight_schedule_df = pd.DataFrame(rows, columns=columns)
             flight_schedule_data = flight_schedule_df.to_dict("records")
 
-            # 조건 필터링 (field들은 AND, values는 OR 조건)
-            if conditions:
+            # 🚨 대량 데이터 보호: 조건 없으면 최대 500개로 제한
+            if not conditions:
+                if len(flight_schedule_data) > 500:
+                    print(f"⚠️ Large dataset detected ({len(flight_schedule_data)} rows). Limiting to 500 for performance.")
+                    flight_schedule_data = flight_schedule_data[:500]
+            else:
+                # 조건 필터링 (field들은 AND, values는 OR 조건)
                 filtered_data = []
                 for flight in flight_schedule_data:
                     include_flight = True
@@ -220,17 +225,11 @@ class FlightScheduleResponse:
         applied_conditions: list | None,
         flight_type: str,
     ) -> dict:
-        """항공편 스케줄 응답 데이터 구성"""
+        """항공편 스케줄 응답 데이터 구성 (차트 + 메타데이터 전용)"""
         if not flight_schedule_data:
             return self._get_empty_response()
 
         flight_df = pd.DataFrame(flight_schedule_data)
-
-        # 항공사별 타입 분류
-        types_data = self._build_airline_types(flight_df)
-
-        # 터미널별 항공사 분류 (flight_type에 따라 구분)
-        terminals_data = self._build_terminal_airlines(flight_df, flight_type)
 
         # 차트 데이터 생성 (flight_type에 따라 구분)
         chart_data = await self._build_chart_data(flight_df, flight_type)
@@ -240,105 +239,19 @@ class FlightScheduleResponse:
 
         return {
             "total": len(flight_df),
-            "types": types_data,
-            "terminals": terminals_data,
             "chart_x_data": chart_data.get("x_data", []),
             "chart_y_data": chart_data.get("y_data", {}),
             "parquet_metadata": parquet_metadata,
         }
 
     def _get_empty_response(self) -> dict:
-        """빈 응답 데이터 반환"""
+        """빈 응답 데이터 반환 (차트 + 메타데이터 전용)"""
         return {
             "total": 0,
-            "types": {},
-            "terminals": {},
             "chart_x_data": [],
             "chart_y_data": {},
             "parquet_metadata": {"columns": []},
         }
-
-    def _build_airline_types(self, flight_df: pd.DataFrame) -> dict:
-        """항공사별 타입 분류"""
-        # 항공사별 고유 데이터 추출
-        airline_df = flight_df[
-            ["operating_carrier_iata", "operating_carrier_name", "flight_type"]
-        ].drop_duplicates()
-
-        # 타입별 항공사 분류
-        international_mask = airline_df["flight_type"] == "International"
-        domestic_mask = airline_df["flight_type"] == "Domestic"
-
-        international_airlines = (
-            airline_df[international_mask][
-                ["operating_carrier_iata", "operating_carrier_name"]
-            ]
-            .rename(
-                columns={
-                    "operating_carrier_iata": "iata",
-                    "operating_carrier_name": "name",
-                }
-            )
-            .to_dict("records")
-        )
-
-        domestic_airlines = (
-            airline_df[domestic_mask][
-                ["operating_carrier_iata", "operating_carrier_name"]
-            ]
-            .rename(
-                columns={
-                    "operating_carrier_iata": "iata",
-                    "operating_carrier_name": "name",
-                }
-            )
-            .to_dict("records")
-        )
-
-        return {
-            "International": international_airlines,
-            "Domestic": domestic_airlines,
-        }
-
-    def _build_terminal_airlines(
-        self, flight_df: pd.DataFrame, flight_type: str = "departure"
-    ) -> dict:
-        """터미널별 항공사 분류 - departure/arrival 구분"""
-        # flight_type에 따라 사용할 터미널 컬럼 결정
-        terminal_column = f"{flight_type}_terminal"
-
-        if terminal_column not in flight_df.columns:
-            return {}
-
-        # 터미널별 항공사 그룹화 (중복 제거)
-        terminal_groups = (
-            flight_df[
-                [
-                    terminal_column,
-                    "operating_carrier_iata",
-                    "operating_carrier_name",
-                ]
-            ]
-            .fillna({terminal_column: "unknown"})
-            .drop_duplicates()
-            .groupby(terminal_column)
-        )
-
-        terminals = {}
-        for terminal, group in terminal_groups:
-            airlines = (
-                group[["operating_carrier_iata", "operating_carrier_name"]]
-                .rename(
-                    columns={
-                        "operating_carrier_iata": "iata",
-                        "operating_carrier_name": "name",
-                    }
-                )
-                .to_dict("records")
-            )
-            terminals[terminal] = airlines
-
-        return terminals
 
     async def _build_chart_data(
         self, flight_df: pd.DataFrame, flight_type: str = "departure"

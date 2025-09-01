@@ -414,23 +414,14 @@ class SimulationService:
                 }
 
             except s3_client.exceptions.NoSuchKey:
-                # 파일이 없는 경우 - 새 시나리오이므로 빈 메타데이터 반환
+                # 파일이 없는 경우 - 404 반환하여 프론트엔드에서 초기 상태 사용
                 logger.info(
-                    f"No metadata file found for scenario {scenario_id} - returning empty metadata"
+                    f"No metadata file found for scenario {scenario_id} - returning 404"
                 )
-                return {
-                    "scenario_id": scenario_id,
-                    "metadata": {
-                        "tabs": {},
-                        "simulationUI": {
-                            "flightSchedule": {},
-                            "passengerSchedule": {},
-                            "processingProcedures": {}
-                        }
-                    },
-                    "s3_key": s3_key,
-                    "loaded_at": datetime.now().isoformat(),
-                }
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="No saved metadata found for this scenario"
+                )
 
         except Exception as e:
             # 실제 AWS 연결 문제나 권한 문제 등만 500 에러로 처리
