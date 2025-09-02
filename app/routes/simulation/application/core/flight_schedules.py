@@ -263,7 +263,7 @@ class FlightScheduleResponse:
             "total": 0,
             "chart_x_data": [],
             "chart_y_data": {},
-            "parquet_metadata": {"columns": []},
+            "parquet_metadata": [],
         }
 
     async def _build_chart_data(
@@ -359,53 +359,89 @@ class FlightScheduleResponse:
 
         return {"traces": traces, "default_x": default_x}
 
-    def _build_parquet_metadata(self, flight_df: pd.DataFrame) -> dict:
+    def _build_parquet_metadata(self, flight_df: pd.DataFrame) -> list:
         """
-        Parquet 파일의 컬럼별 유니크값 메타데이터 생성
+        새로운 Parquet 메타데이터 생성 - flights + indices 포함
         
-        Passenger Schedule에서 동적 조건 설정을 위해 사용됩니다.
-        각 컬럼의 고유값들을 추출하여 프론트엔드에서 드롭다운 옵션으로 활용할 수 있도록 합니다.
+        각 컬럼의 유니크값별로 해당하는 항공편 조합과 인덱스를 제공합니다.
+        프론트엔드에서 필터 선택 시 구체적인 항공편들을 바로 확인할 수 있고,
+        백엔드에서는 인덱스를 통해 빠른 데이터 조회가 가능합니다.
         
         Args:
             flight_df: 항공편 스케줄 DataFrame
             
         Returns:
-            컬럼별 메타데이터 딕셔너리
+            컬럼별 메타데이터 리스트 [{"column": "컬럼명", "values": {"값": {"flights": [...], "indices": [...]}}}]
         """
         if flight_df.empty:
-            return {"columns": []}
+            return []
         
-        columns = []
+        # 핵심 컬럼 존재 여부 확인
+        required_cols = ['operating_carrier_iata', 'flight_number']
+        if not all(col in flight_df.columns for col in required_cols):
+            logger.error("필수 컬럼이 누락됨: operating_carrier_iata, flight_number")
+            return []
         
-        for column_name in flight_df.columns:
+        metadata = []
+        
+        # 선택된 컬럼들만 처리 (departure 컬럼은 arrival 쌍도 포함)
+        target_columns = [
+            'operating_carrier_name',
+            'departure_airport_iata', 'arrival_airport_iata',
+            'scheduled_departure_local', 'scheduled_arrival_local',
+            'aircraft_type_icao',
+            'departure_terminal', 'arrival_terminal',
+            'flight_type',
+            'departure_city', 'arrival_city',
+            'departure_country', 'arrival_country',
+            'departure_region', 'arrival_region',
+            'total_seats'
+        ]
+        
+        for column_name in target_columns:
+            if column_name not in flight_df.columns:
+                continue
+                
             try:
-                # NaN 값 제거 후 유니크값 추출
+                # 1. NaN 제거 후 유니크값 추출
                 unique_values = flight_df[column_name].dropna().unique()
                 
-                # numpy 타입을 Python 기본 타입으로 변환 (JSON 직렬화 대응)
-                unique_values_list = [
-                    str(value) if pd.notna(value) else None 
-                    for value in unique_values
-                ]
+                # 2. 각 유니크값에 대한 데이터 구성
+                values_dict = {}
                 
-                # None 값 제거 및 정렬
-                unique_values_list = sorted([v for v in unique_values_list if v is not None])
+                for unique_value in unique_values:
+                    # 해당 값에 매치되는 행들 찾기
+                    mask = flight_df[column_name] == unique_value
+                    matched_rows = flight_df[mask]
+                    
+                    # flights 조합 생성 (operating_carrier_iata + flight_number)
+                    flights = []
+                    for _, row in matched_rows.iterrows():
+                        carrier = str(row['operating_carrier_iata']) if pd.notna(row['operating_carrier_iata']) else ""
+                        flight_num = str(row['flight_number']) if pd.notna(row['flight_number']) else ""
+                        if carrier and flight_num:  # 둘 다 유효한 값일 때만 추가
+                            flights.append(f"{carrier}{flight_num}")
+                    
+                    # 인덱스 추출 (원본 DataFrame 기준)
+                    indices = matched_rows.index.tolist()
+                    
+                    # 결과 저장 (유효한 데이터가 있을 때만)
+                    if flights and indices:
+                        values_dict[str(unique_value)] = {
+                            "flights": flights,
+                            "indices": indices
+                        }
                 
-                columns.append({
-                    "name": column_name,
-                    "unique_values": unique_values_list,
-                    "count": len(unique_values_list)
-                })
+                # 컬럼 메타데이터 추가 (값이 있을 때만)
+                if values_dict:
+                    metadata.append({
+                        "column": column_name,
+                        "values": values_dict
+                    })
                 
             except Exception as e:
                 logger.warning(f"컬럼 '{column_name}' 메타데이터 생성 실패: {str(e)}")
-                # 에러가 발생한 컬럼은 빈 유니크값으로 처리
-                columns.append({
-                    "name": column_name,
-                    "unique_values": [],
-                    "count": 0
-                })
+                continue
         
-        logger.info(f"📊 Parquet 메타데이터 생성 완료: {len(columns)}개 컬럼")
-        
-        return {"columns": columns}
+        logger.info(f"📊 새로운 Parquet 메타데이터 생성 완료: {len(metadata)}개 컬럼")
+        return metadata
