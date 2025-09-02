@@ -138,6 +138,19 @@ class FlightScheduleStorage:
 
             # DataFrame으로 변환
             flight_schedule_df = pd.DataFrame(rows, columns=columns)
+            
+            # ✅ 중복 제거: 같은 날짜 + 같은 항공사 + 같은 편명은 유니크하게 처리
+            duplicate_columns = ['flight_date', 'operating_carrier_iata', 'flight_number']
+            available_columns = [col for col in duplicate_columns if col in flight_schedule_df.columns]
+            
+            if available_columns and len(available_columns) == 3:
+                before_count = len(flight_schedule_df)
+                flight_schedule_df = flight_schedule_df.drop_duplicates(subset=available_columns, keep='first')
+                after_count = len(flight_schedule_df)
+                
+                if before_count != after_count:
+                    logger.info(f"🔧 중복 제거: {before_count}개 → {after_count}개 ({before_count - after_count}개 중복 제거)")
+            
             flight_schedule_data = flight_schedule_df.to_dict("records")
 
             # 🚨 대량 데이터 보호: 조건 없으면 최대 500개로 제한

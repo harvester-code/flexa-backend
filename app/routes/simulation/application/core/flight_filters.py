@@ -74,7 +74,8 @@ class FlightFiltersResponse:
         departure_filters = self._generate_departure_filters_from_data(departure_data)
         arrival_filters = self._generate_arrival_filters_from_data(arrival_data)
 
-        total_flights = len(all_flight_data)
+        # ✅ total_flights를 departure와 arrival의 중복 제거된 합계로 계산
+        total_flights = departure_filters["total_flights"] + arrival_filters["total_flights"]
 
         metadata = {
             # Request context for identification and tracking
@@ -215,8 +216,8 @@ class FlightFiltersResponse:
         """Generate departure filters from flight data"""
         filters = {}
 
-        # Total departure flights
-        filters["total_flights"] = len(departure_data)
+        # Total departure flights - 중복 제거된 항공편 기준으로 계산
+        # 모든 하위 그룹들을 생성한 후 합계를 계산
 
         # 1. Group by departure terminal
         filters["departure_terminal"] = self._group_by_field(
@@ -233,7 +234,14 @@ class FlightFiltersResponse:
             departure_data, "flight_type", "Unknown"
         )
 
-        logger.info(f"📊 Generated departure filters: {list(filters.keys())}")
+        # ✅ total_flights를 flight_type 기준으로 계산 (중복 제거된 count 합계)
+        total_count = sum(
+            flight_type_data["total_flights"] 
+            for flight_type_data in filters["flight_type"].values()
+        )
+        filters["total_flights"] = total_count
+
+        logger.info(f"📊 Generated departure filters: {list(filters.keys())}, total: {total_count}")
         return filters
 
     def _generate_arrival_filters_from_data(
@@ -242,8 +250,8 @@ class FlightFiltersResponse:
         """Generate arrival filters from flight data"""
         filters = {}
 
-        # Total arrival flights
-        filters["total_flights"] = len(arrival_data)
+        # Total arrival flights - 중복 제거된 항공편 기준으로 계산  
+        # 모든 하위 그룹들을 생성한 후 합계를 계산
 
         # 1. Group by arrival terminal
         filters["arrival_terminal"] = self._group_by_field(
@@ -260,7 +268,14 @@ class FlightFiltersResponse:
             arrival_data, "flight_type", "Unknown"
         )
 
-        logger.info(f"📊 Generated arrival filters: {list(filters.keys())}")
+        # ✅ total_flights를 flight_type 기준으로 계산 (중복 제거된 count 합계)
+        total_count = sum(
+            flight_type_data["total_flights"] 
+            for flight_type_data in filters["flight_type"].values()
+        )
+        filters["total_flights"] = total_count
+
+        logger.info(f"📊 Generated arrival filters: {list(filters.keys())}, total: {total_count}")
         return filters
 
     def _group_by_field(
@@ -295,19 +310,23 @@ class FlightFiltersResponse:
             # Generate airline statistics (no additional deduplication needed)
             airline_stats = {}
             for airline_code, airline_flights in airlines.items():
-                flight_numbers = [
+                # ✅ 중복 제거: 같은 항공사의 같은 편명은 유니크하게 처리
+                flight_numbers = list(set([
                     flight.get("flight_number", 0)
                     for flight in airline_flights
                     if flight.get("flight_number")
-                ]
+                ]))
 
                 airline_stats[airline_code] = {
-                    "count": len(airline_flights),
+                    "count": len(flight_numbers),
                     "flight_numbers": sorted(flight_numbers),
                 }
 
+            # ✅ total_flights를 개별 항공사의 중복 제거된 count 합계로 계산
+            total_count = sum(stats["count"] for stats in airline_stats.values())
+            
             result[field_value] = {
-                "total_flights": len(flights),  # Already deduplicated at dataset level
+                "total_flights": total_count,
                 "airlines": dict(sorted(airline_stats.items())),
             }
 
@@ -375,18 +394,22 @@ class FlightFiltersResponse:
                 # Generate country level airline stats
                 country_airline_stats = {}
                 for airline_code, airline_flights in country_airlines.items():
-                    flight_numbers = [
+                    # ✅ 중복 제거: 같은 항공사의 같은 편명은 유니크하게 처리
+                    flight_numbers = list(set([
                         flight.get("flight_number", 0)
                         for flight in airline_flights
                         if flight.get("flight_number")
-                    ]
+                    ]))
                     country_airline_stats[airline_code] = {
-                        "count": len(airline_flights),
+                        "count": len(flight_numbers),
                         "flight_numbers": sorted(flight_numbers),
                     }
                 
+                # ✅ total_flights를 개별 항공사의 중복 제거된 count 합계로 계산
+                country_total_count = sum(stats["count"] for stats in country_airline_stats.values())
+                
                 countries[country_name] = {
-                    "total_flights": len(country_flights),
+                    "total_flights": country_total_count,
                     "airlines": dict(sorted(country_airline_stats.items())),
                 }
             
@@ -397,8 +420,11 @@ class FlightFiltersResponse:
                 reverse=True  # 많은 순서부터 정렬
             ))
             
+            # ✅ total_flights를 각 국가의 중복 제거된 count 합계로 계산
+            region_total_count = sum(country["total_flights"] for country in countries.values())
+            
             result[region_name] = {
-                "total_flights": len(region_flights),
+                "total_flights": region_total_count,
                 "countries": sorted_countries,
             }
         
