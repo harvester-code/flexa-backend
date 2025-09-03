@@ -423,6 +423,9 @@ class SimulationService:
                     detail="No saved metadata found for this scenario"
                 )
 
+        except HTTPException:
+            # HTTPException은 그대로 re-raise (404 등 의도된 에러)
+            raise
         except Exception as e:
             # 실제 AWS 연결 문제나 권한 문제 등만 500 에러로 처리
             logger.error(f"Failed to load metadata from S3: {str(e)}")

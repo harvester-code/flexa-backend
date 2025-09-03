@@ -17,22 +17,34 @@ class FlightScheduleBody(BaseModel):
 
 class PassengerScheduleBody(BaseModel):
     """
-    승객 스케줄 생성 요청 스키마 - pax_simple.json 구조 기반 + 동적 설정
+    승객 스케줄 생성 요청 스키마 - show_up_pax3.json 구조 기반 + 동적 설정
 
     🚨 settings에 포함되어야 하는 필수 필드들:
-    - load_factor: float (필수) - 탑승률 (예: 0.85)
     - min_arrival_minutes: int (필수) - 최소 도착 시간 (예: 15)
-    - target_date: str (필수) - 대상 날짜 YYYY-MM-DD (예: "2025-08-05")
-    - departure_airport: str (필수) - 출발공항 IATA 코드 (예: "ICN")
+    - date: str (필수) - 대상 날짜 YYYY-MM-DD (예: "2025-09-03")
+    - airport: str (필수) - 출발공항 IATA 코드 (예: "ICN")
+
+    🚨 pax_generation에 포함되는 필드들:
+    - rules: 조건별 탑승률 설정 (항공편 레벨)
+    - default: 기본 탑승률
+
+    🚨 pax_demographics에 포함되는 필드들:
+    - nationality: 국적 분포 설정 (승객 레벨)
+    - profile: 승객 프로필 분포 설정 (승객 레벨)
+
+    🚨 pax_arrival_patterns에 포함되는 필드들:
+    - rules: 조건별 도착 시간 패턴 설정 (승객 레벨)
+    - default: 기본 도착 시간 패턴
 
     ⚠️ 모든 필드는 필수입니다. 기본값 제공하지 않습니다.
     """
 
     settings: Dict[
         str, Any
-    ]  # 동적 설정 (load_factor, target_date, departure_airport 등)
-    pax_demographics: Dict[str, Any]  # nationality, profile 등 인구통계 설정
-    pax_arrival_patterns: Dict[str, Any]  # rules, default 도착 패턴
+    ]  # 동적 설정 (date, airport, min_arrival_minutes)
+    pax_generation: Dict[str, Any]  # 탑승률 설정 (항공편 레벨)
+    pax_demographics: Dict[str, Any]  # nationality, profile 등 인구통계 설정 (승객 레벨)
+    pax_arrival_patterns: Dict[str, Any]  # rules, default 도착 패턴 (승객 레벨)
 
 
 class SimulationScenarioBody(BaseModel):

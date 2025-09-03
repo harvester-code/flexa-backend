@@ -29,7 +29,6 @@ class ShowUpPassengerStorage:
             settings = config.get("settings", {})
             self._validate_settings(settings)
 
-            load_factor = settings["load_factor"]
             date = settings["date"]
             airport = settings["airport"]
 
@@ -46,8 +45,8 @@ class ShowUpPassengerStorage:
             # 3. 승객 데이터 생성
             flight_df = pd.DataFrame(flight_data)
 
-            # 4. 승객 확장
-            pax_df = await self._expand_flights_to_passengers(flight_df, load_factor)
+            # 4. 승객 확장 (조건부 load_factor 적용)
+            pax_df = await self._expand_flights_to_passengers(flight_df, config)
 
             # 5. 인구통계 할당
             pax_df = await self._assign_passenger_demographics(pax_df, config)
@@ -73,7 +72,6 @@ class ShowUpPassengerStorage:
     def _validate_settings(self, settings: dict):
         """필수 설정값 검증"""
         required_fields = [
-            "load_factor",
             "date",
             "airport",
             "min_arrival_minutes",
@@ -154,12 +152,14 @@ class ShowUpPassengerStorage:
         return df
 
     async def _expand_flights_to_passengers(
-        self, flight_df: pd.DataFrame, load_factor: float
+        self, flight_df: pd.DataFrame, config: dict
     ) -> pd.DataFrame:
-        """항공편을 승객 수만큼 확장"""
+        """항공편을 승객 수만큼 확장 - 조건부 load_factor 적용"""
         pax_rows = []
 
         for _, flight_row in flight_df.iterrows():
+            # 각 항공편별로 조건에 맞는 load_factor 계산
+            load_factor = self._get_load_factor_for_flight(flight_row, config)
             pax_count = int(flight_row["total_seats"] * load_factor)
 
             if pax_count <= 0:
@@ -210,7 +210,7 @@ class ShowUpPassengerStorage:
         for rule in rules:
             conditions = rule.get("conditions", {})
             if self._check_conditions(pax_row, conditions):
-                distribution = rule.get("distribution", {})
+                distribution = rule.get("value", {})
                 if distribution:
                     values = list(distribution.keys())
                     probs = list(distribution.values())
@@ -253,6 +253,8 @@ class ShowUpPassengerStorage:
 
         # min_arrival_minutes 설정 적용
         min_minutes = config.get("settings", {}).get("min_arrival_minutes")
+        if min_minutes is None:
+            raise ValueError("min_arrival_minutes not found in config settings")
         minutes_before = max(minutes_before, min_minutes)
 
         departure_time = pd.to_datetime(pax_row["scheduled_departure_local"])
@@ -272,6 +274,31 @@ class ShowUpPassengerStorage:
         except Exception as e:
             logger.error(f"Failed to save passenger data to S3: {str(e)}")
             raise
+
+    def _get_load_factor_for_flight(self, flight_row: pd.Series, config: Dict) -> float:
+        """
+        항공편별 조건에 맞는 load_factor 반환
+        nationality와 동일한 조건 매칭 로직 사용
+        """
+        # pax_generation으로 최상위 키 변경
+        load_factor_config = config.get("pax_generation", {})
+        
+        rules = load_factor_config.get("rules", [])
+        
+        # 조건 확인
+        for rule in rules:
+            conditions = rule.get("conditions", {})
+            if self._check_conditions(flight_row, conditions):
+                rule_value = rule.get("value", {}).get("load_factor")
+                if rule_value is not None:
+                    return rule_value
+                raise ValueError(f"load_factor value not found in rule: {rule}")  # 설정 오류 명시
+        
+        # 기본값 반환
+        default_value = load_factor_config.get("default", {}).get("load_factor")
+        if default_value is not None:
+            return default_value
+        raise ValueError("load_factor default value not found in config")
 
     # Helper 메서드들
     def _check_conditions(self, pax_row: pd.Series, conditions: Dict) -> bool:
@@ -330,7 +357,8 @@ class ShowUpPassengerStorage:
         for rule in rules:
             conditions = rule.get("conditions", {})
             if self._check_conditions(pax_row, conditions):
-                return {"mean": rule.get("mean"), "std": rule.get("std")}
+                rule_value = rule.get("value", {})
+                return {"mean": rule_value.get("mean"), "std": rule_value.get("std")}
 
         return None
 
@@ -374,7 +402,7 @@ class ShowUpPassengerResponse:
             "bar_chart_x_data": chart_x_data,
             "bar_chart_y_data": chart_result,
             "generation_config": {
-                "load_factor": config["settings"]["load_factor"],
+                "load_factor": "dynamic",  # 이제 동적 배정
                 "date": config["settings"]["date"],
                 "airport": config["settings"]["airport"],
                 "min_arrival_minutes": config["settings"]["min_arrival_minutes"],
@@ -397,10 +425,16 @@ class ShowUpPassengerResponse:
             average_seats = 0
             total_flights = 0
 
+        # 동적 load_factor 평균값 계산
+        load_factor_config = config.get("pax_generation", {})
+        avg_load_factor = load_factor_config.get("default", {}).get("load_factor")
+        if avg_load_factor is None:
+            avg_load_factor = 0.0  # 설정이 없으면 0으로 표시
+        
         return {
             "flights": total_flights,
             "avg_seats": round(average_seats, 2),
-            "load_factor": int(config["settings"]["load_factor"] * 100),  # 85 형태로
+            "load_factor": int(avg_load_factor * 100),  # 기본값을 표시용으로 사용
         }
 
     async def _create_show_up_summary(self, pax_df: pd.DataFrame, group_column: str):
