@@ -366,7 +366,14 @@ class ShowUpPassengerStorage:
 class ShowUpPassengerResponse:
     """승객 스케줄 프론트엔드 응답 생성 전담 클래스"""
 
-    async def build_response(self, pax_df: pd.DataFrame, config: Dict) -> Dict:
+    async def build_response(
+        self, 
+        pax_df: pd.DataFrame, 
+        config: Dict,
+        airport: str = None,
+        date: str = None,
+        scenario_id: str = None,
+    ) -> Dict:
         """승객 스케줄 응답 데이터 구성"""
 
         # Summary 데이터 생성
@@ -396,31 +403,34 @@ class ShowUpPassengerResponse:
                         chart_result[group_labels[i]] = chart_data["traces"]
                         chart_x_data = chart_data["default_x"]
 
-        return {
+        # 응답 구조: 다른 API들과 일관성 맞춤 - 컨텍스트 정보 먼저
+        response = {}
+        
+        # 요청 컨텍스트 정보 (처음 3개 키)
+        if airport:
+            response["airport"] = airport
+        if date:
+            response["date"] = date
+        if scenario_id:
+            response["scenario_id"] = scenario_id
+            
+        # 기본 응답 데이터
+        response.update({
             "total": len(pax_df),
             "summary": summary,
             "bar_chart_x_data": chart_x_data,
             "bar_chart_y_data": chart_result,
-            "generation_config": {
-                "load_factor": "dynamic",  # 이제 동적 배정
-                "date": config["settings"]["date"],
-                "airport": config["settings"]["airport"],
-                "min_arrival_minutes": config["settings"]["min_arrival_minutes"],
-                "generated_at": datetime.now().isoformat(),
-            },
-        }
+        })
+
+        return response
 
     def _build_summary(self, pax_df: pd.DataFrame, config: Dict) -> Dict:
         """Summary 데이터 생성"""
         if len(pax_df) > 0:
-            # 항공편 정보에서 통계 계산
-            unique_flights = pax_df.drop_duplicates(
-                subset=["flight_number", "flight_date"]
-            )
-            average_seats = (
-                unique_flights["total_seats"].mean() if len(unique_flights) > 0 else 0
-            )
-            total_flights = len(unique_flights)
+            # 항공편 정보에서 통계 계산 - 이미 고유한 항공편들이므로 중복 제거 불필요
+            unique_flights_df = pax_df[['operating_carrier_iata', 'flight_number', 'flight_date', 'total_seats']].drop_duplicates()
+            average_seats = unique_flights_df["total_seats"].mean()
+            total_flights = len(unique_flights_df)
         else:
             average_seats = 0
             total_flights = 0
@@ -435,6 +445,7 @@ class ShowUpPassengerResponse:
             "flights": total_flights,
             "avg_seats": round(average_seats, 2),
             "load_factor": int(avg_load_factor * 100),  # 기본값을 표시용으로 사용
+            "min_arrival_minutes": config.get("settings", {}).get("min_arrival_minutes"),
         }
 
     async def _create_show_up_summary(self, pax_df: pd.DataFrame, group_column: str):

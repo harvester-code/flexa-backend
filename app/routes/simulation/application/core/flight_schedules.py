@@ -237,10 +237,13 @@ class FlightScheduleResponse:
         flight_schedule_data: list,
         applied_conditions: list | None,
         flight_type: str,
+        airport: str = None,
+        date: str = None,
+        scenario_id: str = None,
     ) -> dict:
         """항공편 스케줄 응답 데이터 구성 (차트 + 메타데이터 전용)"""
         if not flight_schedule_data:
-            return self._get_empty_response()
+            return self._get_empty_response(airport, date, scenario_id)
 
         flight_df = pd.DataFrame(flight_schedule_data)
 
@@ -250,21 +253,48 @@ class FlightScheduleResponse:
         # Parquet 메타데이터 생성 (Passenger Schedule에서 사용)
         parquet_metadata = self._build_parquet_metadata(flight_df)
 
-        return {
+        # 응답 구조: flight-filter.json처럼 컨텍스트 정보 먼저 포함
+        response = {}
+        
+        # 요청 컨텍스트 정보 (처음 3개 키)
+        if airport:
+            response["airport"] = airport
+        if date:
+            response["date"] = date
+        if scenario_id:
+            response["scenario_id"] = scenario_id
+            
+        # 기존 응답 데이터
+        response.update({
             "total": len(flight_df),
             "chart_x_data": chart_data.get("x_data", []),
             "chart_y_data": chart_data.get("y_data", {}),
             "parquet_metadata": parquet_metadata,
-        }
+        })
 
-    def _get_empty_response(self) -> dict:
+        return response
+
+    def _get_empty_response(self, airport: str = None, date: str = None, scenario_id: str = None) -> dict:
         """빈 응답 데이터 반환 (차트 + 메타데이터 전용)"""
-        return {
+        response = {}
+        
+        # 요청 컨텍스트 정보 (처음 3개 키)
+        if airport:
+            response["airport"] = airport
+        if date:
+            response["date"] = date
+        if scenario_id:
+            response["scenario_id"] = scenario_id
+            
+        # 기본 응답 데이터
+        response.update({
             "total": 0,
             "chart_x_data": [],
             "chart_y_data": {},
             "parquet_metadata": [],
-        }
+        })
+        
+        return response
 
     async def _build_chart_data(
         self, flight_df: pd.DataFrame, flight_type: str = "departure"

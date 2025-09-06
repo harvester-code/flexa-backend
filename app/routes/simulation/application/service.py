@@ -237,9 +237,14 @@ class SimulationService:
                 storage="redshift",
             )
 
-            # 2. 응답 생성 (Response Layer)
+            # 2. 응답 생성 (Response Layer) - 컨텍스트 정보 포함
             return await self.flight_response.build_response(
-                flight_data, conditions, flight_type
+                flight_data, 
+                conditions, 
+                flight_type,
+                airport=airport,
+                date=date,
+                scenario_id=scenario_id,
             )
         except Exception as e:
             logger.error(
@@ -263,8 +268,15 @@ class SimulationService:
                 scenario_id, config
             )
 
-            # 2. 응답 생성 (Response Layer)
-            return await self.passenger_response.build_response(passenger_data, config)
+            # 2. 응답 생성 (Response Layer) - 컨텍스트 정보 포함
+            settings = config.get("settings", {})
+            return await self.passenger_response.build_response(
+                passenger_data, 
+                config,
+                airport=settings.get("airport"),
+                date=settings.get("date"),
+                scenario_id=scenario_id,
+            )
         except Exception as e:
             logger.error(
                 f"Passenger schedule generation failed for scenario {scenario_id}: {str(e)}"
@@ -414,18 +426,18 @@ class SimulationService:
                 }
 
             except s3_client.exceptions.NoSuchKey:
-                # 파일이 없는 경우 - 404 반환하여 프론트엔드에서 초기 상태 사용
+                # 파일이 없는 경우 - 빈 메타데이터 반환 (정상적인 상황)
                 logger.info(
-                    f"No metadata file found for scenario {scenario_id} - returning 404"
+                    f"No metadata file found for scenario {scenario_id} - returning empty metadata"
                 )
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="No saved metadata found for this scenario"
-                )
+                return {
+                    "scenario_id": scenario_id,
+                    "metadata": None,
+                    "s3_key": s3_key,
+                    "loaded_at": datetime.now().isoformat(),
+                    "is_new_scenario": True
+                }
 
-        except HTTPException:
-            # HTTPException은 그대로 re-raise (404 등 의도된 에러)
-            raise
         except Exception as e:
             # 실제 AWS 연결 문제나 권한 문제 등만 500 에러로 처리
             logger.error(f"Failed to load metadata from S3: {str(e)}")
