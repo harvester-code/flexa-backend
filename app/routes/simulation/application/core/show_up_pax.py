@@ -418,8 +418,8 @@ class ShowUpPassengerResponse:
         response.update({
             "total": len(pax_df),
             "summary": summary,
-            "bar_chart_x_data": chart_x_data,
-            "bar_chart_y_data": chart_result,
+            "chart_x_data": chart_x_data,
+            "chart_y_data": chart_result,
         })
 
         return response
