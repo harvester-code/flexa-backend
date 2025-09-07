@@ -212,16 +212,22 @@ class ShowUpPassengerStorage:
             if self._check_conditions(pax_row, conditions):
                 distribution = rule.get("value", {})
                 if distribution:
-                    values = list(distribution.keys())
-                    probs = list(distribution.values())
-                    return np.random.choice(values, p=probs)
+                    # flightCount 키를 제외하고 확률 계산
+                    filtered_distribution = {k: v for k, v in distribution.items() if k != "flightCount"}
+                    if filtered_distribution:
+                        values = list(filtered_distribution.keys())
+                        probs = list(filtered_distribution.values())
+                        return np.random.choice(values, p=probs)
 
         # 기본값 처리
         default = distribution_config.get("default", {})
         if default:
-            values = list(default.keys())
-            probs = list(default.values())
-            return np.random.choice(values, p=probs)
+            # flightCount 키를 제외하고 확률 계산
+            filtered_default = {k: v for k, v in default.items() if k != "flightCount"}
+            if filtered_default:
+                values = list(filtered_default.keys())
+                probs = list(filtered_default.values())
+                return np.random.choice(values, p=probs)
 
         # distribution이 설정되지 않은 경우 None 반환 (pandas에서 NaN으로 처리)
         logger.debug(f"No distribution found for {distribution_type}, returning None (will be NaN in pandas)")
