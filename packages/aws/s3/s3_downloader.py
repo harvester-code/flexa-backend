@@ -12,7 +12,7 @@ class S3Downloader:
     """S3 downloader for simulation data and facility information"""
 
     def __init__(self, bucket_name: str = None):
-        self.bucket_name = bucket_name or get_secret("AWS_S3_BUCKET_NAME")
+        self.bucket_name = bucket_name or "flexa-simulator-data"
         self.region_name = "ap-northeast-2"
 
     async def download_simulation_parquet_from_s3(
@@ -26,7 +26,7 @@ class S3Downloader:
             try:
                 response = await s3_client.get_object(
                     Bucket=self.bucket_name,
-                    Key=f"simulations/simulation-results-raw-data/{scenario_id}.parquet",
+                    Key=f"{scenario_id}/test.parquet",
                 )
                 async with response["Body"] as stream:
                     data = await stream.read()
@@ -43,7 +43,7 @@ class S3Downloader:
             try:
                 response = await s3_client.get_object(
                     Bucket=self.bucket_name,
-                    Key=f"simulations/facility-information-data/{scenario_id}.json",
+                    Key=f"{scenario_id}/test.json",
                 )
                 async with response["Body"] as stream:
                     data = await stream.read()

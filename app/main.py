@@ -25,12 +25,12 @@ API_PREFIX = "/api/v1"
 ALLOW_ORIGINS_MAP = {
     "local": ["*"],
     "dev": [
-        "https://preview.flexa.expert",
-        "http://localhost:3943",
+        "https://flexa.kr",
+        "http://localhost:3000",
     ],
     "prod": [
-        "https://www.flexa.expert",
-        "http://localhost:3943",
+        "https://flexa.kr",
+        "http://localhost:3000",
     ],
 }
 

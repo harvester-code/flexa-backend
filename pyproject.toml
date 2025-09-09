@@ -1,7 +1,7 @@
 [project]
-name = "flexa-waitfree-api"
+name = "flexa-backend_v0"
 version = "0.1.7"
-description = "Flexa Waitless API"
+description = "Flexa Backend v0"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [

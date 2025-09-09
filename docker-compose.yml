@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  fastapi:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/app/app # 소스 코드를 컨테이너의 /app/app에 마운트
+      - /volume1/data:/app/data # NAS 공유 폴더를 컨테이너 내부에 마운트
+    env_file:
+      - .env # 환경변수 파일
+    environment:
+      - DATA_DIR=/app/data # 데이터 디렉토리 환경변수 설정
+    restart: always # 컨테이너가 죽었을 때 자동 재시작

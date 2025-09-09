@@ -471,7 +471,7 @@ standard = [
 ]
 
 [[package]]
-name = "flexa-waitfree-api"
+name = "flexa-backend-v0"
 version = "0.1.7"
 source = { virtual = "." }
 dependencies = [
