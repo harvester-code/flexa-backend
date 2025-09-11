@@ -280,7 +280,7 @@ async def fetch_scenario_flight_schedule(
     "/{scenario_id}/show-up-passenger",
     status_code=status.HTTP_200_OK,
     summary="승객 스케줄 생성",
-    description="pax_simple.json 구조 기반으로 고도화된 승객 스케줄 데이터를 생성합니다. 승객별 도착 시간 분포, 인구통계, 시간별 승객 흐름을 계산하여 시뮬레이션에 사용할 승객 데이터를 제공합니다.",
+    description="pax_simple.json 구조 기반으로 고도화된 승객 스케줄 데이터를 생성합니다. 승객별 도착 시간 분포, 인구통계 (nationality/profile은 정수로 받아 확률로 변환), 시간별 승객 흐름을 계산하여 시뮬레이션에 사용할 승객 데이터를 제공합니다.",
 )
 @inject
 async def generate_passenger_schedule(

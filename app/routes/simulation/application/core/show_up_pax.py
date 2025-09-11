@@ -28,11 +28,14 @@ class ShowUpPassengerStorage:
             # 1. 설정값 추출 및 검증
             settings = config.get("settings", {})
             self._validate_settings(settings)
+            
+            # 2. nationality와 profile 분포값 검증
+            self._validate_demographic_distributions(config)
 
             date = settings["date"]
             airport = settings["airport"]
 
-            # 2. S3에서 flight-schedule 데이터 로드
+            # 3. S3에서 flight-schedule 데이터 로드
             flight_data = await self._load_flight_data_from_s3(
                 scenario_id, date, airport
             )
@@ -42,19 +45,19 @@ class ShowUpPassengerStorage:
                     detail="Flight schedule data not found. Please load flight schedule first.",
                 )
 
-            # 3. 승객 데이터 생성
+            # 4. 승객 데이터 생성
             flight_df = pd.DataFrame(flight_data)
 
-            # 4. 승객 확장 (조건부 load_factor 적용)
+            # 5. 승객 확장 (조건부 load_factor 적용)
             pax_df = await self._expand_flights_to_passengers(flight_df, config)
 
-            # 5. 인구통계 할당
+            # 6. 인구통계 할당
             pax_df = await self._assign_passenger_demographics(pax_df, config)
 
-            # 6. 도착시간 생성
+            # 7. 도착시간 생성
             pax_df = await self._assign_show_up_times(pax_df, config)
 
-            # 7. S3에 저장
+            # 8. S3에 저장
             await self._save_passenger_data_to_s3(pax_df, scenario_id)
 
             return pax_df
@@ -83,6 +86,57 @@ class ShowUpPassengerStorage:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"{field} is required in settings",
                 )
+
+    def _validate_demographic_distributions(self, config: dict):
+        """pax_demographics 내 nationality와 profile 분포 검증"""
+        pax_demographics = config.get("pax_demographics", {})
+        
+        for distribution_type in ["nationality", "profile"]:
+            if distribution_type not in pax_demographics:
+                continue
+                
+            distribution_config = pax_demographics[distribution_type]
+            
+            # rules 검증
+            rules = distribution_config.get("rules", [])
+            for rule in rules:
+                value = rule.get("value", {})
+                self._validate_percentage_values(value, f"pax_demographics.{distribution_type}.rules")
+            
+            # default 검증
+            default = distribution_config.get("default", {})
+            self._validate_percentage_values(default, f"pax_demographics.{distribution_type}.default")
+    
+    def _validate_percentage_values(self, distribution: dict, field_path: str):
+        """확률 분포값 검증 - 정수값이고 합이 100인지 확인"""
+        if not distribution:
+            return
+            
+        # flightCount 제외
+        filtered_dist = {k: v for k, v in distribution.items() if k != "flightCount"}
+        if not filtered_dist:
+            return
+            
+        # 모든 값이 숫자인지 확인
+        for key, value in filtered_dist.items():
+            if not isinstance(value, (int, float)):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"{field_path}.{key} must be a number, got {type(value).__name__}",
+                )
+            if value < 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"{field_path}.{key} must be non-negative, got {value}",
+                )
+        
+        # 합이 100인지 확인 (정수 기준)
+        total = sum(filtered_dist.values())
+        if abs(total - 100) > 0.001:  # 부동소수점 오차 허용
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"{field_path} percentages must sum to 100, got {total}",
+            )
 
     async def _load_flight_data_from_s3(
         self, scenario_id: str, date: str, airport: str
@@ -206,6 +260,9 @@ class ShowUpPassengerStorage:
         """
         rules = distribution_config.get("rules", [])
 
+        # nationality와 profile의 경우 프론트엔드에서 정수로 보냈으므로 100으로 나눠서 확률로 변환
+        should_divide_by_100 = distribution_type in ["nationality", "profile"]
+
         # 조건 확인
         for rule in rules:
             conditions = rule.get("conditions", {})
@@ -217,6 +274,11 @@ class ShowUpPassengerStorage:
                     if filtered_distribution:
                         values = list(filtered_distribution.keys())
                         probs = list(filtered_distribution.values())
+                        
+                        # nationality와 profile의 경우 100으로 나눠서 확률로 변환
+                        if should_divide_by_100:
+                            probs = [p / 100.0 for p in probs]
+                        
                         return np.random.choice(values, p=probs)
 
         # 기본값 처리
@@ -227,6 +289,11 @@ class ShowUpPassengerStorage:
             if filtered_default:
                 values = list(filtered_default.keys())
                 probs = list(filtered_default.values())
+                
+                # nationality와 profile의 경우 100으로 나눠서 확률로 변환
+                if should_divide_by_100:
+                    probs = [p / 100.0 for p in probs]
+                
                 return np.random.choice(values, p=probs)
 
         # distribution이 설정되지 않은 경우 None 반환 (pandas에서 NaN으로 처리)

@@ -29,8 +29,8 @@ class PassengerScheduleBody(BaseModel):
     - default: 기본 탑승률
 
     🚨 pax_demographics에 포함되는 필드들:
-    - nationality: 국적 분포 설정 (승객 레벨)
-    - profile: 승객 프로필 분포 설정 (승객 레벨)
+    - nationality: 국적 분포 설정 (승객 레벨) - 프론트엔드에서 정수로 전송, 백엔드에서 100으로 나눠서 확률로 변환
+    - profile: 승객 프로필 분포 설정 (승객 레벨) - 프론트엔드에서 정수로 전송, 백엔드에서 100으로 나눠서 확률로 변환
 
     🚨 pax_arrival_patterns에 포함되는 필드들:
     - rules: 조건별 도착 시간 패턴 설정 (승객 레벨)
