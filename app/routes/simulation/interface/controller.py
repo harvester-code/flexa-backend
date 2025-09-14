@@ -167,8 +167,8 @@ async def delete_scenarios(
 @inject
 async def get_flight_filters(
     scenario_id: str = Depends(verify_scenario_ownership),  # ✅ 권한 검증
-    airport: str = Query("ICN", description="공항 IATA 코드 (예: ICN)"),
-    date: str = Query("2025-08-29", description="대상 날짜 (YYYY-MM-DD)"),
+    airport: str = Query(..., description="공항 IATA 코드 (예: ICN)"),
+    date: str = Query(..., description="대상 날짜 (YYYY-MM-DD)"),
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     redshift_db: Connection = Depends(get_redshift_connection),
     db: AsyncSession = Depends(aget_supabase_session),

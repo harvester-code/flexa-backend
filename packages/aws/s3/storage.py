@@ -11,7 +11,7 @@ boto3_session = boto3.Session(region_name="ap-northeast-2")
 
 async def get_s3_client():
     config = Config(region_name="ap-northeast-2")
-    session = aioboto3.Session()
+    session = aioboto3.Session(region_name="ap-northeast-2")
     return session.client("s3", config=config)
 
 

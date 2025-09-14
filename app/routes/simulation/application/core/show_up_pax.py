@@ -179,10 +179,9 @@ class ShowUpPassengerStorage:
             df = df[df["flight_date"].dt.date == target_dt.date()]
             logger.info(f"날짜 필터링 ({date}): {len(df):,}개")
 
-        # 2. 출발공항 필터링
-        if "departure_airport_iata" in df.columns:
-            df = df[df["departure_airport_iata"] == airport]
-            logger.info(f"출발공항 필터링 ({airport}): {len(df):,}개")
+        # 2. 공항 필터링 - S3 데이터는 이미 필터링되어 있으므로 스킵
+        # S3의 flight-schedule.parquet은 이미 특정 공항으로 필터링된 데이터만 포함
+        logger.info(f"공항 데이터 ({airport}): {len(df):,}개 (S3에서 이미 필터링됨)")
 
         # 3. 좌석수 필터링
         if "total_seats" in df.columns:
