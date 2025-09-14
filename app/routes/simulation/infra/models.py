@@ -16,9 +16,9 @@ class ScenarioInformation(Base):
     )
     scenario_id: Mapped[str] = mapped_column(Text, nullable=True)  # text
     user_id: Mapped[UUID] = mapped_column(UUID, nullable=False)
-    editor: Mapped[str] = mapped_column(String, nullable=False)  # character varying
+    editor: Mapped[str] = mapped_column(String, nullable=True)   # character varying - NULL 허용으로 변경
     name: Mapped[str] = mapped_column(String, nullable=False)     # character varying
-    terminal: Mapped[str] = mapped_column(String, nullable=False) # character varying
+    terminal: Mapped[str] = mapped_column(String, nullable=True)  # character varying - NULL 허용으로 변경
     airport: Mapped[str] = mapped_column(String, nullable=True)   # character varying
     memo: Mapped[str] = mapped_column(Text, nullable=True)        # text
     target_flight_schedule_date: Mapped[str] = mapped_column(     # character varying

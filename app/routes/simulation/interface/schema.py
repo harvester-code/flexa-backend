@@ -49,10 +49,10 @@ class PassengerScheduleBody(BaseModel):
 
 class SimulationScenarioBody(BaseModel):
     name: str
-    editor: str
-    terminal: str | None
-    airport: str | None
-    memo: str | None
+    editor: str | None = None
+    terminal: str | None = None
+    airport: str | None = None
+    memo: str | None = None
 
 
 class ScenarioUpdateBody(BaseModel):
