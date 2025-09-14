@@ -41,11 +41,11 @@ class HomeAnalyzer:
     def get_summary(self):
         """요약 데이터 생성"""
         # 기본 데이터 계산
-        throughput = int(self.pax_df[f"{self.process_list[-1]}_pt_pred"].notna().sum())
+        throughput = int(self.pax_df[f"{self.process_list[-1]}_done_time"].notna().sum())
 
         waiting_times_df = pd.DataFrame(
             {
-                process: self.pax_df[f"{process}_pt_pred"]
+                process: self.pax_df[f"{process}_done_time"]
                 - self.pax_df[f"{process}_on_pred"]
                 for process in self.process_list
             }
@@ -265,7 +265,7 @@ class HomeAnalyzer:
 
             process_data = self.pax_df[self.pax_df[f"{process}_zone"].notna()].copy()
             process_data[f"{process}_waiting"] = (
-                process_data[f"{process}_pt_pred"] - process_data[f"{process}_on_pred"]
+                process_data[f"{process}_done_time"] - process_data[f"{process}_on_pred"]
             ).dt.total_seconds()
 
             # 시간 플로어링을 복사본에서 계산
@@ -367,7 +367,7 @@ class HomeAnalyzer:
         for process in self.process_list:
             cols = [
                 f"{process}_{x}"
-                for x in ["zone", "facility", "queue_length", "on_pred", "pt_pred"]
+                for x in ["zone", "facility", "queue_length", "on_pred", "done_time"]
             ]
             process_df = self.pax_df[cols].copy()
 
@@ -568,7 +568,7 @@ class HomeAnalyzer:
 
                 # 대기시간 분포
                 wt_mins = (
-                    df[f"{process}_pt_pred"] - df[f"{process}_on_pred"]
+                    df[f"{process}_done_time"] - df[f"{process}_on_pred"]
                 ).dt.total_seconds()
                 wt_bins = self._get_distribution(wt_mins, WT_BINS, WT_LABELS)
 
@@ -885,7 +885,7 @@ class HomeAnalyzer:
             process_wait_times = {}
             for process in self.process_list:
                 on_col = f"{process}_on_pred"
-                pt_col = f"{process}_pt_pred"
+                pt_col = f"{process}_done_time"
                 if on_col in df.columns and pt_col in df.columns:
                     wait_time = (df[pt_col] - df[on_col]).dt.total_seconds().mean()
                     if not pd.isna(wait_time):
@@ -1024,7 +1024,7 @@ class HomeAnalyzer:
             {
                 "process": process,
                 "datetime": self.pax_df[f"{process}_on_pred"].dt.floor(time_interval),
-                "waiting_time": self.pax_df[f"{process}_pt_pred"]
+                "waiting_time": self.pax_df[f"{process}_done_time"]
                 - self.pax_df[f"{process}_on_pred"],
                 "queue_length": self.pax_df[f"{process}_queue_length"],
                 "process_name": self.pax_df[f"{process}_zone"],
@@ -1081,7 +1081,7 @@ class HomeAnalyzer:
 
     def _calculate_waiting_time(self, process_df, process):
         """대기 시간 계산"""
-        return process_df[f"{process}_pt_pred"] - process_df[f"{process}_on_pred"]
+        return process_df[f"{process}_done_time"] - process_df[f"{process}_on_pred"]
 
     def _get_opened_count(self, process, facility=None):
         """열린 시설 개수 계산"""
