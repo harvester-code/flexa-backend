@@ -367,7 +367,7 @@ class HomeAnalyzer:
         for process in self.process_list:
             cols = [
                 f"{process}_{x}"
-                for x in ["pred", "facility_number", "que", "on_pred", "pt_pred"]
+                for x in ["zone", "facility", "queue_length", "on_pred", "pt_pred"]
             ]
             process_df = self.pax_df[cols].copy()
 
@@ -1184,17 +1184,14 @@ class HomeAnalyzer:
         return None
 
     def _get_processed_pax_count(self, process, node, facility_idx):
-        """처리된 승객 수 가져오기"""
-        if f"{process}_zone" not in self.pax_df.columns:
+        """처리된 승객 수 가져오기 (새로운 통합 방식)"""
+        if f"{process}_facility" not in self.pax_df.columns:
             return None
-
-        facility_df = self.pax_df[self.pax_df[f"{process}_zone"] == node]
-
-        if f"{process}_facility_number" not in facility_df.columns:
-            return None
-
-        facility_counts = facility_df.groupby(f"{process}_facility_number").size()
-        return int(facility_counts.get(facility_idx, 0))
+        
+        # 새로운 방식: 직접 "A1", "B2" 등의 시설명으로 필터링
+        facility_name = f"{node}{facility_idx}"  # "A" + 1 = "A1"
+        facility_count = len(self.pax_df[self.pax_df[f"{process}_facility"] == facility_name])
+        return int(facility_count)
 
     def _aggregate_facilities(self, facilities_data):
         """시설 데이터 집계"""
