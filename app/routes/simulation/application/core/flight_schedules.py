@@ -312,10 +312,10 @@ class FlightScheduleResponse:
 
         # flight_type에 따라 country/region 컬럼 결정
         if flight_type == "departure":
-            country_column = "arrival_country_code"
+            country_column = "arrival_country"  # 국가 이름 사용
             region_column = "arrival_region"
         else:  # arrival
-            country_column = "departure_country_code"
+            country_column = "departure_country"  # 국가 이름 사용
             region_column = "departure_region"
 
         # 차트 생성을 위한 그룹 컬럼들
@@ -353,6 +353,10 @@ class FlightScheduleResponse:
         if time_column not in flight_df.columns:
             return None
 
+        # null 값을 "Unknown"으로 변환 (모든 그룹 컬럼에 대해)
+        flight_df = flight_df.copy()
+        flight_df[group_column] = flight_df[group_column].fillna("Unknown")
+
         flight_df[time_column] = pd.to_datetime(flight_df[time_column]).dt.floor("h")
 
         df_grouped = (
@@ -368,10 +372,10 @@ class FlightScheduleResponse:
 
         if has_etc:
             top_9_columns = df_grouped.sum().nlargest(9).index.tolist()
-            df_grouped["etc"] = df_grouped.drop(
+            df_grouped["ETC"] = df_grouped.drop(
                 columns=top_9_columns, errors="ignore"
             ).sum(axis=1)
-            df_grouped = df_grouped[top_9_columns + ["etc"]]
+            df_grouped = df_grouped[top_9_columns + ["ETC"]]
         else:
             top_9_columns = df_grouped.columns.tolist()
 
@@ -384,9 +388,9 @@ class FlightScheduleResponse:
         df_grouped = df_grouped.reindex(all_hours, fill_value=0)
 
         group_order = df_grouped.sum().sort_values(ascending=False).index.tolist()
-        if has_etc and "etc" in group_order:
-            group_order.remove("etc")
-            group_order.append("etc")
+        if has_etc and "ETC" in group_order:
+            group_order.remove("ETC")
+            group_order.append("ETC")
 
         default_x = df_grouped.index.strftime("%H:%M").tolist()
         traces = [
