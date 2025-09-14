@@ -423,8 +423,8 @@ class HomeAnalyzer:
             for facility in facilities:
                 df = self.pax_df[self.pax_df[f"{process}_zone"] == facility].copy()
 
-                # 대기시간 분포
-                wt_mins = df[f"{process}_waiting_time"].dt.total_seconds()
+                # 대기시간 분포 (초를 분으로 변환)
+                wt_mins = df[f"{process}_waiting_time"].dt.total_seconds() / 60
                 wt_bins = self._get_distribution(wt_mins, WT_BINS, WT_LABELS)
 
                 # 대기열 분포
@@ -464,12 +464,29 @@ class HomeAnalyzer:
 
     def get_sankey_diagram_data(self):
         """산키 다이어그램 데이터 생성"""
-        # 메인 로직
-        target_columns = [
-            col
-            for col in self.pax_df.columns
-            if col.endswith("_pred") and not any(x in col for x in ["on", "done", "pt"])
+        # facility 기반으로 승객 플로우 생성 (시간 순서로 정렬)
+        facility_cols = [
+            col for col in self.pax_df.columns 
+            if col.endswith("_facility")
         ]
+        
+        # {process}_done_time 기준으로 시간 순서 정렬
+        timed_facilities = []
+        for col in facility_cols:
+            process_name = col.replace("_facility", "")
+            done_time_col = f"{process_name}_done_time"
+            if done_time_col in self.pax_df.columns:
+                # 평균 완료 시간으로 정렬
+                avg_time = self.pax_df[done_time_col].mean()
+                timed_facilities.append((avg_time, col))
+        
+        # 시간 순서대로 정렬 (체크인 → 게이트 순서)
+        timed_facilities.sort(key=lambda x: x[0])
+        target_columns = [col for _, col in timed_facilities]
+        
+        # 시간 정보가 없는 경우 원래 방식 사용
+        if not target_columns:
+            target_columns = facility_cols
 
         # 빈 컬럼 리스트 처리
         if not target_columns:
