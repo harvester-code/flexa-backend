@@ -136,15 +136,13 @@ class HomeAnalyzer:
 
             # 모든 노드의 데이터를 한 번에 그룹화
             grouped = (
-                df.groupby([f"{component}_time_floored", f"{component}_pred"])
+                df.groupby([f"{component}_time_floored", f"{component}_zone"])
                 .size()
                 .reset_index(name="Exp pax")
             )
 
             # Service Point 컬럼 추가
-            grouped["Service Point"] = grouped[f"{component}_pred"].str.replace(
-                f"{component}_", "", regex=False
-            )
+            grouped["Service Point"] = grouped[f"{component}_zone"]
             grouped["Touch Point"] = component
 
             # 컬럼 순서 조정
@@ -260,12 +258,12 @@ class HomeAnalyzer:
         data = {"times": time_df.index.strftime("%Y-%m-%d %H:%M:%S").tolist()}
 
         for process in self.process_list:
-            facilities = sorted(self.pax_df[f"{process}_pred"].dropna().unique())
+            facilities = sorted(self.pax_df[f"{process}_zone"].dropna().unique())
             if not facilities:
                 data[process] = {}
                 continue
 
-            process_data = self.pax_df[self.pax_df[f"{process}_pred"].notna()].copy()
+            process_data = self.pax_df[self.pax_df[f"{process}_zone"].notna()].copy()
             process_data[f"{process}_waiting"] = (
                 process_data[f"{process}_pt_pred"] - process_data[f"{process}_on_pred"]
             ).dt.total_seconds()
@@ -281,16 +279,16 @@ class HomeAnalyzer:
             # 한번에 모든 메트릭 계산
             metrics = {
                 "inflow": process_data.groupby(
-                    [f"{process}_on_floored", f"{process}_pred"]
+                    [f"{process}_on_floored", f"{process}_zone"]
                 ).size(),
                 "outflow": process_data.groupby(
-                    [f"{process}_done_floored", f"{process}_pred"]
+                    [f"{process}_done_floored", f"{process}_zone"]
                 ).size(),
                 "queue_length": process_data.groupby(
-                    [f"{process}_on_floored", f"{process}_pred"]
+                    [f"{process}_on_floored", f"{process}_zone"]
                 )[f"{process}_queue_length"].mean(),
                 "waiting_time": process_data.groupby(
-                    [f"{process}_on_floored", f"{process}_pred"]
+                    [f"{process}_on_floored", f"{process}_zone"]
                 )[f"{process}_waiting"].mean(),
             }
 
@@ -397,8 +395,8 @@ class HomeAnalyzer:
 
             # Components 계산
             components = []
-            for facility in sorted(process_df[f"{process}_pred"].unique()):
-                facility_df = process_df[process_df[f"{process}_pred"] == facility]
+            for facility in sorted(process_df[f"{process}_zone"].unique()):
+                facility_df = process_df[process_df[f"{process}_zone"] == facility]
                 waiting_time = self._calculate_waiting_time(facility_df, process)
 
                 ai = pa = None
@@ -561,12 +559,12 @@ class HomeAnalyzer:
         data = {}
 
         for process in self.process_list:
-            facilities = sorted(self.pax_df[f"{process}_pred"].dropna().unique())
+            facilities = sorted(self.pax_df[f"{process}_zone"].dropna().unique())
             wt_collection, ql_collection = [], []
             facility_data = {}
 
             for facility in facilities:
-                df = self.pax_df[self.pax_df[f"{process}_pred"] == facility].copy()
+                df = self.pax_df[self.pax_df[f"{process}_zone"] == facility].copy()
 
                 # 대기시간 분포
                 wt_mins = (
@@ -724,7 +722,7 @@ class HomeAnalyzer:
         # 각 component별로 동적 처리 (get_flow_chart_data 방식)
         for comp_name in component_mapping.keys():
             on_pred_col = f"{comp_name}_on_pred"
-            pred_col = f"{comp_name}_pred"
+            pred_col = f"{comp_name}_zone"
             queue_col = f"{comp_name}_queue_length"
 
             if all(col in df.columns for col in [on_pred_col, pred_col, queue_col]):
@@ -1029,7 +1027,7 @@ class HomeAnalyzer:
                 "waiting_time": self.pax_df[f"{process}_pt_pred"]
                 - self.pax_df[f"{process}_on_pred"],
                 "queue_length": self.pax_df[f"{process}_queue_length"],
-                "process_name": self.pax_df[f"{process}_pred"],
+                "process_name": self.pax_df[f"{process}_zone"],
             }
         )
 
@@ -1187,11 +1185,10 @@ class HomeAnalyzer:
 
     def _get_processed_pax_count(self, process, node, facility_idx):
         """처리된 승객 수 가져오기"""
-        if f"{process}_pred" not in self.pax_df.columns:
+        if f"{process}_zone" not in self.pax_df.columns:
             return None
 
-        facility_name = f"{process}_{node}"
-        facility_df = self.pax_df[self.pax_df[f"{process}_pred"] == facility_name]
+        facility_df = self.pax_df[self.pax_df[f"{process}_zone"] == node]
 
         if f"{process}_facility_number" not in facility_df.columns:
             return None
