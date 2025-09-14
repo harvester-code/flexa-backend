@@ -1094,7 +1094,7 @@ class HomeAnalyzer:
 
             if facility:  # 특정 시설
                 for node in comp["nodes"]:
-                    if f"{process}_{node['name']}" == facility:
+                    if node['name'] == facility:
                         schedules = node.get("facility_schedules", [])
                         per_facility = list(zip(*schedules)) if schedules else []
                         opened = sum(
