@@ -55,7 +55,7 @@ class HomeAnalyzer:
         )
 
         queue_lengths_df = pd.DataFrame(
-            {process: self.pax_df[f"{process}_que"] for process in self.process_list}
+            {process: self.pax_df[f"{process}_queue_length"] for process in self.process_list}
         ).dropna()
         queue_data = self._get_pax_experience_data(
             queue_lengths_df, "count", self.calculate_type, self.percentile
@@ -288,7 +288,7 @@ class HomeAnalyzer:
                 ).size(),
                 "queue_length": process_data.groupby(
                     [f"{process}_on_floored", f"{process}_pred"]
-                )[f"{process}_que"].mean(),
+                )[f"{process}_queue_length"].mean(),
                 "waiting_time": process_data.groupby(
                     [f"{process}_on_floored", f"{process}_pred"]
                 )[f"{process}_waiting"].mean(),
@@ -381,9 +381,9 @@ class HomeAnalyzer:
                 "opened": self._get_opened_count(process),
                 "throughput": len(process_df),
                 "queuePax": int(
-                    process_df[f"{process}_que"].quantile(1 - self.percentile / 100)
+                    process_df[f"{process}_queue_length"].quantile(1 - self.percentile / 100)
                     if self.calculate_type == "top"
-                    else process_df[f"{process}_que"].mean()
+                    else process_df[f"{process}_queue_length"].mean()
                 ),
                 "waitTime": self._format_waiting_time(
                     waiting_time.quantile(1 - self.percentile / 100)
@@ -412,11 +412,11 @@ class HomeAnalyzer:
                         "opened": self._get_opened_count(process, facility),
                         "throughput": len(facility_df),
                         "queuePax": int(
-                            facility_df[f"{process}_que"].quantile(
+                            facility_df[f"{process}_queue_length"].quantile(
                                 1 - self.percentile / 100
                             )
                             if self.calculate_type == "top"
-                            else facility_df[f"{process}_que"].mean()
+                            else facility_df[f"{process}_queue_length"].mean()
                         ),
                         "waitTime": self._format_waiting_time(
                             waiting_time.quantile(1 - self.percentile / 100)
@@ -576,9 +576,9 @@ class HomeAnalyzer:
 
                 # 대기열 분포
                 ql_bins = []
-                if f"{process}_que" in df.columns and not df[f"{process}_que"].empty:
+                if f"{process}_queue_length" in df.columns and not df[f"{process}_queue_length"].empty:
                     ql_bins = self._get_distribution(
-                        df[f"{process}_que"], QL_BINS, QL_LABELS
+                        df[f"{process}_queue_length"], QL_BINS, QL_LABELS
                     )
 
                 # 데이터 저장
@@ -725,7 +725,7 @@ class HomeAnalyzer:
         for comp_name in component_mapping.keys():
             on_pred_col = f"{comp_name}_on_pred"
             pred_col = f"{comp_name}_pred"
-            queue_col = f"{comp_name}_que"
+            queue_col = f"{comp_name}_queue_length"
 
             if all(col in df.columns for col in [on_pred_col, pred_col, queue_col]):
                 # 해당 process가 처리된 데이터만 필터링
@@ -1028,7 +1028,7 @@ class HomeAnalyzer:
                 "datetime": self.pax_df[f"{process}_on_pred"].dt.floor(time_interval),
                 "waiting_time": self.pax_df[f"{process}_pt_pred"]
                 - self.pax_df[f"{process}_on_pred"],
-                "queue_length": self.pax_df[f"{process}_que"],
+                "queue_length": self.pax_df[f"{process}_queue_length"],
                 "process_name": self.pax_df[f"{process}_pred"],
             }
         )
