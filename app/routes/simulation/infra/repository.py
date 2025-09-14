@@ -17,6 +17,7 @@ from app.routes.simulation.infra.models import (
     ScenarioInformation,
     UserInformation,
 )
+from packages.aws.s3.s3_manager import S3Manager
 
 
 class SimulationRepository(ISimulationRepository):
@@ -30,6 +31,9 @@ class SimulationRepository(ISimulationRepository):
     4. 권한 및 유틸리티
     """
 
+    def __init__(self):
+        self.s3_manager = S3Manager()
+
     # =====================================
     # 1. 시나리오 관리 (기본 CRUD 기능)
     # =====================================
@@ -40,9 +44,6 @@ class SimulationRepository(ISimulationRepository):
         user_id: str,
     ):
         """시나리오 목록 조회 (현재 사용자의 모든 시나리오)"""
-        import boto3
-        from botocore.exceptions import ClientError
-
         async with db.begin():
             # ORM을 사용한 JOIN 쿼리
             stmt = (
@@ -68,24 +69,19 @@ class SimulationRepository(ISimulationRepository):
 
             result = await db.execute(stmt)
 
-            # S3 클라이언트 초기화
-            s3_client = boto3.client('s3')
-            bucket_name = 'flexa-simulator-data'
-
             # 결과를 리스트로 반환
             scenarios = []
             for row in result:
                 scenario_info = row[0]  # ScenarioInformation 객체
 
-                # S3에서 simulation-pax.parquet 파일 존재 여부 확인
+                # S3Manager를 사용하여 simulation-pax.parquet 파일 존재 여부 확인
                 has_simulation_data = False
                 if scenario_info.scenario_id:
-                    try:
-                        s3_key = f"{scenario_info.scenario_id}/simulation-pax.parquet"
-                        s3_client.head_object(Bucket=bucket_name, Key=s3_key)
-                        has_simulation_data = True
-                    except ClientError:
-                        has_simulation_data = False
+                    # 비동기 함수를 호출하기 위해 await 사용
+                    has_simulation_data = await self.s3_manager.check_exists_async(
+                        scenario_id=scenario_info.scenario_id,
+                        filename="simulation-pax.parquet"
+                    )
 
                 scenario_dict = {
                     # ScenarioInformation 필드들

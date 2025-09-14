@@ -14,9 +14,7 @@ from fastapi import HTTPException
 from loguru import logger
 from sqlalchemy import Connection
 
-import awswrangler as wr
-from packages.doppler.client import get_secret
-from packages.aws.s3.storage import boto3_session, check_s3_object_exists
+from packages.aws.s3.s3_manager import S3Manager
 from app.routes.simulation.application.queries import (
     SELECT_AIRPORT_FLIGHTS_EXTENDED,
     SELECT_AIRPORT_SCHEDULE,
@@ -25,6 +23,9 @@ from app.routes.simulation.application.queries import (
 
 class FlightScheduleStorage:
     """항공편 스케줄 데이터 저장 전담 클래스"""
+
+    def __init__(self):
+        self.s3_manager = S3Manager()
 
     async def fetch_and_store(
         self,
@@ -80,16 +81,18 @@ class FlightScheduleStorage:
 
         # S3 데이터 확인
         if storage == "s3":
-            object_exists = await check_s3_object_exists(
-                bucket_name=get_secret("AWS_S3_BUCKET_NAME"),
-                object_key=f"{scenario_id}/flight-schedule.parquet",
+            object_exists = await self.s3_manager.check_exists_async(
+                scenario_id=scenario_id,
+                filename="flight-schedule.parquet"
             )
 
             if object_exists:
-                flight_schedule_data = wr.s3.read_parquet(
-                    path=f"s3://{get_secret('AWS_S3_BUCKET_NAME')}/{scenario_id}/flight-schedule.parquet",
-                    boto3_session=boto3_session,
-                ).to_dict("records")
+                # S3Manager를 사용하여 parquet 파일을 dict로 읽기
+                flight_schedule_data = await self.s3_manager.get_parquet_async(
+                    scenario_id=scenario_id,
+                    filename="flight-schedule.parquet",
+                    as_dict=True
+                )
 
         # Redshift에서 데이터 조회
         if not flight_schedule_data:
@@ -222,10 +225,11 @@ class FlightScheduleStorage:
         if not flight_schedule_data:
             return
 
-        wr.s3.to_parquet(
-            df=pd.DataFrame(flight_schedule_data),
-            path=f"s3://{get_secret('AWS_S3_BUCKET_NAME')}/{scenario_id}/flight-schedule.parquet",
-            boto3_session=boto3_session,
+        # S3Manager를 사용하여 parquet 저장
+        await self.s3_manager.save_parquet_async(
+            scenario_id=scenario_id,
+            filename="flight-schedule.parquet",
+            df=pd.DataFrame(flight_schedule_data)
         )
 
 

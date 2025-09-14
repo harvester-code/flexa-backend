@@ -36,13 +36,13 @@ from app.routes.simulation.domain.simulation import (
 from app.routes.simulation.infra.models import UserInformation
 
 # Packages
-from packages.doppler.client import get_secret
-from packages.aws.s3.storage import boto3_session
+from packages.aws.s3.s3_manager import S3Manager
 
 
 class SimulationService:
     def __init__(self, simulation_repo):
         self.simulation_repo = simulation_repo
+        self.s3_manager = S3Manager()
 
         # Storage layer instances
         self.flight_storage = FlightScheduleStorage()
@@ -346,51 +346,42 @@ class SimulationService:
     async def save_scenario_metadata(self, scenario_id: str, metadata: dict):
         """
         시나리오 메타데이터를 S3에 저장
-        
+
         메타데이터 구조:
         - tabs: 각 탭별 백엔드 body 데이터
         - simulationUI: UI 전용 상태 데이터 (parquetMetadata 등)
         """
         try:
-            import json
             from datetime import datetime
 
             # 메타데이터 구조 로깅 (디버깅용)
             tabs_count = len(metadata.get("tabs", {}))
             has_simulation_ui = "simulationUI" in metadata
-            
+
             logger.info(
                 f"💾 Saving metadata for scenario {scenario_id}: "
                 f"{tabs_count} tabs, simulationUI: {has_simulation_ui}"
             )
 
-            # JSON 문자열로 변환
-            json_content = json.dumps(metadata, ensure_ascii=False, indent=2)
-
-            # boto3를 사용하여 직접 S3에 업로드
-            s3_client = boto3_session.client("s3")
-            bucket_name = get_secret("AWS_S3_BUCKET_NAME")
-            s3_key = f"{scenario_id}/metadata-for-frontend.json"
-
-            s3_client.put_object(
-                Bucket=bucket_name,
-                Key=s3_key,
-                Body=json_content,
-                ContentType="application/json",
-                ContentEncoding="utf-8",
+            # S3Manager를 사용하여 저장
+            success = await self.s3_manager.save_json_async(
+                scenario_id=scenario_id,
+                filename="metadata-for-frontend.json",
+                data=metadata
             )
 
-            logger.info(
-                f"Successfully saved metadata to S3: s3://{bucket_name}/{s3_key}"
-            )
+            if success:
+                logger.info(
+                    f"Successfully saved metadata to S3 for scenario {scenario_id}"
+                )
+                return {
+                    "message": "Metadata saved successfully",
+                    "scenario_id": scenario_id,
+                    "saved_at": datetime.now().isoformat(),
+                }
+            else:
+                raise Exception("Failed to save metadata to S3")
 
-            return {
-                "message": "Metadata saved successfully",
-                "scenario_id": scenario_id,
-                "s3_key": s3_key,
-                "bucket": bucket_name,
-                "saved_at": datetime.now().isoformat(),
-            }
         except Exception as e:
             logger.error(f"Failed to save metadata to S3: {str(e)}")
             raise HTTPException(
@@ -401,31 +392,24 @@ class SimulationService:
     async def load_scenario_metadata(self, scenario_id: str):
         """S3에서 시나리오 메타데이터 로드"""
         try:
-            import json
             from datetime import datetime
 
-            bucket_name = get_secret("AWS_S3_BUCKET_NAME")
-            s3_key = f"{scenario_id}/metadata-for-frontend.json"
-            s3_client = boto3_session.client("s3")
+            # S3Manager를 사용하여 로드
+            metadata = await self.s3_manager.get_json_async(
+                scenario_id=scenario_id,
+                filename="metadata-for-frontend.json"
+            )
 
-            try:
-                # S3에서 객체 가져오기
-                response = s3_client.get_object(Bucket=bucket_name, Key=s3_key)
-                json_content = response["Body"].read().decode("utf-8")
-                metadata = json.loads(json_content)
-
+            if metadata is not None:
                 logger.info(
-                    f"Successfully loaded metadata from S3: s3://{bucket_name}/{s3_key}"
+                    f"Successfully loaded metadata from S3 for scenario {scenario_id}"
                 )
-
                 return {
                     "scenario_id": scenario_id,
                     "metadata": metadata,
-                    "s3_key": s3_key,
                     "loaded_at": datetime.now().isoformat(),
                 }
-
-            except s3_client.exceptions.NoSuchKey:
+            else:
                 # 파일이 없는 경우 - 빈 메타데이터 반환 (정상적인 상황)
                 logger.info(
                     f"No metadata file found for scenario {scenario_id} - returning empty metadata"
@@ -433,7 +417,6 @@ class SimulationService:
                 return {
                     "scenario_id": scenario_id,
                     "metadata": None,
-                    "s3_key": s3_key,
                     "loaded_at": datetime.now().isoformat(),
                     "is_new_scenario": True
                 }
@@ -449,46 +432,34 @@ class SimulationService:
     async def delete_scenario_metadata(self, scenario_id: str):
         """
         S3에서 시나리오 메타데이터 삭제
-        
+
         모든 메타데이터를 삭제합니다:
-        - tabs: 각 탭별 백엔드 body 데이터  
+        - tabs: 각 탭별 백엔드 body 데이터
         - simulationUI: UI 전용 상태 데이터
         """
         try:
             from datetime import datetime
 
-            bucket_name = get_secret("AWS_S3_BUCKET_NAME")
-            s3_key = f"{scenario_id}/metadata-for-frontend.json"
-            s3_client = boto3_session.client("s3")
+            # S3Manager를 사용하여 삭제
+            success = await self.s3_manager.delete_json_async(
+                scenario_id=scenario_id,
+                filename="metadata-for-frontend.json"
+            )
 
-            try:
-                # S3에서 객체 삭제
-                s3_client.delete_object(Bucket=bucket_name, Key=s3_key)
-
+            if success:
                 logger.info(
-                    f"Successfully deleted metadata from S3: s3://{bucket_name}/{s3_key}"
+                    f"Successfully deleted metadata from S3 for scenario {scenario_id}"
                 )
-
-                return {
-                    "message": "Metadata deleted successfully",
-                    "scenario_id": scenario_id,
-                    "s3_key": s3_key,
-                    "bucket": bucket_name,
-                    "deleted_at": datetime.now().isoformat(),
-                }
-
-            except s3_client.exceptions.NoSuchKey:
-                # 파일이 이미 없는 경우 - 성공으로 처리
+            else:
                 logger.info(
                     f"Metadata file for scenario {scenario_id} was already deleted or does not exist"
                 )
-                return {
-                    "message": "Metadata was already deleted or does not exist",
-                    "scenario_id": scenario_id,
-                    "s3_key": s3_key,
-                    "bucket": bucket_name,
-                    "deleted_at": datetime.now().isoformat(),
-                }
+
+            return {
+                "message": "Metadata deleted successfully" if success else "Metadata was already deleted or does not exist",
+                "scenario_id": scenario_id,
+                "deleted_at": datetime.now().isoformat(),
+            }
 
         except Exception as e:
             logger.error(f"Failed to delete metadata from S3: {str(e)}")

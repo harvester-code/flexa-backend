@@ -13,15 +13,16 @@ import json
 from loguru import logger
 from sqlalchemy import Connection
 
-import awswrangler as wr
-from packages.doppler.client import get_secret
-from packages.aws.s3.storage import boto3_session
+from packages.aws.s3.s3_manager import S3Manager
 
 from ..queries import SELECT_AIRPORT_FLIGHTS_EXTENDED, SELECT_AIRPORT_SCHEDULE
 
 
 class FlightFiltersResponse:
     """Flight filters metadata response generation class (based on real data)"""
+
+    def __init__(self):
+        self.s3_manager = S3Manager()
 
     async def generate_filters_metadata(
         self, redshift_db: Connection, scenario_id: str, airport: str, date: str
@@ -98,7 +99,7 @@ class FlightFiltersResponse:
         logger.info(f"📊 Total flights: {metadata['total_flights']}")
         logger.info(f"✈️ Airlines: {len(metadata['airlines'])}")
         logger.info(
-            f"💾 Saved raw data to S3: s3://{get_secret('AWS_S3_BUCKET_NAME')}/{scenario_id}/flight-schedule.parquet"
+            f"💾 Saved raw data to S3: {scenario_id}/flight-schedule.parquet"
         )
 
         return metadata
@@ -451,11 +452,11 @@ class FlightFiltersResponse:
             return
 
         try:
-            # Convert flight data list to DataFrame and save as parquet
-            wr.s3.to_parquet(
-                df=pd.DataFrame(flight_data),
-                path=f"s3://{get_secret('AWS_S3_BUCKET_NAME')}/{scenario_id}/flight-schedule.parquet",
-                boto3_session=boto3_session,
+            # S3Manager를 사용하여 parquet 저장
+            await self.s3_manager.save_parquet_async(
+                scenario_id=scenario_id,
+                filename="flight-schedule.parquet",
+                df=pd.DataFrame(flight_data)
             )
 
             logger.info(

@@ -14,13 +14,14 @@ import pandas as pd
 from fastapi import HTTPException, status
 from loguru import logger
 
-import awswrangler as wr
-from packages.doppler.client import get_secret
-from packages.aws.s3.storage import boto3_session, check_s3_object_exists
+from packages.aws.s3.s3_manager import S3Manager
 
 
 class ShowUpPassengerStorage:
     """승객 스케줄 데이터 저장 전담 클래스"""
+
+    def __init__(self):
+        self.s3_manager = S3Manager()
 
     async def generate_and_store(self, scenario_id: str, config: dict) -> pd.DataFrame:
         """승객 스케줄 생성 및 저장"""
@@ -143,17 +144,18 @@ class ShowUpPassengerStorage:
     ) -> Optional[List[Dict]]:
         """S3에서 항공편 데이터 로드"""
         try:
-            object_exists = await check_s3_object_exists(
-                bucket_name=get_secret("AWS_S3_BUCKET_NAME"),
-                object_key=f"{scenario_id}/flight-schedule.parquet",
+            object_exists = await self.s3_manager.check_exists_async(
+                scenario_id=scenario_id,
+                filename="flight-schedule.parquet"
             )
 
             if not object_exists:
                 return None
 
-            df = wr.s3.read_parquet(
-                path=f"s3://{get_secret('AWS_S3_BUCKET_NAME')}/{scenario_id}/flight-schedule.parquet",
-                boto3_session=boto3_session,
+            # S3Manager를 사용하여 parquet 파일 읽기
+            df = await self.s3_manager.get_parquet_async(
+                scenario_id=scenario_id,
+                filename="flight-schedule.parquet"
             )
 
             logger.info(f"원본 데이터: {len(df):,}개")
@@ -337,10 +339,11 @@ class ShowUpPassengerStorage:
     async def _save_passenger_data_to_s3(self, pax_df: pd.DataFrame, scenario_id: str):
         """승객 데이터를 S3에 저장"""
         try:
-            wr.s3.to_parquet(
-                df=pax_df,
-                path=f"s3://{get_secret('AWS_S3_BUCKET_NAME')}/{scenario_id}/show-up-passenger.parquet",
-                boto3_session=boto3_session,
+            # S3Manager를 사용하여 parquet 저장
+            await self.s3_manager.save_parquet_async(
+                scenario_id=scenario_id,
+                filename="show-up-passenger.parquet",
+                df=pax_df
             )
             logger.info(f"Saved {len(pax_df):,} passenger records to S3")
         except Exception as e:
