@@ -24,8 +24,8 @@ class HomeAnalyzer:
             self.pax_df = self.pax_df.dropna(subset=cols_to_check)
         # 2. 처리 완료 시간이 예정 출발 시간보다 늦은 경우, 제외하고 시작함
         # last_done_col = f"{process_list[-1]}_done_time"
-        # if last_done_col in pax_df.columns and 'scheduled_gate_departure_local' in pax_df.columns:
-        #     pax_df = pax_df[pax_df[last_done_col] < pax_df['scheduled_gate_departure_local']]
+        # if last_done_col in pax_df.columns and 'scheduled_departure_local' in pax_df.columns:
+        #     pax_df = pax_df[pax_df[last_done_col] < pax_df['scheduled_departure_local']]
 
         self.facility_info = facility_info
         self.calculate_type = calculate_type
@@ -815,7 +815,7 @@ class HomeAnalyzer:
         # 10. 얼리버드 승객 비율 (2시간 이전 도착)
         early_bird_ratio = 0.0
 
-        if self.process_list and "scheduled_gate_departure_local" in df.columns:
+        if self.process_list and "scheduled_departure_local" in df.columns:
             last_process = self.process_list[-1]
             last_done_col = f"{last_process}_done_time"
 
@@ -824,7 +824,7 @@ class HomeAnalyzer:
                 valid_data = df.dropna(
                     subset=[
                         last_done_col,
-                        "scheduled_gate_departure_local",
+                        "scheduled_departure_local",
                         "show_up_time",
                     ]
                 )
@@ -833,11 +833,11 @@ class HomeAnalyzer:
                     # 승객 분류
                     missed_passengers_data = valid_data[
                         valid_data[last_done_col]
-                        > valid_data["scheduled_gate_departure_local"]
+                        > valid_data["scheduled_departure_local"]
                     ]
                     ontime_passengers_data = valid_data[
                         valid_data[last_done_col]
-                        <= valid_data["scheduled_gate_departure_local"]
+                        <= valid_data["scheduled_departure_local"]
                     ]
 
                     # 3. 항공기를 놓친 승객 수
@@ -848,7 +848,7 @@ class HomeAnalyzer:
 
                     # 5. 상업시설 이용시간 평균 계산 (모든 승객 대상, 음수 포함, 총 분 단위)
                     commercial_time_diff = (
-                        valid_data["scheduled_gate_departure_local"]
+                        valid_data["scheduled_departure_local"]
                         - valid_data[last_done_col]
                     )
                     avg_commercial_time_seconds = (
@@ -861,7 +861,7 @@ class HomeAnalyzer:
                     actual_departure_time = pd.concat(
                         [
                             valid_data[last_done_col],
-                            valid_data["scheduled_gate_departure_local"],
+                            valid_data["scheduled_departure_local"],
                         ],
                         axis=1,
                     ).max(axis=1)
@@ -897,14 +897,14 @@ class HomeAnalyzer:
         # 10. 얼리버드 승객 비율 (2시간 이전 도착)
         if (
             "show_up_time" in df.columns
-            and "scheduled_gate_departure_local" in df.columns
+            and "scheduled_departure_local" in df.columns
         ):
             early_arrival_data = df.dropna(
-                subset=["show_up_time", "scheduled_gate_departure_local"]
+                subset=["show_up_time", "scheduled_departure_local"]
             )
             if not early_arrival_data.empty:
                 time_before_departure = (
-                    early_arrival_data["scheduled_gate_departure_local"]
+                    early_arrival_data["scheduled_departure_local"]
                     - early_arrival_data["show_up_time"]
                 ).dt.total_seconds() / 3600  # 시간 단위로 변환
 
