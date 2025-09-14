@@ -20,10 +20,10 @@ class HomeAnalyzer:
             for col in self.pax_df.columns
             if "on_pred" in col
         ]:
-            cols_to_check = [f"{process}_on_pred", f"{process}_done_pred"]
+            cols_to_check = [f"{process}_on_pred", f"{process}_done_time"]
             self.pax_df = self.pax_df.dropna(subset=cols_to_check)
         # 2. 처리 완료 시간이 예정 출발 시간보다 늦은 경우, 제외하고 시작함
-        # last_done_col = f"{process_list[-1]}_done_pred"
+        # last_done_col = f"{process_list[-1]}_done_time"
         # if last_done_col in pax_df.columns and 'scheduled_gate_departure_local' in pax_df.columns:
         #     pax_df = pax_df[pax_df[last_done_col] < pax_df['scheduled_gate_departure_local']]
 
@@ -275,7 +275,7 @@ class HomeAnalyzer:
                 f"{process}_on_pred"
             ].dt.floor(time_unit)
             process_data[f"{process}_done_floored"] = process_data[
-                f"{process}_done_pred"
+                f"{process}_done_time"
             ].dt.floor(time_unit)
 
             # 한번에 모든 메트릭 계산
@@ -369,7 +369,7 @@ class HomeAnalyzer:
         for process in self.process_list:
             cols = [
                 f"{process}_{x}"
-                for x in ["pred", "facility_number", "que", "pt", "on_pred", "pt_pred"]
+                for x in ["pred", "facility_number", "que", "on_pred", "pt_pred"]
             ]
             process_df = self.pax_df[cols].copy()
 
@@ -819,7 +819,7 @@ class HomeAnalyzer:
 
         if self.process_list and "scheduled_gate_departure_local" in df.columns:
             last_process = self.process_list[-1]
-            last_done_col = f"{last_process}_done_pred"
+            last_done_col = f"{last_process}_done_time"
 
             if last_done_col in df.columns and "show_up_time" in df.columns:
                 # 유효한 데이터만 필터링 (done 시간과 출발 시간이 모두 있는 경우)
