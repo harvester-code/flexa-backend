@@ -1,4 +1,3 @@
-import math
 from typing import Any, Dict, Optional
 
 import numpy as np
@@ -27,12 +26,12 @@ class HomeAnalyzer:
         # if last_done_col in pax_df.columns and 'scheduled_departure_local' in pax_df.columns:
         #     pax_df = pax_df[pax_df[last_done_col] < pax_df['scheduled_departure_local']]
 
-        self.facility_info = facility_info
+        self.facility_info = None
         self.calculate_type = calculate_type
         self.percentile = percentile
         self.time_unit = "10min"
         self.process_list = self._get_process_list()
-        self.facility_ratio = self.make_facility_ratio() if self.facility_info is not None else {}
+        self.facility_ratio = {}
 
     # ===============================
     # 메인 함수들
@@ -60,19 +59,11 @@ class HomeAnalyzer:
             queue_lengths_df, "count", self.calculate_type, self.percentile
         )
 
-        # 시설 관련 데이터 - 안전한 접근
-        facility_data = (
-            self.facility_ratio.get("all_facility", {}) if self.facility_ratio else {}
-        )
-
         # 응답 데이터 구성
         data = {
             "throughput": throughput,
             "waiting_time": waiting_time_data["total"],
             "queue_length": queue_data["total"],
-            "facility_utilization": facility_data.get("activated_per_installed"),
-            "processed_per_activated": facility_data.get("processed_per_activated"),
-            "processed_per_installed": facility_data.get("processed_per_installed"),
             "pax_experience": {
                 "waiting_time": {
                     process: waiting_time_data[process] for process in self.process_list
@@ -301,21 +292,14 @@ class HomeAnalyzer:
                 k: pd.Series(0, index=time_df.index, dtype=float)
                 for k in metrics.keys()
             }
-            aggregated["capacity"] = pd.Series(0, index=time_df.index, dtype=float)
 
             for facility_name in facilities:
                 node_name = facility_name.split("_")[-1]
-                capacity_per_unit_time = self._calculate_node_capacity_list(
-                    process, node_name, time_unit
-                ) or [0] * len(time_df.index)
 
                 facility_data = {
                     k: pivoted[k].get(facility_name, pd.Series(0, index=time_df.index))
                     for k in metrics.keys()
                 }
-                facility_data["capacity"] = pd.Series(
-                    capacity_per_unit_time, index=time_df.index
-                )
 
                 # 집계
                 for k in facility_data.keys():
@@ -346,7 +330,6 @@ class HomeAnalyzer:
                 .round()
                 .astype(int)
                 .tolist(),
-                "capacity": aggregated["capacity"].astype(int).tolist(),
             }
 
             data[process] = {"all_zones": all_zones_data, **process_facility_data}
@@ -370,10 +353,8 @@ class HomeAnalyzer:
 
             # Overview 계산
             waiting_time = self._calculate_waiting_time(process_df, process)
-            ai, pa, pi = self._get_process_ratios(process)
 
             overview = {
-                "opened": self._get_opened_count(process),
                 "throughput": len(process_df),
                 "queuePax": int(
                     process_df[f"{process}_queue_length"].quantile(1 - self.percentile / 100)
@@ -385,9 +366,6 @@ class HomeAnalyzer:
                     if self.calculate_type == "top"
                     else waiting_time.mean()
                 ),
-                "ai_ratio": ai,
-                "pa_ratio": pa,
-                "pi_ratio": pi,
             }
 
             # Components 계산
@@ -396,15 +374,9 @@ class HomeAnalyzer:
                 facility_df = process_df[process_df[f"{process}_zone"] == facility]
                 waiting_time = self._calculate_waiting_time(facility_df, process)
 
-                ai = pa = None
-                if self.facility_ratio and facility in self.facility_ratio:
-                    ai = self.facility_ratio[facility].get("activated_per_installed")
-                    pa = self.facility_ratio[facility].get("processed_per_activated")
-
                 components.append(
                     {
                         "title": facility,
-                        "opened": self._get_opened_count(process, facility),
                         "throughput": len(facility_df),
                         "queuePax": int(
                             facility_df[f"{process}_queue_length"].quantile(
@@ -418,8 +390,6 @@ class HomeAnalyzer:
                             if self.calculate_type == "top"
                             else waiting_time.mean()
                         ),
-                        "ai_ratio": ai,
-                        "pa_ratio": pa,
                     }
                 )
 
@@ -428,116 +398,6 @@ class HomeAnalyzer:
             )
         return data
 
-    def make_facility_ratio(self, slot_seconds: int = 600):
-        """시설 정보를 계층적으로 집계하여 하나의 딕셔너리에 통합"""
-        if not self.facility_info:
-            return {}
-
-        # 상수
-        SLOTS_PER_DAY = 86400 // slot_seconds
-
-        # 1. 개별 시설 데이터 생성
-        facility_summary = {}
-
-        for component in self.facility_info["components"]:
-            process = component["name"]
-
-            for node in component["nodes"]:
-                node_name = node["name"]
-                facility_count = node["facility_count"]
-                facility_schedules = node["facility_schedules"]
-
-                # 용량 메트릭 계산
-                installed_capacity, activated_capacity = (
-                    self._calculate_capacity_metrics(facility_schedules, slot_seconds)
-                )
-
-                # 각 기기별 데이터 생성
-                for device_idx in range(facility_count):
-                    facility_key = f"{process}_{node_name}_{device_idx + 1}"
-
-                    # 기본값
-                    installed = (
-                        installed_capacity[device_idx]
-                        if device_idx < len(installed_capacity)
-                        else None
-                    )
-                    activated = (
-                        activated_capacity[device_idx]
-                        if device_idx < len(activated_capacity)
-                        else None
-                    )
-                    processed = self._get_processed_pax_count(
-                        process, node_name, device_idx + 1
-                    )
-
-                    facility_summary[facility_key] = {
-                        "installed_capacity": installed,
-                        "activated_capacity": activated,
-                        "processed_pax": processed,
-                        "activated_per_installed": self._calculate_ratios(
-                            activated, installed
-                        ),
-                        "processed_per_activated": self._calculate_ratios(
-                            processed, activated
-                        ),
-                        "processed_per_installed": self._calculate_ratios(
-                            processed, installed
-                        ),
-                    }
-
-        # 2. 계층적 집계
-        facility_ratio = {}
-
-        # 전체 시설 집계
-        facility_ratio["all_facility"] = self._aggregate_facilities(
-            list(facility_summary.values())
-        )
-
-        # 프로세스별 집계
-        for process in self.process_list:
-            process_facilities = [
-                data
-                for key, data in facility_summary.items()
-                if key.startswith(f"{process}_")
-            ]
-
-            if process_facilities:
-                facility_ratio[process] = self._aggregate_facilities(process_facilities)
-
-                # 노드별 집계 - facility_info에서 노드 정보 가져오기
-                process_component = next(
-                    (
-                        comp
-                        for comp in self.facility_info["components"]
-                        if comp["name"] == process
-                    ),
-                    None,
-                )
-
-                if process_component:
-                    for node_info in process_component["nodes"]:
-                        node = node_info["name"]
-                        node_key = f"{process}_{node}"
-                        node_facilities = [
-                            data
-                            for key, data in facility_summary.items()
-                            if key.startswith(f"{process}_{node}_")
-                        ]
-
-                        if node_facilities:
-                            facility_ratio[node_key] = self._aggregate_facilities(
-                                node_facilities
-                            )
-
-                            # 개별 시설 추가
-                            for facility_key in sorted(facility_summary.keys()):
-                                if facility_key.startswith(f"{process}_{node}_"):
-                                    facility_ratio[facility_key] = facility_summary[
-                                        facility_key
-                                    ]
-
-        return facility_ratio
 
     def get_histogram_data(self):
         """시설별, 그리고 그 안의 구역별 통계 데이터 생성 (all_zones 포함)"""
@@ -611,6 +471,13 @@ class HomeAnalyzer:
             if col.endswith("_pred") and not any(x in col for x in ["on", "done", "pt"])
         ]
 
+        # 빈 컬럼 리스트 처리
+        if not target_columns:
+            return {
+                "label": [],
+                "link": {"source": [], "target": [], "value": []},
+            }
+
         flow_df = self.pax_df.groupby(target_columns).size().reset_index(name="count")
 
         # 동일한 결과를 보장하기 위해 각 컬럼의 고유값을 정렬
@@ -647,122 +514,7 @@ class HomeAnalyzer:
             "link": {"source": sources, "target": targets, "value": values},
         }
 
-    def get_topview_service_point_data(self):
-        """facility_info를 활용하여 service_point.json과 같은 형태로 변환"""
 
-        if self.facility_info is None:
-            raise ValueError(
-                "facility_info is required for get_topview_service_point_data"
-            )
-
-        service_point_data = {}
-
-        # facility_info의 components를 순회하며 수집
-        for component in self.facility_info.get("components", []):
-            component_name = component.get("name", "")
-
-            # 해당 component의 모든 node name 수집
-            node_names = []
-            for node in component.get("nodes", []):
-                node_name = node.get("name", "")
-                if node_name:
-                    node_names.append(node_name)
-
-            # component_name을 키로, node_names 리스트를 값으로 저장 (원본 그대로 사용)
-            if component_name and node_names:
-                service_point_data[component_name] = node_names
-
-        return service_point_data
-
-    def get_topview_data(self, time_unit: str = "10min"):
-        """TopView 데이터 생성 - facility_info와 pax_df를 활용하여 topview_data.json 형태로 변환"""
-
-        if self.facility_info is None:
-            raise ValueError("facility_info is required for get_topview")
-
-        # 1. Component와 Node 매핑 생성
-        component_mapping = {}
-        node_id_to_info = {}
-
-        for component in self.facility_info["components"]:
-            comp_name = component["name"]
-
-            component_mapping[comp_name] = {
-                "display_name": comp_name,  # 원본 component name 사용
-                "nodes": {},
-            }
-
-            for node in component["nodes"]:
-                node_name = node["name"]
-                node_id = node["id"]
-                node_id_to_info[node_id] = {
-                    "name": node_name,
-                    "component": comp_name,
-                    "display_component": comp_name,  # 원본 component name 사용
-                }
-                component_mapping[comp_name]["nodes"][node_name] = node_id
-
-        # 2. pax_df 처리 - get_flow_chart_data와 동일한 방식으로 queue 계산
-        df = self.pax_df.copy()
-
-        result = {}
-
-        # 컴포넌트별 queue_agg 저장용
-        queue_aggs = {}
-        all_time_slots = set()
-        time_unit_minutes = int(time_unit.replace("min", ""))
-        one_day_slot = int(1440 / time_unit_minutes)  # 1일치 슬롯 개수
-        two_day_slots = one_day_slot * 2  # 2일치 슬롯 개수
-
-        # 각 component별로 동적 처리 (get_flow_chart_data 방식)
-        for comp_name in component_mapping.keys():
-            on_pred_col = f"{comp_name}_on_pred"
-            pred_col = f"{comp_name}_zone"
-            queue_col = f"{comp_name}_queue_length"
-
-            if all(col in df.columns for col in [on_pred_col, pred_col, queue_col]):
-                # 해당 process가 처리된 데이터만 필터링
-                process_data = df[df[pred_col].notna()].copy()
-
-                if not process_data.empty:
-                    # on_pred 시간을 10분 단위로 floor (get_flow_chart_data와 동일)
-                    process_data[f"{comp_name}_on_floored"] = process_data[
-                        on_pred_col
-                    ].dt.floor(time_unit)
-
-                    # get_flow_chart_data와 동일한 방식: on_floored와 pred로 그룹화하고 que 평균 계산
-                    queue_agg = process_data.groupby(
-                        [f"{comp_name}_on_floored", pred_col]
-                    )[queue_col].mean()
-                    queue_aggs[comp_name] = queue_agg
-                    all_time_slots.update(queue_agg.index.get_level_values(0))
-
-        # 전체 시간대 정렬 및 2일치 초과 시 가장 오래된 1일치 제거
-        all_time_slots = sorted(all_time_slots)
-        if len(all_time_slots) > two_day_slots:
-            all_time_slots = all_time_slots[:-one_day_slot]
-
-        # 각 컴포넌트별로, 남은 시간대만 남기기
-        for comp_name, queue_agg in queue_aggs.items():
-            # 시간대 필터링
-            filtered_queue_agg = queue_agg[
-                queue_agg.index.get_level_values(0).isin(all_time_slots)
-            ]
-            for (time_group, facility_name), queue_count in filtered_queue_agg.items():
-                time_str = time_group.strftime("%Y-%m-%d %H:%M:%S")
-                queue_count_rounded = int(round(queue_count))
-                # 결과 딕셔너리 초기화 (시간대는 항상 유지)
-                if time_str not in result:
-                    result[time_str] = {}
-                if comp_name not in result[time_str]:
-                    result[time_str][comp_name] = {}
-                # facility_name에서 node_name 추출 (get_flow_chart_data와 동일: split("_")[-1])
-                node_name = facility_name.split("_")[-1]
-                # 0이 아닌 값만 저장하여 JSON 크기 최적화
-                if queue_count_rounded != 0:
-                    result[time_str][comp_name][node_name] = queue_count_rounded
-
-        return result
 
     def get_etc_info(self):
         """기본 시뮬레이션 정보 생성"""
@@ -1041,178 +793,16 @@ class HomeAnalyzer:
         )
         return pd.DataFrame(index=time_index)
 
-    def _calculate_node_capacity_list(self, process_name, node_name, time_unit):
-        """노드 용량 리스트 계산"""
-        if not self.facility_info:
-            return []
-        unit_seconds = int(pd.Timedelta(time_unit).total_seconds())
-        for comp in self.facility_info.get("components", []):
-            if comp["name"] == process_name:
-                for node in comp.get("nodes", []):
-                    if node["name"] == node_name:
-                        schedules = node.get("facility_schedules", [])
-                        if not schedules:
-                            return []
-
-                        # 10분 슬롯을 time_unit으로 분할
-                        slots_per_10min = (
-                            600 // unit_seconds
-                        )  # 10분(600초)을 unit_seconds로 나눔
-
-                        capacity_list = []
-                        for slot in schedules:  # 144개 슬롯
-                            slot_capacity = sum(
-                                unit_seconds / t for t in slot if t and t > 0
-                            )
-                            slot_capacity_int = int(slot_capacity)
-
-                            # 각 10분 슬롯을 time_unit 크기로 분할해서 추가
-                            capacity_list.extend([slot_capacity_int] * slots_per_10min)
-
-                        return capacity_list
-        return []
 
     def _calculate_waiting_time(self, process_df, process):
         """대기 시간 계산"""
         return process_df[f"{process}_waiting_time"]
 
-    def _get_opened_count(self, process, facility=None):
-        """열린 시설 개수 계산"""
-        if not self.facility_info or "components" not in self.facility_info:
-            return [0, 0]
 
-        for comp in self.facility_info["components"]:
-            if comp["name"] != process:
-                continue
 
-            if facility:  # 특정 시설
-                for node in comp["nodes"]:
-                    if node['name'] == facility:
-                        schedules = node.get("facility_schedules", [])
-                        per_facility = list(zip(*schedules)) if schedules else []
-                        opened = sum(
-                            1 for col in per_facility if any(v and v > 0 for v in col)
-                        )
-                        total = node.get("facility_count", len(per_facility))
-                        return [opened, total]
-            else:  # 전체 프로세스
-                opened = total = 0
-                for node in comp["nodes"]:
-                    schedules = node.get("facility_schedules", [])
-                    per_facility = list(zip(*schedules)) if schedules else []
-                    opened += sum(
-                        1 for col in per_facility if any(v and v > 0 for v in col)
-                    )
-                    total += node.get("facility_count", len(per_facility))
-                return [opened, total]
-        return [0, 0]
 
-    def _get_process_ratios(self, process):
-        """프로세스 비율 계산"""
-        if not self.facility_ratio:
-            return None, None, None
 
-        keys = [
-            k
-            for k in self.facility_ratio.keys()
-            if k.startswith(f"{process}_") and "_" not in k[len(process) + 1 :]
-        ]
-        installed = sum(
-            self.facility_ratio[k].get("installed_capacity", 0) or 0 for k in keys
-        )
-        activated = sum(
-            self.facility_ratio[k].get("activated_capacity", 0) or 0 for k in keys
-        )
-        processed = sum(
-            self.facility_ratio[k].get("processed_pax", 0) or 0 for k in keys
-        )
 
-        ai = round(activated / installed * 100, 2) if installed else None
-        pa = round(processed / activated * 100, 2) if activated else None
-        pi = round(processed / installed * 100, 2) if installed else None
-        return ai, pa, pi
-
-    def _calculate_capacity_metrics(self, facility_schedules, slot_seconds):
-        """시설 스케줄로부터 용량 메트릭 계산"""
-        SLOTS_PER_DAY = 86400 // slot_seconds
-        num_devices = len(facility_schedules[0])
-
-        # 최소 처리시간 추출
-        min_per_device = []
-        for col_idx in range(num_devices):
-            col_values = [
-                facility_schedules[row][col_idx]
-                for row in range(len(facility_schedules))
-            ]
-            significant_values = [v for v in col_values if v > 1e-9]
-            min_per_device.append(
-                min(significant_values) if significant_values else None
-            )
-
-        # 설치 용량 계산
-        installed_capacity = []
-        for min_time in min_per_device:
-            if min_time and min_time > 0:
-                capacity_per_slot = math.floor(slot_seconds / min_time)
-                installed_capacity.append(capacity_per_slot * SLOTS_PER_DAY)
-            else:
-                installed_capacity.append(None)
-
-        # 활성화 용량 계산
-        activated_capacity = [0] * num_devices
-        for slot in facility_schedules:
-            for idx, time_val in enumerate(slot):
-                if time_val and time_val > 1e-9:
-                    activated_capacity[idx] += math.floor(slot_seconds / time_val)
-
-        # 유효하지 않은 값 처리
-        activated_capacity = [v if 0 < v < 1e9 else None for v in activated_capacity]
-
-        return installed_capacity, activated_capacity
-
-    def _calculate_ratios(self, activated, installed):
-        """비율 계산"""
-        if activated is not None and installed is not None and installed != 0:
-            return round((activated / installed) * 100, 2)
-        return None
-
-    def _get_processed_pax_count(self, process, node, facility_idx):
-        """처리된 승객 수 가져오기 (새로운 통합 방식)"""
-        if f"{process}_facility" not in self.pax_df.columns:
-            return None
-        
-        # 새로운 방식: 직접 "A1", "B2" 등의 시설명으로 필터링
-        facility_name = f"{node}{facility_idx}"  # "A" + 1 = "A1"
-        facility_count = len(self.pax_df[self.pax_df[f"{process}_facility"] == facility_name])
-        return int(facility_count)
-
-    def _aggregate_facilities(self, facilities_data):
-        """시설 데이터 집계"""
-        if not facilities_data:
-            return None
-
-        aggregated = {
-            "installed_capacity": sum(
-                f["installed_capacity"] or 0 for f in facilities_data
-            ),
-            "activated_capacity": sum(
-                f["activated_capacity"] or 0 for f in facilities_data
-            ),
-            "processed_pax": sum(f["processed_pax"] or 0 for f in facilities_data),
-        }
-
-        # 비율 계산
-        aggregated["activated_per_installed"] = self._calculate_ratios(
-            aggregated["activated_capacity"], aggregated["installed_capacity"]
-        )
-        aggregated["processed_per_activated"] = self._calculate_ratios(
-            aggregated["processed_pax"], aggregated["activated_capacity"]
-        )
-        aggregated["processed_per_installed"] = self._calculate_ratios(
-            aggregated["processed_pax"], aggregated["installed_capacity"]
-        )
-
-        return aggregated
 
     def _get_distribution(self, values, bins, labels):
         """값들의 분포를 백분율로 계산"""
