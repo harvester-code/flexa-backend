@@ -8,21 +8,14 @@ This module handles flight filtering metadata generation:
 from typing import Dict, Any, List
 from collections import defaultdict
 from datetime import datetime
-import pandas as pd
-import json
 from loguru import logger
 from sqlalchemy import Connection
-
-from packages.aws.s3.s3_manager import S3Manager
 
 from ..queries import SELECT_AIRPORT_FLIGHTS_EXTENDED, SELECT_AIRPORT_SCHEDULE
 
 
 class FlightFiltersResponse:
     """Flight filters metadata response generation class (based on real data)"""
-
-    def __init__(self):
-        self.s3_manager = S3Manager()
 
     async def generate_filters_metadata(
         self, redshift_db: Connection, scenario_id: str, airport: str, date: str
@@ -89,18 +82,12 @@ class FlightFiltersResponse:
             "airlines": airlines,
         }
 
-        # 4. Save raw flight data to S3 (temporary)
-        await self._save_flight_data_to_s3(all_flight_data, scenario_id)
-
         logger.info(f"✅ Flight filters metadata generated successfully")
         logger.info(
             f"📍 Request context: {airport} on {date} (scenario: {scenario_id})"
         )
         logger.info(f"📊 Total flights: {metadata['total_flights']}")
         logger.info(f"✈️ Airlines: {len(metadata['airlines'])}")
-        logger.info(
-            f"💾 Saved raw data to S3: {scenario_id}/flight-schedule.parquet"
-        )
 
         return metadata
 
@@ -442,28 +429,3 @@ class FlightFiltersResponse:
             logger.info(f"  - {region_name}: {region_data['total_flights']} flights, {countries_count} countries")
         
         return sorted_result
-
-    async def _save_flight_data_to_s3(
-        self, flight_data: List[Dict[str, Any]], scenario_id: str
-    ):
-        """Save raw flight data to S3 as parquet file (temporary)"""
-        if not flight_data:
-            logger.warning("Empty flight data, skipping S3 save")
-            return
-
-        try:
-            # S3Manager를 사용하여 parquet 저장
-            await self.s3_manager.save_parquet_async(
-                scenario_id=scenario_id,
-                filename="flight-schedule.parquet",
-                df=pd.DataFrame(flight_data)
-            )
-
-            logger.info(
-                f"💾 Raw flight data saved to S3 as parquet: {len(flight_data)} flights"
-            )
-
-        except Exception as e:
-            logger.error(f"❌ Failed to save flight data to S3: {str(e)}")
-            # API should still respond normally even if S3 save fails
-            pass

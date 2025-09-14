@@ -310,13 +310,21 @@ class FlightScheduleResponse:
         # flight_type에 따라 사용할 터미널 컬럼 결정
         terminal_column = f"{flight_type}_terminal"
 
+        # flight_type에 따라 country/region 컬럼 결정
+        if flight_type == "departure":
+            country_column = "arrival_country_code"
+            region_column = "arrival_region"
+        else:  # arrival
+            country_column = "departure_country_code"
+            region_column = "departure_region"
+
         # 차트 생성을 위한 그룹 컬럼들
         group_columns = [
             "operating_carrier_name",
             terminal_column,
             "flight_type",
-            "arrival_country_code",
-            "arrival_region",
+            country_column,
+            region_column,
         ]
         group_labels = ["airline", "terminal", "type", "country", "region"]
 
