@@ -460,8 +460,8 @@ class ShowUpPassengerResponse:
     """승객 스케줄 프론트엔드 응답 생성 전담 클래스"""
 
     async def build_response(
-        self, 
-        pax_df: pd.DataFrame, 
+        self,
+        pax_df: pd.DataFrame,
         config: Dict,
         airport: str = None,
         date: str = None,
@@ -477,14 +477,29 @@ class ShowUpPassengerResponse:
         chart_x_data = []
 
         if len(pax_df) > 0:
-            # 주요 그룹 컬럼들
-            group_columns = [
-                "operating_carrier_name",
-                "departure_terminal",
-                "flight_type",
-                "arrival_country_code",
-                "arrival_region",
-            ]
+            # flight_type 판단 (settings에서 가져오기)
+            flight_type = config.get("settings", {}).get("type", "departure")
+
+            # flight_type에 따라 컬럼 동적 설정
+            if flight_type == "departure":
+                # 출발편: 출발 터미널, 도착 국가/지역 사용
+                group_columns = [
+                    "operating_carrier_name",
+                    "departure_terminal",
+                    "flight_type",
+                    "arrival_country",
+                    "arrival_region",
+                ]
+            else:  # arrival
+                # 도착편: 도착 터미널, 출발 국가/지역 사용
+                group_columns = [
+                    "operating_carrier_name",
+                    "arrival_terminal",
+                    "flight_type",
+                    "departure_country",
+                    "departure_region",
+                ]
+
             group_labels = ["airline", "terminal", "type", "country", "region"]
 
             for i, group_column in enumerate(group_columns):
