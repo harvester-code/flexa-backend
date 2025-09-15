@@ -156,12 +156,8 @@ class FlightScheduleStorage:
             
             flight_schedule_data = flight_schedule_df.to_dict("records")
 
-            # 🚨 대량 데이터 보호: 조건 없으면 최대 500개로 제한
-            if not conditions:
-                if len(flight_schedule_data) > 500:
-                    print(f"⚠️ Large dataset detected ({len(flight_schedule_data)} rows). Limiting to 500 for performance.")
-                    flight_schedule_data = flight_schedule_data[:500]
-            else:
+            # 조건 필터링 처리
+            if conditions:
                 # 조건 필터링 (field들은 AND, values는 OR 조건)
                 filtered_data = []
                 for flight in flight_schedule_data:

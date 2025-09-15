@@ -520,10 +520,17 @@ class ShowUpPassengerResponse:
     def _build_summary(self, pax_df: pd.DataFrame, config: Dict) -> Dict:
         """Summary 데이터 생성"""
         if len(pax_df) > 0:
-            # 항공편 정보에서 통계 계산 - 이미 고유한 항공편들이므로 중복 제거 불필요
-            unique_flights_df = pax_df[['operating_carrier_iata', 'flight_number', 'flight_date', 'total_seats']].drop_duplicates()
-            average_seats = unique_flights_df["total_seats"].mean()
-            total_flights = len(unique_flights_df)
+            # 항공편의 고유성은 carrier + flight_number + date로 결정
+            # total_seats는 중복 제거 기준에서 제외
+            unique_flights = pax_df[['operating_carrier_iata', 'flight_number', 'flight_date']].drop_duplicates()
+            total_flights = len(unique_flights)
+
+            # 평균 좌석 수는 각 항공편의 첫 번째 좌석 수 사용
+            unique_flights_with_seats = pax_df[['operating_carrier_iata', 'flight_number', 'flight_date', 'total_seats']].drop_duplicates(
+                subset=['operating_carrier_iata', 'flight_number', 'flight_date'],
+                keep='first'
+            )
+            average_seats = unique_flights_with_seats["total_seats"].mean()
         else:
             average_seats = 0
             total_flights = 0
