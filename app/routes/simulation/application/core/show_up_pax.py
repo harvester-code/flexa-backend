@@ -305,9 +305,24 @@ class ShowUpPassengerStorage:
         self, pax_df: pd.DataFrame, config: Dict
     ) -> pd.DataFrame:
         """승객별 공항 도착시간 할당"""
+        # 처음 몇 개 항공편의 출발 시간 확인 (디버깅용)
+        sample_flights = pax_df[['flight_number', 'scheduled_departure_local']].drop_duplicates().head(5)
+        logger.info(f"Sample flight departure times:\n{sample_flights}")
+
         pax_df["show_up_time"] = pax_df.apply(
             lambda row: self._generate_show_up_time(row, config), axis=1
         )
+
+        # 디버깅: show_up_time 분포 확인
+        logger.info(f"Show-up time range: {pax_df['show_up_time'].min()} ~ {pax_df['show_up_time'].max()}")
+        logger.info(f"Unique show-up times: {pax_df['show_up_time'].nunique()}")
+
+        # 시간대별 승객 수 확인
+        pax_df_temp = pax_df.copy()
+        pax_df_temp['show_up_hour'] = pax_df_temp['show_up_time'].dt.strftime('%Y-%m-%d %H:00')
+        hourly_counts = pax_df_temp.groupby('show_up_hour').size().sort_index()
+        logger.info(f"Hourly passenger counts (top 10):\n{hourly_counts.head(10)}")
+
         return pax_df
 
     def _generate_show_up_time(self, pax_row: pd.Series, config: Dict) -> datetime:
@@ -318,18 +333,21 @@ class ShowUpPassengerStorage:
             mean = rule["mean"]
             std = rule["std"]
         else:
-            default = config["pax_arrival_patterns"]["default"]
-            mean = default["mean"]
-            std = default["std"]
+            default = config.get("pax_arrival_patterns", {}).get("default", {})
+            mean = default.get("mean", 120)  # 기본값 120분
+            std = default.get("std", 30)  # 기본값 30분
 
         # 정규분포에서 도착시간 생성
         minutes_before = np.random.normal(mean, std)
 
-        # min_arrival_minutes 설정 적용
-        min_minutes = config.get("settings", {}).get("min_arrival_minutes")
-        if min_minutes is None:
-            raise ValueError("min_arrival_minutes not found in config settings")
-        minutes_before = max(minutes_before, min_minutes)
+        # min_arrival_minutes 설정 적용 - 최소 도착 시간 보장
+        # 예: min_arrival_minutes=30이면 최소 30분 전에는 도착해야 함
+        min_minutes = config.get("settings", {}).get("min_arrival_minutes", 30)
+
+        # minutes_before가 min_minutes보다 작으면 min_minutes로 조정
+        # 단, 음수는 허용하지 않음 (출발 후 도착 방지)
+        if minutes_before < min_minutes:
+            minutes_before = min_minutes
 
         departure_time = pd.to_datetime(pax_row["scheduled_departure_local"])
         show_up_time = departure_time - timedelta(minutes=minutes_before)
@@ -568,7 +586,8 @@ class ShowUpPassengerResponse:
             group_order.remove("etc")
             group_order.append("etc")
 
-        default_x = df_grouped.index.strftime("%H:%M").tolist()
+        # 날짜와 시간을 모두 포함하여 반환 (ISO 형식)
+        default_x = df_grouped.index.strftime("%Y-%m-%d %H:%M").tolist()
         traces = [
             {
                 "name": column,
