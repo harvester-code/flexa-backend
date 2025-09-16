@@ -17,6 +17,7 @@ from app.routes.simulation.application.service import SimulationService
 from app.routes.simulation.interface.schema import (
     FlightScheduleBody,
     FlightFiltersResponse,
+    PassengerInflowBody,
     PassengerScheduleBody,
     RunSimulationBody,
     ScenarioDeactivateBody,
@@ -349,6 +350,52 @@ async def run_simulation(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred while starting simulation.",
+        )
+
+
+# =====================================
+# 4-1. 승객 유입량 분석 (Passenger Inflow Analysis)
+# =====================================
+
+
+@private_simulation_router.post(
+    "/{scenario_id}/passenger-inflow",
+    status_code=status.HTTP_200_OK,
+    summary="승객 유입량 분석",
+    description="프로세스 흐름 기반으로 각 시설별 15분 간격 승객 유입량을 분석합니다. S3의 show-up-passenger.parquet 파일과 연계하여 실제 승객 데이터를 시간대별로 그룹핑하여 제공합니다.",
+)
+@inject
+async def analyze_passenger_inflow(
+    inflow_request: PassengerInflowBody,
+    scenario_id: str = Depends(verify_scenario_ownership),  # ✅ 권한 검증
+    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
+    db: AsyncSession = Depends(aget_supabase_session),
+):
+    """승객 유입량 분석 - 프로세스 흐름 기반 시설별 시간대 분석"""
+    try:
+        logger.info(f"🔍 승객 유입량 분석 요청 - scenario_id: {scenario_id}")
+        logger.info(f"📊 프로세스 단계 수: {len(inflow_request.process_flow)}")
+
+        # ✅ 권한 검증은 의존성에서 이미 처리됨, 바로 비즈니스 로직 실행
+        result = await sim_service.analyze_passenger_inflow(
+            scenario_id=scenario_id,
+            process_flow=inflow_request.process_flow,
+        )
+
+        logger.info(f"✅ 승객 유입량 분석 완료: scenario_id={scenario_id}")
+
+        return result
+
+    except HTTPException:
+        # HTTPException은 그대로 재발생
+        raise
+    except Exception as e:
+        logger.error(f"❌ 승객 유입량 분석 오류: {str(e)}")
+        import traceback
+        logger.error(f"❌ 상세 오류: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred while analyzing passenger inflow.",
         )
 
 
