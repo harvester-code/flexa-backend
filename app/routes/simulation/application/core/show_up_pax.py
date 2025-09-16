@@ -372,25 +372,28 @@ class ShowUpPassengerStorage:
         """
         항공편별 조건에 맞는 load_factor 반환
         nationality와 동일한 조건 매칭 로직 사용
+        프론트엔드에서 정수(0-100)로 전송하므로 100으로 나눠서 비율로 변환
         """
         # pax_generation으로 최상위 키 변경
         load_factor_config = config.get("pax_generation", {})
-        
+
         rules = load_factor_config.get("rules", [])
-        
+
         # 조건 확인
         for rule in rules:
             conditions = rule.get("conditions", {})
             if self._check_conditions(flight_row, conditions):
                 rule_value = rule.get("value", {}).get("load_factor")
                 if rule_value is not None:
-                    return rule_value
+                    # 프론트엔드에서 정수(85)로 오므로 100으로 나눔
+                    return rule_value / 100 if rule_value > 1 else rule_value
                 raise ValueError(f"load_factor value not found in rule: {rule}")  # 설정 오류 명시
-        
+
         # 기본값 반환
         default_value = load_factor_config.get("default", {}).get("load_factor")
         if default_value is not None:
-            return default_value
+            # 프론트엔드에서 정수(85)로 오므로 100으로 나눔
+            return default_value / 100 if default_value > 1 else default_value
         raise ValueError("load_factor default value not found in config")
 
     # Helper 메서드들
@@ -555,11 +558,14 @@ class ShowUpPassengerResponse:
         avg_load_factor = load_factor_config.get("default", {}).get("load_factor")
         if avg_load_factor is None:
             avg_load_factor = 0.0  # 설정이 없으면 0으로 표시
-        
+
+        # 프론트엔드에서 정수로 오는 경우 그대로 표시, 소수로 오는 경우 100 곱함
+        display_load_factor = int(avg_load_factor) if avg_load_factor > 1 else int(avg_load_factor * 100)
+
         return {
             "flights": total_flights,
             "avg_seats": round(average_seats, 2),
-            "load_factor": int(avg_load_factor * 100),  # 기본값을 표시용으로 사용
+            "load_factor": display_load_factor,  # 정수 퍼센트로 표시
             "min_arrival_minutes": config.get("settings", {}).get("min_arrival_minutes"),
         }
 
