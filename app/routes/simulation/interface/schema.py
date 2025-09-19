@@ -74,8 +74,7 @@ class RunSimulationBody(BaseModel):
     {
         "setting": {
             "airport": "ICN",
-            "date": "2025-08-05",
-            "scenario_id": ""  # 빈 문자열로 전송, 백엔드에서 실제 값으로 채워짐
+            "date": "2025-08-05"
         },
         "process_flow": [
             {
@@ -93,11 +92,11 @@ class RunSimulationBody(BaseModel):
         ]
     }
 
-    Lambda 전송시 scenario_id와 setting 모두 포함되어 전송됨:
+    Lambda 전송시 PATH의 scenario_id와 setting이 함께 전송됨:
     {"scenario_id": "UUID", "setting": {...}, "process_flow": [...]}
     """
 
-    setting: Dict[str, Any]  # 시뮬레이션 기본 설정 (airport, date, scenario_id)
+    setting: Dict[str, Any]  # 시뮬레이션 기본 설정 (airport, date)
     process_flow: List[Dict[str, Any]]  # 공항 프로세스 단계별 설정
 
 

@@ -332,9 +332,8 @@ async def run_simulation(
     """시뮬레이션 실행 - SQS 메시지 전송을 통한 Lambda 트리거"""
     # ✅ 권한 검증은 의존성에서 이미 처리됨, 바로 비즈니스 로직 실행
     try:
-        # setting 데이터 처리 - scenario_id를 실제 값으로 채워넣기
+        # setting 데이터 처리 (scenario_id는 PATH 파라미터에서만 사용)
         setting = simulation_request.setting.copy()
-        setting["scenario_id"] = scenario_id  # 실제 scenario_id로 업데이트
 
         logger.info(f"🎯 시뮬레이션 설정: {setting}")
 
