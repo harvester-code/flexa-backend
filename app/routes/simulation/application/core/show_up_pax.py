@@ -6,6 +6,8 @@
 - ShowUpPassengerResponse: 프론트엔드용 JSON 응답 생성 (차트 데이터 포함)
 """
 
+import hashlib
+import json
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
@@ -29,9 +31,14 @@ class ShowUpPassengerStorage:
             # 1. 설정값 추출 및 검증
             settings = config.get("settings", {})
             self._validate_settings(settings)
-            
+
             # 2. nationality와 profile 분포값 검증
             self._validate_demographic_distributions(config)
+
+            # 3. pax_ 키들을 기반으로 deterministic seed 생성
+            seed = self._generate_seed_from_pax_config(config)
+            np.random.seed(seed)
+            logger.info(f"Using deterministic seed: {seed} for passenger generation")
 
             date = settings["date"]
             airport = settings["airport"]
@@ -61,6 +68,9 @@ class ShowUpPassengerStorage:
             # 8. S3에 저장
             await self._save_passenger_data_to_s3(pax_df, scenario_id)
 
+            # 9. Random seed 초기화 (다른 작업에 영향 방지)
+            np.random.seed(None)
+
             return pax_df
 
         except HTTPException:
@@ -72,6 +82,32 @@ class ShowUpPassengerStorage:
                 status_code=500,
                 detail=f"Failed to generate passenger schedule: {str(e)}",
             )
+
+    def _generate_seed_from_pax_config(self, config: dict) -> int:
+        """
+        pax_generation, pax_demographics, pax_arrival_patterns 키들을 기반으로
+        deterministic seed 생성. 같은 설정이면 항상 같은 seed를 반환.
+        """
+        # pax_ 로 시작하는 4개 키만 추출
+        pax_keys = {
+            "pax_generation": config.get("pax_generation", {}),
+            "pax_demographics": config.get("pax_demographics", {}),
+            "pax_arrival_patterns": config.get("pax_arrival_patterns", {}),
+            # settings도 포함 (date, airport, min_arrival_minutes가 포함되어 있음)
+            "settings": config.get("settings", {})
+        }
+
+        # Dictionary를 JSON string으로 변환 (정렬된 키로 일관성 보장)
+        config_str = json.dumps(pax_keys, sort_keys=True)
+
+        # SHA256 해시 생성
+        hash_obj = hashlib.sha256(config_str.encode())
+
+        # 해시의 첫 8바이트를 정수로 변환 (32비트 정수 범위 내)
+        seed = int(hash_obj.hexdigest()[:8], 16)
+
+        logger.info(f"Generated seed from pax config: {seed}")
+        return seed
 
     def _validate_settings(self, settings: dict):
         """필수 설정값 검증"""
