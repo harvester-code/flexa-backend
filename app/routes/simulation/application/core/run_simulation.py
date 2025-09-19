@@ -22,13 +22,14 @@ class RunSimulationStorage:
         self._sqs_client = None  # Lazy initialization
 
     async def execute_simulation(
-        self, scenario_id: str, process_flow: List[Dict[str, Any]]
+        self, scenario_id: str, setting: Dict[str, Any], process_flow: List[Dict[str, Any]]
     ) -> Dict[str, str]:
         """
         시뮬레이션 실행 요청 - SQS 메시지 전송
 
         Args:
             scenario_id: 시나리오 UUID
+            setting: 시뮬레이션 기본 설정 (airport, date, scenario_id)
             process_flow: 공항 프로세스 단계별 설정 리스트
 
         Returns:
@@ -42,9 +43,10 @@ class RunSimulationStorage:
             if self._sqs_client is None:
                 self._sqs_client = SQSClient()
 
-            # SQS로 메시지 전송
+            # SQS로 메시지 전송 (setting 포함)
             result = await self._sqs_client.send_simulation_message(
                 scenario_id=scenario_id,
+                setting=setting,
                 process_flow=process_flow,
             )
 

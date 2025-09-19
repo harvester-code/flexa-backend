@@ -72,6 +72,11 @@ class RunSimulationBody(BaseModel):
 
     사용자 친화적 입력 구조 (일관성 있는 직접 구조):
     {
+        "setting": {
+            "airport": "ICN",
+            "date": "2025-08-05",
+            "scenario_id": ""  # 빈 문자열로 전송, 백엔드에서 실제 값으로 채워짐
+        },
         "process_flow": [
             {
                 "step": 0,
@@ -88,10 +93,11 @@ class RunSimulationBody(BaseModel):
         ]
     }
 
-    Lambda 전송시 자동으로 scenario_id와 함께 포장됨:
-    {"scenario_id": "UUID", "process_flow": [...]}
+    Lambda 전송시 scenario_id와 setting 모두 포함되어 전송됨:
+    {"scenario_id": "UUID", "setting": {...}, "process_flow": [...]}
     """
 
+    setting: Dict[str, Any]  # 시뮬레이션 기본 설정 (airport, date, scenario_id)
     process_flow: List[Dict[str, Any]]  # 공항 프로세스 단계별 설정
 
 

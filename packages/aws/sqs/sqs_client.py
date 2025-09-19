@@ -25,13 +25,14 @@ class SQSClient:
         )  # https://sqs.ap-northeast-2.amazonaws.com/.../flexa-simulator-queue
 
     async def send_simulation_message(
-        self, scenario_id: str, process_flow: List[Dict[str, Any]]
+        self, scenario_id: str, setting: Dict[str, Any], process_flow: List[Dict[str, Any]]
     ) -> Dict[str, str]:
         """
         시뮬레이션 실행 메시지를 SQS에 전송
 
         Args:
             scenario_id: 시나리오 UUID
+            setting: 시뮬레이션 기본 설정 (airport, date, scenario_id)
             process_flow: 공항 프로세스 단계별 설정 리스트
 
         Returns:
@@ -40,7 +41,11 @@ class SQSClient:
         Raises:
             Exception: SQS 전송 실패 시
         """
-        message_body = {"scenario_id": scenario_id, "process_flow": process_flow}
+        message_body = {
+            "scenario_id": scenario_id, 
+            "setting": setting,
+            "process_flow": process_flow
+        }
 
         try:
             session = aioboto3.Session(region_name=self.region_name)

@@ -307,13 +307,14 @@ class SimulationService:
     # =====================================
 
     async def run_simulation(
-        self, scenario_id: str, process_flow: List[Dict[str, Any]]
+        self, scenario_id: str, setting: Dict[str, Any], process_flow: List[Dict[str, Any]]
     ) -> Dict[str, str]:
         """
         시뮬레이션 실행 요청 - SQS 메시지 전송
 
         Args:
             scenario_id: 시나리오 UUID
+            setting: 시뮬레이션 기본 설정 (airport, date, scenario_id)
             process_flow: 공항 프로세스 단계별 설정 리스트
 
         Returns:
@@ -326,6 +327,7 @@ class SimulationService:
             # 1. 시뮬레이션 실행 (Storage Layer)
             storage_result = await self.simulation_storage.execute_simulation(
                 scenario_id=scenario_id,
+                setting=setting,
                 process_flow=process_flow,
             )
 
