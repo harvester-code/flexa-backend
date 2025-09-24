@@ -66,6 +66,11 @@ class ScenarioDeactivateBody(BaseModel):
     scenario_ids: List[str]
 
 
+class ScenarioCopyRequest(BaseModel):
+    """시나리오 복사 요청 스키마"""
+    name: Optional[str] = None  # 새 시나리오 이름 (선택사항)
+
+
 class ScenarioCopyResponse(BaseModel):
     """시나리오 복사 응답 스키마"""
     scenario_id: str  # 새로 생성된 시나리오 ID

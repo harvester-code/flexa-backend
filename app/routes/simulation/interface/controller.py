@@ -21,6 +21,7 @@ from app.routes.simulation.interface.schema import (
     PassengerScheduleBody,
     RunSimulationBody,
     ScenarioDeactivateBody,
+    ScenarioCopyRequest,
     ScenarioCopyResponse,
     ScenarioUpdateBody,
     SimulationScenarioBody,
@@ -145,6 +146,7 @@ async def update_scenario(
 @inject
 async def copy_scenario(
     request: Request,
+    copy_request: ScenarioCopyRequest = ScenarioCopyRequest(),  # 복사 요청 body (선택사항)
     scenario_id: str = Depends(verify_scenario_ownership),  # 원본 시나리오 권한 검증
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     db: AsyncSession = Depends(aget_supabase_session),
@@ -165,6 +167,7 @@ async def copy_scenario(
             db=db,
             source_scenario_id=scenario_id,
             user_id=request.state.user_id,
+            new_name=copy_request.name,  # 프론트엔드에서 전달한 이름 (선택사항)
         )
 
         logger.info(f"✅ Successfully copied scenario {scenario_id} → {new_scenario['scenario_id']}")

@@ -178,7 +178,7 @@ class SimulationService:
             )
 
     async def copy_scenario_information(
-        self, db: AsyncSession, source_scenario_id: str, user_id: str
+        self, db: AsyncSession, source_scenario_id: str, user_id: str, new_name: str = None
     ):
         """
         시나리오 복사 - Supabase 데이터와 S3 데이터 모두 복사
@@ -187,6 +187,9 @@ class SimulationService:
         2. 새 시나리오 생성 (새 UUID)
         3. S3 데이터 복사
         4. 새 시나리오 정보 반환
+
+        Args:
+            new_name: 프론트엔드에서 전달한 새 시나리오 이름 (선택사항)
         """
         try:
             # 1. 원본 시나리오 조회
@@ -203,37 +206,42 @@ class SimulationService:
             # 2. 새 시나리오 ID 생성
             new_scenario_id = str(ULID())
 
-            # 3. 복사된 시나리오 이름 생성 (번호 자동 증가)
-            import re
+            # 3. 복사된 시나리오 이름 생성
+            if new_name:
+                # 프론트엔드에서 이름을 전달한 경우 그대로 사용
+                final_name = new_name
+            else:
+                # 이름이 없는 경우 번호 자동 증가
+                import re
 
-            # 기존 이름에서 (숫자) 패턴 제거하여 베이스 이름 추출
-            # 예: "시나리오A (3)" → "시나리오A"
-            base_name = re.sub(r'\s*\(\d+\)\s*$', '', source_scenario.name).strip()
+                # 기존 이름에서 (숫자) 패턴 제거하여 베이스 이름 추출
+                # 예: "시나리오A (3)" → "시나리오A"
+                base_name = re.sub(r'\s*\(\d+\)\s*$', '', source_scenario.name).strip()
 
-            # 같은 베이스 이름을 가진 시나리오들 조회
-            similar_scenarios = await self.simulation_repo.get_scenarios_by_name_pattern(
-                db, user_id, base_name
-            )
+                # 같은 베이스 이름을 가진 시나리오들 조회
+                similar_scenarios = await self.simulation_repo.get_scenarios_by_name_pattern(
+                    db, user_id, base_name
+                )
 
-            # 가장 큰 번호 찾기
-            max_number = 0
-            pattern = re.compile(rf'^{re.escape(base_name)}\s*\((\d+)\)\s*$')
+                # 가장 큰 번호 찾기
+                max_number = 0
+                pattern = re.compile(rf'^{re.escape(base_name)}\s*\((\d+)\)\s*$')
 
-            for scenario in similar_scenarios:
-                match = pattern.match(scenario.name)
-                if match:
-                    number = int(match.group(1))
-                    max_number = max(max_number, number)
+                for scenario in similar_scenarios:
+                    match = pattern.match(scenario.name)
+                    if match:
+                        number = int(match.group(1))
+                        max_number = max(max_number, number)
 
-            # 다음 번호로 이름 생성
-            new_name = f"{base_name} ({max_number + 1})"
+                # 다음 번호로 이름 생성
+                final_name = f"{base_name} ({max_number + 1})"
 
             # 4. 새 시나리오 정보 생성
             new_scenario_info = ScenarioInformation(
                 id=None,
                 user_id=user_id,
                 editor=source_scenario.editor,
-                name=new_name,
+                name=final_name,
                 terminal=source_scenario.terminal,
                 airport=source_scenario.airport,
                 memo=source_scenario.memo,
