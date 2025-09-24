@@ -91,6 +91,39 @@ class S3Manager:
             print(f"Error deleting json {filename} for {scenario_id}: {e}")
             return False
 
+    async def delete_scenario_data(self, scenario_id: str) -> bool:
+        """시나리오의 모든 S3 데이터 삭제 (비동기)
+
+        Args:
+            scenario_id: 삭제할 시나리오 ID
+
+        Returns:
+            성공 여부
+        """
+        try:
+            async with await get_s3_client() as s3_client:
+                # 시나리오 폴더 내 모든 객체 나열
+                paginator = s3_client.get_paginator('list_objects_v2')
+                prefix = f"{scenario_id}/"
+
+                delete_keys = []
+                async for page in paginator.paginate(Bucket=self.bucket_name, Prefix=prefix):
+                    if 'Contents' in page:
+                        delete_keys.extend([{'Key': obj['Key']} for obj in page['Contents']])
+
+                # 객체가 있으면 삭제
+                if delete_keys:
+                    await s3_client.delete_objects(
+                        Bucket=self.bucket_name,
+                        Delete={'Objects': delete_keys}
+                    )
+                    print(f"Deleted {len(delete_keys)} objects from S3 for scenario {scenario_id}")
+
+                return True
+        except Exception as e:
+            print(f"Error deleting scenario data for {scenario_id}: {e}")
+            return False
+
     async def save_parquet_async(self, scenario_id: str, filename: str, df: pd.DataFrame) -> bool:
         """S3에 parquet 파일 업로드 (비동기)
 

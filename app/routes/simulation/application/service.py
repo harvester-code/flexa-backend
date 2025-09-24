@@ -147,7 +147,7 @@ class SimulationService:
     async def deactivate_scenario_information_with_validation(
         self, db: AsyncSession, scenario_ids: List[str], user_id: str
     ):
-        """권한 검증을 포함한 시나리오 bulk 소프트 삭제"""
+        """권한 검증을 포함한 시나리오 bulk 소프트 삭제 (기존 방식 - 더 이상 사용 안 함)"""
         try:
             # 🔒 각 시나리오에 대한 권한 검증
             for scenario_id in scenario_ids:
@@ -175,6 +175,45 @@ class SimulationService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to deactivate scenarios",
+            )
+
+    async def delete_scenarios_permanently(
+        self, db: AsyncSession, scenario_ids: List[str], user_id: str
+    ):
+        """권한 검증을 포함한 시나리오 영구 삭제 (Supabase + S3)"""
+        try:
+            # 🔒 각 시나리오에 대한 권한 검증
+            for scenario_id in scenario_ids:
+                scenario_exists = await self.validate_scenario_exists(
+                    db, scenario_id, user_id
+                )
+                if not scenario_exists:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Scenario '{scenario_id}' not found or you don't have permission to access it.",
+                    )
+
+            # 🗑️ S3 데이터 삭제 (실패해도 계속 진행)
+            for scenario_id in scenario_ids:
+                try:
+                    await self.s3_manager.delete_scenario_data(scenario_id)
+                    logger.info(f"✅ S3 data deleted for scenario {scenario_id}")
+                except Exception as s3_error:
+                    logger.warning(f"⚠️ Failed to delete S3 data for {scenario_id}: {str(s3_error)}")
+
+            # 💾 Supabase에서 영구 삭제
+            await self.simulation_repo.delete_scenarios_permanently(db, scenario_ids)
+            logger.info(f"✅ Permanently deleted {len(scenario_ids)} scenarios")
+
+            return {"message": f"Successfully deleted {len(scenario_ids)} scenarios"}
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to permanently delete scenarios {scenario_ids}: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to delete scenarios",
             )
 
     async def copy_scenario_information(

@@ -193,8 +193,8 @@ async def copy_scenario(
 @private_simulation_router.delete(
     "",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="시나리오 삭제",
-    description="시나리오들을 소프트 삭제합니다",
+    summary="시나리오 영구 삭제",
+    description="시나리오를 영구적으로 삭제합니다 (Supabase + S3 데이터 모두 삭제)",
 )
 @inject
 async def delete_scenarios(
@@ -203,8 +203,8 @@ async def delete_scenarios(
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
-    # ✅ Service layer에서 bulk 권한 검증과 삭제를 일괄 처리
-    await sim_service.deactivate_scenario_information_with_validation(
+    # ✅ Service layer에서 bulk 권한 검증과 영구 삭제를 일괄 처리
+    await sim_service.delete_scenarios_permanently(
         db=db, scenario_ids=scenario_ids.scenario_ids, user_id=request.state.user_id
     )
 

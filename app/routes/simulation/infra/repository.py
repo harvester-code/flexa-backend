@@ -183,6 +183,16 @@ class SimulationRepository(ISimulationRepository):
         await db.execute(stmt, {"ids": ids})
         await db.commit()
 
+    async def delete_scenarios_permanently(self, db: AsyncSession, ids: List[str]):
+        """시나리오 영구 삭제 (하드 삭제)"""
+        from sqlalchemy import delete
+
+        stmt = delete(ScenarioInformation).where(
+            ScenarioInformation.scenario_id.in_(bindparam("ids", expanding=True))
+        )
+        await db.execute(stmt, {"ids": ids})
+        await db.commit()
+
     # =====================================
     # 2. 항공편 스케줄 처리 (Flight Schedule)
     # =====================================
