@@ -400,3 +400,55 @@ class S3Manager:
         except Exception as e:
             print(f"Error listing files for {scenario_id}: {e}")
             return []
+
+    async def copy_scenario_data(self, source_scenario_id: str, target_scenario_id: str) -> bool:
+        """S3 시나리오 데이터 복사 (비동기)
+
+        원본 시나리오의 모든 파일을 새 시나리오로 복사합니다.
+
+        Args:
+            source_scenario_id: 원본 시나리오 ID
+            target_scenario_id: 대상 시나리오 ID
+
+        Returns:
+            성공 여부
+        """
+        try:
+            # 1. 원본 시나리오의 모든 파일 목록 조회
+            files = await self.list_files_async(source_scenario_id)
+
+            if not files:
+                print(f"No files to copy for scenario {source_scenario_id}")
+                return True  # 복사할 파일이 없어도 성공으로 처리
+
+            # 2. 각 파일을 복사
+            async with await get_s3_client() as s3_client:
+                for file_path in files:
+                    source_key = f"{source_scenario_id}/{file_path}"
+                    target_key = f"{target_scenario_id}/{file_path}"
+
+                    try:
+                        # S3 복사 작업
+                        copy_source = {
+                            'Bucket': self.bucket_name,
+                            'Key': source_key
+                        }
+
+                        await s3_client.copy_object(
+                            CopySource=copy_source,
+                            Bucket=self.bucket_name,
+                            Key=target_key
+                        )
+
+                        print(f"✅ Copied: {source_key} → {target_key}")
+
+                    except Exception as file_error:
+                        print(f"⚠️ Failed to copy {file_path}: {file_error}")
+                        # 개별 파일 복사 실패는 경고만 기록하고 계속 진행
+
+            print(f"✅ S3 data copy completed: {source_scenario_id} → {target_scenario_id}")
+            return True
+
+        except Exception as e:
+            print(f"❌ Error copying scenario data from {source_scenario_id} to {target_scenario_id}: {e}")
+            return False

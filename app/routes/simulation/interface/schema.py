@@ -66,6 +66,16 @@ class ScenarioDeactivateBody(BaseModel):
     scenario_ids: List[str]
 
 
+class ScenarioCopyResponse(BaseModel):
+    """시나리오 복사 응답 스키마"""
+    scenario_id: str  # 새로 생성된 시나리오 ID
+    name: str
+    terminal: str | None
+    airport: str | None
+    memo: str | None
+    message: str = "Scenario copied successfully"
+
+
 class RunSimulationBody(BaseModel):
     """
     시뮬레이션 실행 요청 스키마 - Lambda SQS 메시지 전송용

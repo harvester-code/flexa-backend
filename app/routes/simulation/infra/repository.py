@@ -187,6 +187,60 @@ class SimulationRepository(ISimulationRepository):
     # 2. 항공편 스케줄 처리 (Flight Schedule)
     # =====================================
 
+    async def get_scenario_by_id(
+        self,
+        db: AsyncSession,
+        scenario_id: str,
+    ):
+        """시나리오 ID로 단일 시나리오 조회"""
+        stmt = (
+            select(ScenarioInformation)
+            .where(
+                and_(
+                    ScenarioInformation.scenario_id == scenario_id,
+                    ScenarioInformation.is_active == True,
+                )
+            )
+        )
+
+        result = await db.execute(stmt)
+        scenario = result.scalar_one_or_none()
+
+        return scenario
+
+    async def get_scenarios_by_name_pattern(
+        self,
+        db: AsyncSession,
+        user_id: str,
+        base_name: str,
+    ):
+        """특정 베이스 이름으로 시작하는 시나리오들 조회
+
+        베이스 이름과 정확히 일치하거나,
+        베이스 이름 + " (숫자)" 패턴을 가진 시나리오들을 조회합니다.
+        """
+        stmt = (
+            select(ScenarioInformation)
+            .where(
+                and_(
+                    ScenarioInformation.user_id == user_id,
+                    ScenarioInformation.is_active == True,
+                    # 베이스 이름으로 시작하는 모든 시나리오
+                    ScenarioInformation.name.like(f"{base_name}%")
+                )
+            )
+        )
+
+        result = await db.execute(stmt)
+        scenarios = result.scalars().all()
+
+        # 정확한 베이스 이름이거나 "(숫자)" 패턴을 가진 것만 필터링
+        import re
+        pattern = re.compile(rf'^{re.escape(base_name)}(?:\s*\(\d+\))?$')
+        filtered_scenarios = [s for s in scenarios if pattern.match(s.name)]
+
+        return filtered_scenarios
+
     async def update_scenario_target_flight_schedule_date(
         self,
         db: AsyncSession,

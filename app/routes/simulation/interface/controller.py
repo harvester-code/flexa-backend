@@ -21,6 +21,7 @@ from app.routes.simulation.interface.schema import (
     PassengerScheduleBody,
     RunSimulationBody,
     ScenarioDeactivateBody,
+    ScenarioCopyResponse,
     ScenarioUpdateBody,
     SimulationScenarioBody,
 )
@@ -132,6 +133,58 @@ async def update_scenario(
     )
 
     logger.info(f"Successfully updated scenario {scenario_id}")
+
+
+@private_simulation_router.post(
+    "/{scenario_id}/copy",
+    status_code=status.HTTP_201_CREATED,
+    response_model=ScenarioCopyResponse,
+    summary="시나리오 복사",
+    description="기존 시나리오를 복사하여 새로운 시나리오를 생성합니다. Supabase 데이터와 S3 데이터를 모두 복사합니다.",
+)
+@inject
+async def copy_scenario(
+    request: Request,
+    scenario_id: str = Depends(verify_scenario_ownership),  # 원본 시나리오 권한 검증
+    sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
+    db: AsyncSession = Depends(aget_supabase_session),
+):
+    """
+    시나리오 복사
+
+    1. 원본 시나리오 데이터 조회 (Supabase)
+    2. 새 시나리오 생성 (새 UUID)
+    3. S3 데이터 복사 (원본 폴더 → 새 폴더)
+    4. 새로 생성된 시나리오 정보 반환
+    """
+    logger.info(f"POST /simulations/{scenario_id}/copy called")
+
+    try:
+        # ✅ 권한 검증은 의존성에서 이미 처리됨, 바로 비즈니스 로직 실행
+        new_scenario = await sim_service.copy_scenario_information(
+            db=db,
+            source_scenario_id=scenario_id,
+            user_id=request.state.user_id,
+        )
+
+        logger.info(f"✅ Successfully copied scenario {scenario_id} → {new_scenario['scenario_id']}")
+
+        return ScenarioCopyResponse(
+            scenario_id=new_scenario["scenario_id"],
+            name=new_scenario["name"],
+            terminal=new_scenario["terminal"],
+            airport=new_scenario["airport"],
+            memo=new_scenario["memo"],
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error copying scenario {scenario_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred while copying the scenario.",
+        )
 
 
 @private_simulation_router.delete(

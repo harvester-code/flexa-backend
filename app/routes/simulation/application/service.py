@@ -177,6 +177,106 @@ class SimulationService:
                 detail="Failed to deactivate scenarios",
             )
 
+    async def copy_scenario_information(
+        self, db: AsyncSession, source_scenario_id: str, user_id: str
+    ):
+        """
+        시나리오 복사 - Supabase 데이터와 S3 데이터 모두 복사
+
+        1. 원본 시나리오 조회
+        2. 새 시나리오 생성 (새 UUID)
+        3. S3 데이터 복사
+        4. 새 시나리오 정보 반환
+        """
+        try:
+            # 1. 원본 시나리오 조회
+            source_scenario = await self.simulation_repo.get_scenario_by_id(
+                db, source_scenario_id
+            )
+
+            if not source_scenario:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Source scenario '{source_scenario_id}' not found",
+                )
+
+            # 2. 새 시나리오 ID 생성
+            new_scenario_id = str(ULID())
+
+            # 3. 복사된 시나리오 이름 생성 (번호 자동 증가)
+            import re
+
+            # 기존 이름에서 (숫자) 패턴 제거하여 베이스 이름 추출
+            # 예: "시나리오A (3)" → "시나리오A"
+            base_name = re.sub(r'\s*\(\d+\)\s*$', '', source_scenario.name).strip()
+
+            # 같은 베이스 이름을 가진 시나리오들 조회
+            similar_scenarios = await self.simulation_repo.get_scenarios_by_name_pattern(
+                db, user_id, base_name
+            )
+
+            # 가장 큰 번호 찾기
+            max_number = 0
+            pattern = re.compile(rf'^{re.escape(base_name)}\s*\((\d+)\)\s*$')
+
+            for scenario in similar_scenarios:
+                match = pattern.match(scenario.name)
+                if match:
+                    number = int(match.group(1))
+                    max_number = max(max_number, number)
+
+            # 다음 번호로 이름 생성
+            new_name = f"{base_name} ({max_number + 1})"
+
+            # 4. 새 시나리오 정보 생성
+            new_scenario_info = ScenarioInformation(
+                id=None,
+                user_id=user_id,
+                editor=source_scenario.editor,
+                name=new_name,
+                terminal=source_scenario.terminal,
+                airport=source_scenario.airport,
+                memo=source_scenario.memo,
+                target_flight_schedule_date=source_scenario.target_flight_schedule_date,
+                created_at=datetime.now(),
+                updated_at=datetime.now(),
+                scenario_id=new_scenario_id,
+            )
+
+            # 4. DB에 새 시나리오 저장
+            created_scenario = await self.simulation_repo.create_scenario_information(
+                db, new_scenario_info
+            )
+
+            # 5. S3 데이터 복사 (비동기 처리)
+            try:
+                await self.s3_manager.copy_scenario_data(
+                    source_scenario_id=source_scenario_id,
+                    target_scenario_id=new_scenario_id,
+                )
+                logger.info(f"✅ S3 data copied: {source_scenario_id} → {new_scenario_id}")
+            except Exception as s3_error:
+                # S3 복사 실패는 경고만 기록 (시나리오는 이미 생성됨)
+                logger.warning(f"⚠️ S3 data copy failed (scenario created): {str(s3_error)}")
+
+            # 6. 생성된 시나리오 정보 반환
+            return {
+                "scenario_id": new_scenario_id,
+                "name": new_scenario_info.name,
+                "terminal": new_scenario_info.terminal,
+                "airport": new_scenario_info.airport,
+                "memo": new_scenario_info.memo,
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to copy scenario {source_scenario_id}: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to copy scenario",
+            )
+
     async def update_scenario_target_flight_schedule_date(
         self, db: AsyncSession, scenario_id: str, date: str
     ):
