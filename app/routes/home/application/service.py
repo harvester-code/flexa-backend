@@ -53,7 +53,6 @@ class HomeService:
             "flow_chart": calculator.get_flow_chart_data(),
             "histogram": calculator.get_histogram_data(),
             "sankey_diagram": calculator.get_sankey_diagram_data(),
-            "etc_info": calculator.get_etc_info(),
         }
 
     async def fetch_kpi_home_data(
