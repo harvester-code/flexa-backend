@@ -36,10 +36,10 @@ class HomeService:
     ) -> HomeAnalyzer:
         return HomeAnalyzer(pax_df, percentile)
 
-    async def fetch_common_home_data(
+    async def fetch_static_data(
         self, scenario_id: Optional[str]
     ) -> Optional[Dict[str, Any]]:
-        """KPI와 무관한 공통 데이터 반환"""
+        """KPI와 무관한 정적 데이터 반환"""
 
         pax_df = await self._get_cached_data(scenario_id)
         if pax_df is None:
@@ -54,12 +54,12 @@ class HomeService:
             "sankey_diagram": calculator.get_sankey_diagram_data(),
         }
 
-    async def fetch_kpi_home_data(
+    async def fetch_metrics_data(
         self,
         scenario_id: Optional[str],
         percentile: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
-        """KPI 의존적 데이터 반환"""
+        """KPI 의존적 메트릭 데이터 반환"""
 
         pax_df = await self._get_cached_data(scenario_id)
         if pax_df is None:
