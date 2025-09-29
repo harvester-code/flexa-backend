@@ -109,97 +109,133 @@ class HomeAnalyzer:
         return data
 
     def get_flow_chart_data(self, time_unit: str = None):
-        """플로우 차트 데이터 생성"""
+        """플로우 차트 데이터 생성 - 계층 구조로 변경"""
         time_unit = time_unit or self.time_unit
         time_df = self._create_time_df_index(time_unit)
         data = {"times": time_df.index.strftime("%Y-%m-%d %H:%M:%S").tolist()}
 
         for process in self.process_list:
-            facilities = sorted(self.pax_df[f"{process}_zone"].dropna().unique())
-            if not facilities:
-                data[process] = {}
-                continue
+            # 프로세스 데이터를 분리: zone이 있는 데이터와 None 데이터
+            zone_col = f"{process}_zone"
 
-            process_data = self.pax_df[self.pax_df[f"{process}_zone"].notna()].copy()
-            process_data[f"{process}_waiting"] = process_data[f"{process}_waiting_time"].dt.total_seconds()
+            # None 값 (Skip/Bypass) 처리를 위한 데이터 분리
+            all_process_data = self.pax_df.copy()
+            has_zone = all_process_data[zone_col].notna()
+            no_zone = all_process_data[zone_col].isna()
 
-            # 시간 플로어링을 복사본에서 계산
-            process_data[f"{process}_on_floored"] = process_data[
-                f"{process}_on_pred"
-            ].dt.floor(time_unit)
-            process_data[f"{process}_done_floored"] = process_data[
-                f"{process}_done_time"
-            ].dt.floor(time_unit)
+            facilities = sorted(all_process_data[zone_col].dropna().unique())
 
-            # 한번에 모든 메트릭 계산
-            metrics = {
-                "inflow": process_data.groupby(
-                    [f"{process}_on_floored", f"{process}_zone"]
-                ).size(),
-                "outflow": process_data.groupby(
-                    [f"{process}_done_floored", f"{process}_zone"]
-                ).size(),
-                "queue_length": process_data.groupby(
-                    [f"{process}_on_floored", f"{process}_zone"]
-                )[f"{process}_queue_length"].mean(),
-                "waiting_time": process_data.groupby(
-                    [f"{process}_on_floored", f"{process}_zone"]
-                )[f"{process}_waiting"].mean(),
+            # 계층 구조를 위한 프로세스 정보 생성
+            process_info = {
+                "process_name": process.replace("_", " ").title(),
+                "facilities": [],
+                "data": {}
             }
 
-            # unstack하고 reindex 한번에
-            pivoted = {
-                k: v.unstack(fill_value=0).reindex(time_df.index, fill_value=0)
-                for k, v in metrics.items()
-            }
+            if facilities:
+                process_data = all_process_data[has_zone].copy()
+                process_data[f"{process}_waiting"] = process_data[f"{process}_waiting_time"].dt.total_seconds()
 
-            # 결과 구성
-            process_facility_data = {}
-            aggregated = {
-                k: pd.Series(0, index=time_df.index, dtype=float)
-                for k in metrics.keys()
-            }
+                # 시간 플로어링을 복사본에서 계산
+                process_data[f"{process}_on_floored"] = process_data[
+                    f"{process}_on_pred"
+                ].dt.floor(time_unit)
+                process_data[f"{process}_done_floored"] = process_data[
+                    f"{process}_done_time"
+                ].dt.floor(time_unit)
 
-            for facility_name in facilities:
-                node_name = facility_name.split("_")[-1]
+                # 한번에 모든 메트릭 계산
+                metrics = {
+                    "inflow": process_data.groupby(
+                        [f"{process}_on_floored", f"{process}_zone"]
+                    ).size(),
+                    "outflow": process_data.groupby(
+                        [f"{process}_done_floored", f"{process}_zone"]
+                    ).size(),
+                    "queue_length": process_data.groupby(
+                        [f"{process}_on_floored", f"{process}_zone"]
+                    )[f"{process}_queue_length"].mean(),
+                    "waiting_time": process_data.groupby(
+                        [f"{process}_on_floored", f"{process}_zone"]
+                    )[f"{process}_waiting"].mean(),
+                }
 
-                facility_data = {
-                    k: pivoted[k].get(facility_name, pd.Series(0, index=time_df.index))
+                # unstack하고 reindex 한번에
+                pivoted = {
+                    k: v.unstack(fill_value=0).reindex(time_df.index, fill_value=0)
+                    for k, v in metrics.items()
+                }
+
+                # 결과 구성
+                process_facility_data = {}
+                aggregated = {
+                    k: pd.Series(0, index=time_df.index, dtype=float)
                     for k in metrics.keys()
                 }
 
-                # 집계
-                for k in facility_data.keys():
-                    aggregated[k] += facility_data[k]
+                for facility_name in facilities:
+                    # 원래 facility 이름 보존
+                    node_name = facility_name
 
-                # 저장 (타입 변환)
-                process_facility_data[node_name] = {
-                    k: (
-                        facility_data[k].round()
-                        if k in ["queue_length", "waiting_time"]
-                        else facility_data[k]
-                    )
+                    facility_data = {
+                        k: pivoted[k].get(facility_name, pd.Series(0, index=time_df.index))
+                        for k in metrics.keys()
+                    }
+
+                    # 집계
+                    for k in facility_data.keys():
+                        aggregated[k] += facility_data[k]
+
+                    # facilities 리스트에 추가
+                    process_info["facilities"].append(node_name)
+
+                    # 저장 (타입 변환)
+                    process_facility_data[node_name] = {
+                        k: (
+                            facility_data[k].round()
+                            if k in ["queue_length", "waiting_time"]
+                            else facility_data[k]
+                        )
+                        .astype(int)
+                        .tolist()
+                        for k in facility_data.keys()
+                    }
+
+                # None/Skip 데이터 처리 - 프로세스를 건너뛴 승객
+                if no_zone.any():
+                    skip_count = no_zone.sum()
+                    # Skip 노드 추가
+                    process_info["facilities"].append("Skip")
+                    process_facility_data["Skip"] = {
+                        "inflow": [0] * len(time_df),  # Skip은 고정값
+                        "outflow": [0] * len(time_df),
+                        "queue_length": [0] * len(time_df),
+                        "waiting_time": [0] * len(time_df),
+                        "skip_count": skip_count  # 건너뛴 총 인원수 정보 추가
+                    }
+
+                # all_zones
+                facility_count = max(len(facilities), 1)
+                all_zones_data = {
+                    "inflow": aggregated["inflow"].astype(int).tolist(),
+                    "outflow": aggregated["outflow"].astype(int).tolist(),
+                    "queue_length": (aggregated["queue_length"] / facility_count)
+                    .round()
                     .astype(int)
-                    .tolist()
-                    for k in facility_data.keys()
+                    .tolist(),
+                    "waiting_time": (aggregated["waiting_time"] / facility_count)
+                    .round()
+                    .astype(int)
+                    .tolist(),
                 }
 
-            # all_zones
-            facility_count = len(facilities)
-            all_zones_data = {
-                "inflow": aggregated["inflow"].astype(int).tolist(),
-                "outflow": aggregated["outflow"].astype(int).tolist(),
-                "queue_length": (aggregated["queue_length"] / facility_count)
-                .round()
-                .astype(int)
-                .tolist(),
-                "waiting_time": (aggregated["waiting_time"] / facility_count)
-                .round()
-                .astype(int)
-                .tolist(),
-            }
+                # process_info에 데이터 추가
+                process_info["data"] = {"all_zones": all_zones_data, **process_facility_data}
+            else:
+                # 이 프로세스에 아무도 가지 않은 경우
+                process_info["data"] = {}
 
-            data[process] = {"all_zones": all_zones_data, **process_facility_data}
+            data[process] = process_info
         return data
 
     def get_facility_details(self):
@@ -330,17 +366,16 @@ class HomeAnalyzer:
         return data
 
     def get_sankey_diagram_data(self):
-        """산키 다이어그램 데이터 생성"""
-        # facility 기반으로 승객 플로우 생성 (시간 순서로 정렬)
-        facility_cols = [
-            col for col in self.pax_df.columns 
-            if col.endswith("_facility")
+        """산키 다이어그램 데이터 생성 - 계층 구조 지원"""
+        # zone 기반으로 승객 플로우 생성 (시간 순서로 정렬)
+        zone_cols = [
+            col for col in self.pax_df.columns
+            if col.endswith("_zone")
         ]
-        
         # {process}_done_time 기준으로 시간 순서 정렬
         timed_facilities = []
-        for col in facility_cols:
-            process_name = col.replace("_facility", "")
+        for col in zone_cols:
+            process_name = col.replace("_zone", "")
             done_time_col = f"{process_name}_done_time"
             if done_time_col in self.pax_df.columns:
                 # 평균 완료 시간으로 정렬
@@ -350,10 +385,9 @@ class HomeAnalyzer:
         # 시간 순서대로 정렬 (체크인 → 게이트 순서)
         timed_facilities.sort(key=lambda x: x[0])
         target_columns = [col for _, col in timed_facilities]
-        
         # 시간 정보가 없는 경우 원래 방식 사용
         if not target_columns:
-            target_columns = facility_cols
+            target_columns = zone_cols
 
         # 빈 컬럼 리스트 처리
         if not target_columns:
@@ -393,9 +427,20 @@ class HomeAnalyzer:
         for col in target_columns:
             labels.extend(sorted(flow_df[col].unique()))
 
+        # 프로세스 정보 생성 (계층 구조를 위해)
+        process_info = {}
+        for col in target_columns:
+            process_name = col.replace("_zone", "")
+            facilities = sorted(flow_df[col].unique())
+            process_info[process_name] = {
+                "process_name": process_name.replace("_", " ").title(),
+                "facilities": facilities
+            }
+
         return {
             "label": labels,
             "link": {"source": sources, "target": targets, "value": values},
+            "process_info": process_info  # 계층 구조 정보 추가
         }
 
     # ===============================
