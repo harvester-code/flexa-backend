@@ -32,10 +32,9 @@ class HomeService:
     def _create_calculator(
         self,
         pax_df: Any,
-        calculate_type: str,
         percentile: Optional[int] = None,
     ) -> HomeAnalyzer:
-        return HomeAnalyzer(pax_df, None, calculate_type, percentile)
+        return HomeAnalyzer(pax_df, percentile)
 
     async def fetch_common_home_data(
         self, scenario_id: Optional[str]
@@ -46,7 +45,7 @@ class HomeService:
         if pax_df is None:
             return None
 
-        calculator = self._create_calculator(pax_df, "mean")
+        calculator = self._create_calculator(pax_df)
 
         return {
             "alert_issues": calculator.get_alert_issues(),
@@ -58,7 +57,6 @@ class HomeService:
     async def fetch_kpi_home_data(
         self,
         scenario_id: Optional[str],
-        calculate_type: str,
         percentile: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
         """KPI 의존적 데이터 반환"""
@@ -68,7 +66,7 @@ class HomeService:
             return None
 
         calculator = self._create_calculator(
-            pax_df, calculate_type, percentile
+            pax_df, percentile
         )
 
         return {

@@ -44,11 +44,10 @@ async def fetch_common_home_data(
 @inject
 async def fetch_kpi_home_data(
     scenario_id: str,
-    calculate_type: str,
     home_service: HomeService = Depends(Provide[Container.home_service]),
     percentile: int | None = None,
 ):
     result = await home_service.fetch_kpi_home_data(
-        scenario_id, calculate_type, percentile
+        scenario_id, percentile
     )
     return SuccessResponse(status_code=status.HTTP_200_OK, data=result)

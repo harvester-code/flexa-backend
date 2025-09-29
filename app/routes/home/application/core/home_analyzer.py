@@ -8,8 +8,6 @@ class HomeAnalyzer:
     def __init__(
         self,
         pax_df: pd.DataFrame,
-        facility_info: Optional[Dict[str, Any]] = None,
-        calculate_type: str = "mean",
         percentile: int | None = None,
     ):
         # 1. on, done 값이 없는 경우, 처리 안된 여객이므로 제외하고 시작함
@@ -26,12 +24,9 @@ class HomeAnalyzer:
         # if last_done_col in pax_df.columns and 'scheduled_departure_local' in pax_df.columns:
         #     pax_df = pax_df[pax_df[last_done_col] < pax_df['scheduled_departure_local']]
 
-        self.facility_info = None
-        self.calculate_type = calculate_type
         self.percentile = percentile
         self.time_unit = "10min"
         self.process_list = self._get_process_list()
-        self.facility_ratio = {}
 
     # ===============================
     # 메인 함수들
@@ -49,14 +44,14 @@ class HomeAnalyzer:
             }
         ).dropna()
         waiting_time_data = self._get_pax_experience_data(
-            waiting_times_df, "time", self.calculate_type, self.percentile
+            waiting_times_df, "time"
         )
 
         queue_lengths_df = pd.DataFrame(
             {process: self.pax_df[f"{process}_queue_length"] for process in self.process_list}
         ).dropna()
         queue_data = self._get_pax_experience_data(
-            queue_lengths_df, "count", self.calculate_type, self.percentile
+            queue_lengths_df, "count"
         )
 
         # 응답 데이터 구성
@@ -241,10 +236,6 @@ class HomeAnalyzer:
     def get_facility_details(self):
         """시설 세부 정보 생성"""
 
-        if self.calculate_type != "mean" and self.percentile is None:
-            raise ValueError(
-                "percentile 방식을 사용하려면 percentile 값을 제공해야 합니다."
-            )
 
         data = []
         for process in self.process_list:
@@ -261,12 +252,12 @@ class HomeAnalyzer:
                 "throughput": len(process_df),
                 "queuePax": int(
                     process_df[f"{process}_queue_length"].quantile(1 - self.percentile / 100)
-                    if self.calculate_type == "top"
+                    if self.percentile is not None
                     else process_df[f"{process}_queue_length"].mean()
                 ),
                 "waitTime": self._format_waiting_time(
                     waiting_time.quantile(1 - self.percentile / 100)
-                    if self.calculate_type == "top"
+                    if self.percentile is not None
                     else waiting_time.mean()
                 ),
             }
@@ -285,12 +276,12 @@ class HomeAnalyzer:
                             facility_df[f"{process}_queue_length"].quantile(
                                 1 - self.percentile / 100
                             )
-                            if self.calculate_type == "top"
+                            if self.percentile is not None
                             else facility_df[f"{process}_queue_length"].mean()
                         ),
                         "waitTime": self._format_waiting_time(
                             waiting_time.quantile(1 - self.percentile / 100)
-                            if self.calculate_type == "top"
+                            if self.percentile is not None
                             else waiting_time.mean()
                         ),
                     }
@@ -468,13 +459,13 @@ class HomeAnalyzer:
         seconds = total_seconds % 60
         return {"hour": hours, "minute": minutes, "second": seconds}
 
-    def _get_pax_experience_data(self, df, data_type, calculate_type, percentile):
+    def _get_pax_experience_data(self, df, data_type):
         """승객 경험 데이터 계산"""
         df["total"] = df.sum(axis=1)
-        if calculate_type == "mean":
+        if self.percentile is None:
             target_value = df["total"].mean()
         else:
-            target_value = np.percentile(df["total"], 100 - percentile)
+            target_value = np.percentile(df["total"], 100 - self.percentile)
 
         closest_idx = (df["total"] - target_value).abs().idxmin()
         result_row = df.loc[closest_idx]
