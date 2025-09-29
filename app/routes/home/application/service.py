@@ -76,17 +76,3 @@ class HomeService:
             "summary": calculator.get_summary(),
             "facility_details": calculator.get_facility_details(),
         }
-
-    async def fetch_aemos_template(
-        self, scenario_id: Optional[str]
-    ) -> Optional[Dict[str, Any]]:
-        """AEMOS 데이터 반환"""
-
-        pax_df = await self._get_cached_data(scenario_id)
-
-        if pax_df is None:
-            return None
-
-        calculator = self._create_calculator(pax_df, "mean")
-
-        return calculator.get_aemos_template()
