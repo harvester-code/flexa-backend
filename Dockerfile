@@ -23,5 +23,5 @@ COPY . .
 # 포트 설정
 EXPOSE 8000
 
-# FastAPI 실행
-CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"] 
+# FastAPI 실행 (개발 모드 - 자동 리로드)
+CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"] 
