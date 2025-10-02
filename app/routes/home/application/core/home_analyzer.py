@@ -39,7 +39,7 @@ class HomeAnalyzer:
 
         waiting_times_df = pd.DataFrame(
             {
-                process: self.pax_df[f"{process}_waiting_time"]
+                process: self._get_waiting_time(self.pax_df, process)
                 for process in self.process_list
             }
         ).dropna()
@@ -129,7 +129,8 @@ class HomeAnalyzer:
 
             if facilities:
                 process_data = all_process_data[has_zone].copy()
-                process_data[f"{process}_waiting"] = process_data[f"{process}_waiting_time"].dt.total_seconds()
+                waiting_series = self._get_waiting_time(process_data, process)
+                process_data[f"{process}_waiting_seconds"] = waiting_series.dt.total_seconds()
 
                 # 시간 플로어링을 복사본에서 계산
                 process_data[f"{process}_on_floored"] = process_data[
@@ -152,7 +153,7 @@ class HomeAnalyzer:
                     )[f"{process}_queue_length"].mean(),
                     "waiting_time": process_data.groupby(
                         [f"{process}_on_floored", f"{process}_zone"]
-                    )[f"{process}_waiting"].mean(),
+                    )[f"{process}_waiting_seconds"].mean(),
                 }
 
                 # unstack하고 reindex 한번에
@@ -239,10 +240,14 @@ class HomeAnalyzer:
 
         data = []
         for process in self.process_list:
-            cols = [
-                f"{process}_{x}"
-                for x in ["zone", "facility", "queue_length", "on_pred", "done_time", "waiting_time"]
+            base_fields = ["zone", "facility", "queue_length", "on_pred", "done_time"]
+            wait_fields = [
+                suffix
+                for suffix in ["open_wait_time", "queue_wait_time", "waiting_time"]
+                if f"{process}_{suffix}" in self.pax_df.columns
             ]
+            cols = [f"{process}_{field}" for field in base_fields] + [f"{process}_{field}" for field in wait_fields]
+            cols = [col for col in cols if col in self.pax_df.columns]
             process_df = self.pax_df[cols].copy()
 
             # Overview 계산
@@ -273,9 +278,9 @@ class HomeAnalyzer:
                         "title": facility,
                         "throughput": len(facility_df),
                         "queuePax": int(
-                            facility_df[f"{process}_queue_length"].quantile(
-                                1 - self.percentile / 100
-                            )
+                        facility_df[f"{process}_queue_length"].quantile(
+                            1 - self.percentile / 100
+                        )
                             if self.percentile is not None
                             else facility_df[f"{process}_queue_length"].mean()
                         ),
@@ -318,7 +323,7 @@ class HomeAnalyzer:
                 df = self.pax_df[self.pax_df[f"{process}_zone"] == facility].copy()
 
                 # 대기시간 분포 (초를 분으로 변환)
-                wt_mins = df[f"{process}_waiting_time"].dt.total_seconds() / 60
+                wt_mins = self._get_waiting_time(df, process).dt.total_seconds() / 60
                 wt_bins = self._get_distribution(wt_mins, WT_BINS, WT_LABELS)
 
                 # 대기열 분포
@@ -485,7 +490,7 @@ class HomeAnalyzer:
             {
                 "process": process,
                 "datetime": self.pax_df[f"{process}_on_pred"].dt.floor(time_interval),
-                "waiting_time": self.pax_df[f"{process}_waiting_time"],
+                "waiting_time": self._get_waiting_time(self.pax_df, process),
                 "queue_length": self.pax_df[f"{process}_queue_length"],
                 "process_name": self.pax_df[f"{process}_zone"],
             }
@@ -508,10 +513,41 @@ class HomeAnalyzer:
         )
         return pd.DataFrame(index=time_index)
 
+    def _get_waiting_time(self, df, process):
+        """open_wait_time과 queue_wait_time을 합산하여 총 대기시간 반환"""
+        open_col = f"{process}_open_wait_time"
+        queue_col = f"{process}_queue_wait_time"
+        waiting_col = f"{process}_waiting_time"
+
+        total_seconds = pd.Series(0.0, index=df.index, dtype=float)
+        mask_all_na = pd.Series(True, index=df.index, dtype=bool)
+        has_component = False
+
+        if open_col in df.columns:
+            open_series = pd.to_timedelta(df[open_col])
+            total_seconds += open_series.dt.total_seconds().fillna(0)
+            mask_all_na &= open_series.isna()
+            has_component = True
+
+        if queue_col in df.columns:
+            queue_series = pd.to_timedelta(df[queue_col])
+            total_seconds += queue_series.dt.total_seconds().fillna(0)
+            mask_all_na &= queue_series.isna()
+            has_component = True
+
+        if has_component:
+            total = pd.to_timedelta(total_seconds, unit="s")
+            return total.where(~mask_all_na, pd.NaT)
+
+        if waiting_col in df.columns:
+            return pd.to_timedelta(df[waiting_col])
+
+        return pd.Series(pd.NaT, index=df.index, dtype="timedelta64[ns]")
+
 
     def _calculate_waiting_time(self, process_df, process):
         """대기 시간 계산"""
-        return process_df[f"{process}_waiting_time"]
+        return self._get_waiting_time(process_df, process)
 
 
 
