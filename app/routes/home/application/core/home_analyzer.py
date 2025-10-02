@@ -1,7 +1,83 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 import numpy as np
 import pandas as pd
+
+def _extract_block_period(block: dict) -> Optional[tuple[pd.Timestamp, pd.Timestamp]]:
+    period = block.get("period", "")
+    if not period:
+        return None
+
+    if len(period) > 19 and period[19] == "-":
+        start_str = period[:19]
+        end_str = period[20:]
+    else:
+        parts = period.split(" - ")
+        if len(parts) != 2:
+            return None
+        start_str, end_str = parts
+
+    block_start = pd.to_datetime(start_str.strip(), errors="coerce")
+    block_end = pd.to_datetime(end_str.strip(), errors="coerce")
+    if pd.isna(block_start) or pd.isna(block_end):
+        return None
+    return block_start, block_end
+
+
+def _calculate_capacity_for_slot(
+    facility_config: dict,
+    start: pd.Timestamp,
+    end: pd.Timestamp,
+) -> float:
+    slot_capacity = 0.0
+    for block in facility_config.get("operating_schedule", {}).get("time_blocks", []):
+        if not block.get("activate", True):
+            continue
+
+        period_bounds = _extract_block_period(block)
+        if not period_bounds:
+            continue
+        block_start, block_end = period_bounds
+
+        if start >= block_end or end <= block_start:
+            continue
+
+        overlap_start = max(start, block_start)
+        overlap_end = min(end, block_end)
+        overlap_minutes = max((overlap_end - overlap_start).total_seconds() / 60.0, 0)
+        if overlap_minutes == 0:
+            continue
+
+        process_time_seconds = block.get("process_time_seconds")
+        if not process_time_seconds:
+            continue
+
+        capacity_per_hour = 3600.0 / process_time_seconds
+        slot_capacity += (overlap_minutes / 60.0) * capacity_per_hour
+    return slot_capacity
+
+
+def _calculate_step_capacity_series_by_zone(
+    step_config: dict,
+    time_range: pd.DatetimeIndex,
+    interval_minutes: int,
+) -> Dict[str, List[float]]:
+    zone_capacity: Dict[str, List[float]] = {}
+    if time_range.empty:
+        return zone_capacity
+
+    for zone_name, zone in step_config.get("zones", {}).items():
+        total_capacity = [0.0] * len(time_range)
+        for facility in zone.get("facilities", []):
+            facility_capacity: List[float] = []
+            for start in time_range:
+                end = start + pd.Timedelta(minutes=interval_minutes)
+                facility_capacity.append(
+                    _calculate_capacity_for_slot(facility, start, end)
+                )
+            total_capacity = [curr + add for curr, add in zip(total_capacity, facility_capacity)]
+        zone_capacity[zone_name] = total_capacity
+    return zone_capacity
 
 
 class HomeAnalyzer:
@@ -9,6 +85,7 @@ class HomeAnalyzer:
         self,
         pax_df: pd.DataFrame,
         percentile: int | None = None,
+        process_flow: Optional[List[dict]] = None,
     ):
         # 1. on, done 값이 없는 경우, 처리 안된 여객이므로 제외하고 시작함
         self.pax_df = pax_df.copy()
@@ -27,6 +104,7 @@ class HomeAnalyzer:
         self.percentile = percentile
         self.time_unit = "10min"
         self.process_list = self._get_process_list()
+        self.process_flow_map = self._build_process_flow_map(process_flow)
 
     # ===============================
     # 메인 함수들
@@ -127,6 +205,12 @@ class HomeAnalyzer:
                 "data": {}
             }
 
+            step_config = self.process_flow_map.get(process) if self.process_flow_map else None
+            try:
+                interval_minutes = int(pd.Timedelta(time_unit).total_seconds() / 60)
+            except ValueError:
+                interval_minutes = 0
+
             if facilities:
                 process_data = all_process_data[has_zone].copy()
                 waiting_series = self._get_waiting_time(process_data, process)
@@ -169,6 +253,14 @@ class HomeAnalyzer:
                     for k in metrics.keys()
                 }
 
+                zone_capacity_map: Dict[str, List[float]] = {}
+                if step_config and interval_minutes > 0:
+                    zone_capacity_map = _calculate_step_capacity_series_by_zone(
+                        step_config,
+                        time_df.index,
+                        interval_minutes,
+                    )
+
                 for facility_name in facilities:
                     # 원래 facility 이름 보존
                     node_name = facility_name
@@ -196,6 +288,11 @@ class HomeAnalyzer:
                         .tolist()
                         for k in facility_data.keys()
                     }
+
+                    if node_name in zone_capacity_map:
+                        process_facility_data[node_name]["capacity"] = [
+                            int(round(value)) for value in zone_capacity_map[node_name]
+                        ]
 
                 # None/Skip 데이터 처리 - 프로세스를 건너뛴 승객
                 if no_zone.any():
@@ -225,6 +322,12 @@ class HomeAnalyzer:
                     .tolist(),
                 }
 
+                if zone_capacity_map:
+                    aggregate_capacity = [0.0] * len(time_df.index)
+                    for capacity_list in zone_capacity_map.values():
+                        aggregate_capacity = [curr + add for curr, add in zip(aggregate_capacity, capacity_list)]
+                    all_zones_data["capacity"] = [int(round(value)) for value in aggregate_capacity]
+
                 # process_info에 데이터 추가
                 process_info["data"] = {"all_zones": all_zones_data, **process_facility_data}
             else:
@@ -243,7 +346,7 @@ class HomeAnalyzer:
             base_fields = ["zone", "facility", "queue_length", "on_pred", "done_time"]
             wait_fields = [
                 suffix
-                for suffix in ["open_wait_time", "queue_wait_time", "waiting_time"]
+                for suffix in ["queue_wait_time"]
                 if f"{process}_{suffix}" in self.pax_df.columns
             ]
             cols = [f"{process}_{field}" for field in base_fields] + [f"{process}_{field}" for field in wait_fields]
@@ -513,34 +616,23 @@ class HomeAnalyzer:
         )
         return pd.DataFrame(index=time_index)
 
+    def _build_process_flow_map(self, process_flow: Optional[List[dict]]) -> Dict[str, dict]:
+        if not process_flow:
+            return {}
+        mapping: Dict[str, dict] = {}
+        for step in process_flow:
+            name = step.get("name")
+            if name:
+                mapping[name] = step
+        return mapping
+
     def _get_waiting_time(self, df, process):
-        """open_wait_time과 queue_wait_time을 합산하여 총 대기시간 반환"""
-        open_col = f"{process}_open_wait_time"
+        """순수 queue 대기시간 반환"""
         queue_col = f"{process}_queue_wait_time"
-        waiting_col = f"{process}_waiting_time"
-
-        total_seconds = pd.Series(0.0, index=df.index, dtype=float)
-        mask_all_na = pd.Series(True, index=df.index, dtype=bool)
-        has_component = False
-
-        if open_col in df.columns:
-            open_series = pd.to_timedelta(df[open_col])
-            total_seconds += open_series.dt.total_seconds().fillna(0)
-            mask_all_na &= open_series.isna()
-            has_component = True
 
         if queue_col in df.columns:
             queue_series = pd.to_timedelta(df[queue_col])
-            total_seconds += queue_series.dt.total_seconds().fillna(0)
-            mask_all_na &= queue_series.isna()
-            has_component = True
-
-        if has_component:
-            total = pd.to_timedelta(total_seconds, unit="s")
-            return total.where(~mask_all_na, pd.NaT)
-
-        if waiting_col in df.columns:
-            return pd.to_timedelta(df[waiting_col])
+            return queue_series
 
         return pd.Series(pd.NaT, index=df.index, dtype="timedelta64[ns]")
 

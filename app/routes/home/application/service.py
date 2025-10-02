@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 from dependency_injector.wiring import inject
 
@@ -29,12 +29,31 @@ class HomeService:
         print("❌ 데이터 로드 실패")
         return None
 
+    async def _load_process_flow(
+        self, scenario_id: Optional[str]
+    ) -> Optional[List[dict]]:
+        if scenario_id is None:
+            return None
+
+        metadata = await self.s3_manager.get_json_async(
+            scenario_id=scenario_id,
+            filename="metadata-for-frontend.json",
+        )
+        if not metadata:
+            return None
+
+        process_flow = metadata.get("process_flow")
+        if isinstance(process_flow, list):
+            return process_flow
+        return None
+
     def _create_calculator(
         self,
         pax_df: Any,
         percentile: Optional[int] = None,
+        process_flow: Optional[List[dict]] = None,
     ) -> HomeAnalyzer:
-        return HomeAnalyzer(pax_df, percentile)
+        return HomeAnalyzer(pax_df, percentile, process_flow=process_flow)
 
     async def fetch_static_data(
         self, scenario_id: Optional[str]
@@ -45,7 +64,8 @@ class HomeService:
         if pax_df is None:
             return None
 
-        calculator = self._create_calculator(pax_df)
+        process_flow = await self._load_process_flow(scenario_id)
+        calculator = self._create_calculator(pax_df, process_flow=process_flow)
 
         return {
             "alert_issues": calculator.get_alert_issues(),
@@ -66,7 +86,8 @@ class HomeService:
             return None
 
         calculator = self._create_calculator(
-            pax_df, percentile
+            pax_df,
+            percentile,
         )
 
         return {
