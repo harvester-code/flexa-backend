@@ -97,10 +97,15 @@ def _calculate_capacity_for_slot(
             continue
 
         period = block.get("period", "")
-        if "-" not in period:
-            continue
+        if len(period) > 19 and period[19] == "-":
+            start_str = period[:19]
+            end_str = period[20:]
+        else:
+            try:
+                start_str, end_str = period.split(" - ")
+            except ValueError:
+                continue
 
-        start_str, end_str = period.split("-", 1)
         block_start = pd.to_datetime(start_str.strip(), errors="coerce")
         block_end = pd.to_datetime(end_str.strip(), errors="coerce")
         if pd.isna(block_start) or pd.isna(block_end):
