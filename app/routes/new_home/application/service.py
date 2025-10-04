@@ -32,7 +32,7 @@ class NewHomeService:
         scenario_id: str,
         step_name: str,
         facility_id: str,
-        interval_minutes: int = 30,
+        interval_minutes: int = 60,
     ) -> Dict:
         pax_df = await self.repository.load_passenger_dataframe(scenario_id)
         if pax_df is None or pax_df.empty:
@@ -52,7 +52,7 @@ class NewHomeService:
     async def get_all_facility_charts(
         self,
         scenario_id: str,
-        interval_minutes: int = 30,
+        interval_minutes: int = 60,
     ) -> Dict[str, List[Dict]]:
         pax_df = await self.repository.load_passenger_dataframe(scenario_id)
         if pax_df is None or pax_df.empty:

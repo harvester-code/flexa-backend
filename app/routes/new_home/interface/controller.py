@@ -23,7 +23,7 @@ new_home_router = APIRouter(
 @inject
 async def get_facility_charts(
     scenario_id: str,
-    interval_minutes: int = Query(30, ge=5, le=180),
+    interval_minutes: int = Query(60, ge=5, le=180),
     service: NewHomeService = Depends(Provide[Container.new_home_service]),
 ):
     chart_data = await service.get_all_facility_charts(

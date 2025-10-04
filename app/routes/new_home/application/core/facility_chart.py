@@ -24,11 +24,12 @@ def _get_step_config(process_flow: List[dict], step_name: str) -> dict:
     raise ValueError(f"Step '{step_name}' not found in process flow")
 
 
-def _get_facility_config(step_config: dict, facility_id: str) -> dict:
-    for zone in step_config.get("zones", {}).values():
+def _get_facility_config(step_config: dict, facility_id: str) -> Tuple[str, str, dict]:
+    for zone_id, zone in step_config.get("zones", {}).items():
         for facility in zone.get("facilities", []):
             if facility.get("id") == facility_id:
-                return facility
+                zone_name = zone.get("name") or zone_id
+                return zone_id, zone_name, facility
     raise ValueError(f"Facility '{facility_id}' not found in step '{step_config.get('name')}'")
 
 
@@ -174,7 +175,7 @@ def build_facility_chart(
     process_flow: List[dict],
     step_name: str,
     facility_id: str,
-    interval_minutes: int = 30,
+    interval_minutes: int = 60,
 ) -> FacilityChart:
     facility_col = f"{step_name}_facility"
     start_time_col = f"{step_name}_start_time"
@@ -193,44 +194,44 @@ def build_facility_chart(
         interval_minutes,
     )
 
-    demand_totals, demand_masks = _calculate_slot_counts(
+    inflow_totals, inflow_masks = _calculate_slot_counts(
         facility_df,
         on_pred_col,
         time_range,
         interval_minutes,
     )
-    processing_totals, processing_masks = _calculate_slot_counts(
+    outflow_totals, outflow_masks = _calculate_slot_counts(
         facility_df,
         start_time_col,
         time_range,
         interval_minutes,
     )
 
-    demand_by_airline = _calculate_series_by_group(
+    inflow_by_airline = _calculate_series_by_group(
         facility_df,
-        demand_masks,
+        inflow_masks,
         "operating_carrier_iata",
         time_range,
     )
-    processing_by_airline = _calculate_series_by_group(
+    outflow_by_airline = _calculate_series_by_group(
         facility_df,
-        processing_masks,
+        outflow_masks,
         "operating_carrier_iata",
         time_range,
     )
 
-    all_airlines = sorted(set(demand_by_airline.keys()) | set(processing_by_airline.keys()))
-    demand_series = [
-        TimeSeriesData(label=f"{airline} 수요", values=demand_by_airline.get(airline, [0] * len(time_range)))
+    all_airlines = sorted(set(inflow_by_airline.keys()) | set(outflow_by_airline.keys()))
+    inflow_series = [
+        TimeSeriesData(label=f"{airline} 유입", values=inflow_by_airline.get(airline, [0] * len(time_range)))
         for airline in all_airlines
     ]
-    processing_series = [
-        TimeSeriesData(label=f"{airline} 처리", values=processing_by_airline.get(airline, [0] * len(time_range)))
+    outflow_series = [
+        TimeSeriesData(label=f"{airline} 유출", values=outflow_by_airline.get(airline, [0] * len(time_range)))
         for airline in all_airlines
     ]
 
     step_config = _get_step_config(process_flow, step_name)
-    facility_config = _get_facility_config(step_config, facility_id)
+    zone_id, zone_name, facility_config = _get_facility_config(step_config, facility_id)
     capacity = _calculate_capacity_series(
         facility_config,
         time_range,
@@ -239,13 +240,13 @@ def build_facility_chart(
 
     bottleneck_times = [
         time_range[idx].isoformat()
-        for idx, (demand, cap) in enumerate(zip(demand_totals, capacity))
-        if demand > cap and cap > 0
+        for idx, (inflow, cap) in enumerate(zip(inflow_totals, capacity))
+        if inflow > cap and cap > 0
     ]
 
     summary = FacilityChartSummary(
-        total_demand=int(sum(demand_totals)),
-        total_processed=int(sum(processing_totals)),
+        total_inflow=int(sum(inflow_totals)),
+        total_outflow=int(sum(outflow_totals)),
         max_capacity=float(max(capacity) if capacity else 0.0),
         average_capacity=float(sum(capacity) / len(capacity) if capacity else 0.0),
         bottleneck_times=bottleneck_times,
@@ -254,13 +255,15 @@ def build_facility_chart(
     return FacilityChart(
         step=step_name,
         facility_id=facility_id,
+        zone_id=zone_id,
+        zone_name=zone_name,
         interval_minutes=interval_minutes,
         time_range=[ts.isoformat() for ts in time_range],
         capacity=[float(val) for val in capacity],
-        demand_series=demand_series,
-        processing_series=processing_series,
-        total_demand=[int(val) for val in demand_totals],
-        total_processed=[int(val) for val in processing_totals],
+        inflow_series=inflow_series,
+        outflow_series=outflow_series,
+        total_inflow=[int(val) for val in inflow_totals],
+        total_outflow=[int(val) for val in outflow_totals],
         facility_info=_build_facility_info_text(facility_config),
         summary=summary,
     )
