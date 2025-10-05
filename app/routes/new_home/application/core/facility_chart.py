@@ -182,11 +182,35 @@ def build_facility_chart(
     done_time_col = f"{step_name}_done_time"
     on_pred_col = f"{step_name}_on_pred"
 
-    _validate_columns(pax_df, [facility_col, start_time_col, done_time_col, on_pred_col, "operating_carrier_iata"])
+    required_columns = [
+        facility_col,
+        start_time_col,
+        done_time_col,
+        on_pred_col,
+        "operating_carrier_name",
+    ]
+    _validate_columns(pax_df, required_columns)
+
+    has_carrier_code = "operating_carrier_iata" in pax_df.columns
 
     facility_df = pax_df[pax_df[facility_col] == facility_id].copy()
     if facility_df.empty:
         raise ValueError(f"No passengers processed by facility '{facility_id}' in step '{step_name}'")
+
+    name_series = facility_df["operating_carrier_name"].fillna("")
+    name_series = name_series.astype(str).str.strip()
+
+    if has_carrier_code:
+        code_series = facility_df["operating_carrier_iata"].fillna("")
+    else:
+        code_series = None
+
+    facility_df["airline_label"] = (
+        name_series
+        if code_series is None
+        else name_series.where(name_series != "", code_series)
+    )
+    facility_df.loc[facility_df["airline_label"].isin(["", "nan", "None"]), "airline_label"] = "Unknown"
 
     time_range = _prepare_time_range(
         facility_df,
@@ -210,13 +234,13 @@ def build_facility_chart(
     inflow_by_airline = _calculate_series_by_group(
         facility_df,
         inflow_masks,
-        "operating_carrier_iata",
+        "airline_label",
         time_range,
     )
     outflow_by_airline = _calculate_series_by_group(
         facility_df,
         outflow_masks,
-        "operating_carrier_iata",
+        "airline_label",
         time_range,
     )
 
