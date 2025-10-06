@@ -205,6 +205,244 @@ class NewHomeService:
 
         return records
 
+    async def get_flight_summary(
+        self,
+        scenario_id: str,
+        top_n: int = 10,
+    ) -> Dict[str, object]:
+        pax_df = await self.repository.load_passenger_dataframe(scenario_id)
+        if pax_df is None or pax_df.empty:
+            raise ValueError("시뮬레이션 승객 데이터를 불러올 수 없습니다.")
+
+        flights_df = pax_df.dropna(subset=["flight_number"]).copy()
+        if flights_df.empty:
+            return {
+                "totals": {
+                    "flights": 0,
+                    "passengers": 0,
+                    "carriers": 0,
+                    "dateRange": [],
+                    "firstDeparture": None,
+                    "lastDeparture": None,
+                },
+                "hours": [],
+                "carriers": [],
+                "flights": [],
+            }
+
+        flights_df["scheduled_departure_local"] = pd.to_datetime(
+            flights_df["scheduled_departure_local"], errors="coerce"
+        )
+        flights_df["scheduled_arrival_local"] = pd.to_datetime(
+            flights_df["scheduled_arrival_local"], errors="coerce"
+        )
+
+        group_cols = [
+            "flight_number",
+            "operating_carrier_name",
+            "operating_carrier_iata",
+            "scheduled_departure_local",
+            "scheduled_arrival_local",
+            "departure_airport_iata",
+            "departure_airport_icao",
+            "departure_city",
+            "departure_country",
+            "arrival_airport_iata",
+            "arrival_airport_icao",
+            "arrival_city",
+            "arrival_country",
+            "aircraft_type_iata",
+            "aircraft_type_icao",
+            "flight_date",
+        ]
+
+        flights_group = (
+            flights_df.groupby(group_cols, dropna=False)
+            .agg(
+                passengers=("flight_number", "size"),
+                total_seats=("total_seats", "max"),
+                first_class_seats=("first_class_seat_count", "max"),
+                business_class_seats=("business_class_seat_count", "max"),
+                premium_economy_seats=("premium_economy_class_seat_count", "max"),
+                economy_seats=("economy_class_seat_count", "max"),
+            )
+            .reset_index()
+        )
+
+        flights_group["hour"] = flights_group["scheduled_departure_local"].dt.hour
+
+        total_flights = int(len(flights_group))
+        total_passengers = int(flights_group["passengers"].sum())
+        carriers_count = int(flights_group["operating_carrier_name"].nunique())
+
+        flight_dates = (
+            flights_group["flight_date"].dropna().astype(str).sort_values().unique().tolist()
+        )
+
+        first_departure = flights_group["scheduled_departure_local"].min()
+        last_departure = flights_group["scheduled_departure_local"].max()
+
+        # Hourly summary
+        hour_counts = (
+            flights_group.dropna(subset=["hour"])
+            .groupby("hour")["flight_number"]
+            .count()
+            .reindex(range(24), fill_value=0)
+        )
+
+        hour_carriers = (
+            flights_group.dropna(subset=["hour"])
+            .groupby(["hour", "operating_carrier_name"])["flight_number"]
+            .count()
+            .reset_index()
+        )
+
+        hours_summary: List[Dict[str, object]] = []
+        for hour in range(24):
+            carrier_rows = hour_carriers[hour_carriers["hour"] == hour]
+            carriers = [
+                {
+                    "label": (row["operating_carrier_name"] or "Unknown Carrier"),
+                    "flights": int(row["flight_number"]),
+                }
+                for _, row in carrier_rows.sort_values("flight_number", ascending=False).head(top_n).iterrows()
+            ]
+            hours_summary.append(
+                {
+                    "hour": hour,
+                    "label": f"{hour:02d}:00",
+                    "flights": int(hour_counts.loc[hour]) if hour in hour_counts.index else 0,
+                    "carriers": carriers,
+                }
+            )
+
+        # Carrier summary
+        carrier_group = (
+            flights_group.groupby("operating_carrier_name", dropna=False)
+            .agg(
+                flights=("flight_number", "count"),
+                passengers=("passengers", "sum"),
+            )
+            .reset_index()
+        )
+
+        carrier_dest = (
+            flights_group.groupby(
+                [
+                    "operating_carrier_name",
+                    "arrival_airport_iata",
+                    "arrival_city",
+                    "arrival_country",
+                ],
+                dropna=False,
+            )
+            .agg(flights=("flight_number", "count"), passengers=("passengers", "sum"))
+            .reset_index()
+        )
+
+        carrier_aircraft = (
+            flights_group.groupby(
+                ["operating_carrier_name", "aircraft_type_iata"], dropna=False
+            )["flight_number"]
+            .count()
+            .reset_index(name="flights")
+        )
+
+        carriers_summary: List[Dict[str, object]] = []
+        for _, row in carrier_group.sort_values("flights", ascending=False).iterrows():
+            carrier_name = row["operating_carrier_name"] or "Unknown Carrier"
+
+            dest_rows = carrier_dest[carrier_dest["operating_carrier_name"] == row["operating_carrier_name"]]
+            top_destination_row = (
+                dest_rows.sort_values(["flights", "passengers"], ascending=False).head(1)
+            )
+
+            aircraft_rows = carrier_aircraft[
+                carrier_aircraft["operating_carrier_name"] == row["operating_carrier_name"]
+            ].sort_values("flights", ascending=False)
+
+            top_aircraft = [
+                {
+                    "type": aircraft_row["aircraft_type_iata"] or "Unknown",
+                    "flights": int(aircraft_row["flights"]),
+                }
+                for _, aircraft_row in aircraft_rows.head(3).iterrows()
+            ]
+
+            destination_info = (
+                {
+                    "airport": top_destination_row.iloc[0]["arrival_airport_iata"],
+                    "city": top_destination_row.iloc[0]["arrival_city"],
+                    "country": top_destination_row.iloc[0]["arrival_country"],
+                    "flights": int(top_destination_row.iloc[0]["flights"]),
+                }
+                if not top_destination_row.empty
+                else {
+                    "airport": None,
+                    "city": None,
+                    "country": None,
+                    "flights": 0,
+                }
+            )
+
+            carriers_summary.append(
+                {
+                    "label": carrier_name,
+                    "flights": int(row["flights"]),
+                    "passengers": int(row["passengers"]),
+                    "topDestination": destination_info,
+                    "topAircraft": top_aircraft,
+                }
+            )
+
+        carriers_summary = sorted(
+            carriers_summary, key=lambda item: item["flights"], reverse=True
+        )[:top_n]
+
+        # Flight details
+        detail_rows = flights_group.sort_values("scheduled_departure_local")
+
+        flight_details: List[Dict[str, object]] = []
+        for _, detail in detail_rows.iterrows():
+            departure_dt = detail["scheduled_departure_local"]
+            arrival_dt = detail["scheduled_arrival_local"]
+
+            flight_details.append(
+                {
+                    "flightNumber": detail.get("flight_number"),
+                    "carrier": detail.get("operating_carrier_name") or "Unknown Carrier",
+                    "departure": {
+                        "airport": detail.get("departure_airport_iata"),
+                        "city": detail.get("departure_city"),
+                        "country": detail.get("departure_country"),
+                        "datetime": departure_dt.isoformat() if pd.notna(departure_dt) else None,
+                    },
+                    "arrival": {
+                        "airport": detail.get("arrival_airport_iata"),
+                        "city": detail.get("arrival_city"),
+                        "country": detail.get("arrival_country"),
+                        "datetime": arrival_dt.isoformat() if pd.notna(arrival_dt) else None,
+                    },
+                    "aircraft": detail.get("aircraft_type_iata") or "Unknown",
+                    "passengers": int(detail.get("passengers", 0)),
+                    "totalSeats": int(detail.get("total_seats", 0)) if pd.notna(detail.get("total_seats")) else None,
+                }
+            )
+
+        return {
+            "totals": {
+                "flights": total_flights,
+                "passengers": total_passengers,
+                "carriers": carriers_count,
+                "dateRange": flight_dates,
+                "firstDeparture": first_departure.isoformat() if pd.notna(first_departure) else None,
+                "lastDeparture": last_departure.isoformat() if pd.notna(last_departure) else None,
+            },
+            "hours": hours_summary,
+            "carriers": carriers_summary,
+            "flights": flight_details[:500],
+        }
+
     def _summarize_arrivals(
         self,
         pax_df: pd.DataFrame,

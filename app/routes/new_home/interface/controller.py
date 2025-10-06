@@ -50,3 +50,22 @@ async def get_passenger_summary(
         top_n=top_n,
     )
     return SuccessResponse(status_code=status.HTTP_200_OK, data=summary)
+
+
+@new_home_router.get(
+    "/{scenario_id}/flight-summary",
+    status_code=200,
+    summary="항공편 요약 데이터",
+    description="시간대, 항공사, 기종별 항공편 및 승객 분포 데이터를 제공합니다.",
+)
+@inject
+async def get_flight_summary(
+    scenario_id: str,
+    top_n: int = Query(10, ge=3, le=50),
+    service: NewHomeService = Depends(Provide[Container.new_home_service]),
+):
+    summary = await service.get_flight_summary(
+        scenario_id=scenario_id,
+        top_n=top_n,
+    )
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=summary)
