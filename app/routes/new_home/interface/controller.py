@@ -31,3 +31,22 @@ async def get_facility_charts(
         interval_minutes=interval_minutes,
     )
     return SuccessResponse(status_code=status.HTTP_200_OK, data=chart_data)
+
+
+@new_home_router.get(
+    "/{scenario_id}/passenger-summary",
+    status_code=200,
+    summary="승객 분포 요약 데이터",
+    description="항공사, 도시, 국가 단위로 승객 수 상위 순위를 제공하는 요약 데이터를 반환합니다.",
+)
+@inject
+async def get_passenger_summary(
+    scenario_id: str,
+    top_n: int = Query(10, ge=3, le=50),
+    service: NewHomeService = Depends(Provide[Container.new_home_service]),
+):
+    summary = await service.get_passenger_summary(
+        scenario_id=scenario_id,
+        top_n=top_n,
+    )
+    return SuccessResponse(status_code=status.HTTP_200_OK, data=summary)
