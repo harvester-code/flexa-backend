@@ -519,9 +519,9 @@ class SimulationService:
     # 5. 메타데이터 처리 (S3 Save/Load)
     # =====================================
 
-    async def save_scenario_metadata(self, scenario_id: str, metadata: dict):
+    async def save_scenario_metadata(self, scenario_id: str, metadata: dict, db=None):
         """
-        시나리오 메타데이터를 S3에 저장
+        시나리오 메타데이터를 S3에 저장하고 Supabase의 metadata_updated_at도 업데이트
 
         메타데이터 구조:
         - tabs: 각 탭별 백엔드 body 데이터
@@ -547,6 +547,19 @@ class SimulationService:
             )
 
             if success:
+                # S3 저장 성공 후 Supabase의 metadata_updated_at도 업데이트
+                if db is not None:
+                    try:
+                        await self.simulation_repo.update_metadata_updated_at(db, scenario_id)
+                        logger.info(
+                            f"Updated metadata_updated_at in Supabase for scenario {scenario_id}"
+                        )
+                    except Exception as db_error:
+                        logger.warning(
+                            f"Failed to update metadata_updated_at in Supabase: {str(db_error)}"
+                        )
+                        # DB 업데이트 실패해도 S3 저장은 성공했으므로 계속 진행
+
                 logger.info(
                     f"Successfully saved metadata to S3 for scenario {scenario_id}"
                 )

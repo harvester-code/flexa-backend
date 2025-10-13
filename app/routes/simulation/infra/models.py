@@ -38,6 +38,9 @@ class ScenarioInformation(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
+    metadata_updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 # ScenarioMetadata 테이블은 더 이상 사용하지 않음

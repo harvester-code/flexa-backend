@@ -171,6 +171,21 @@ class SimulationRepository(ISimulationRepository):
         )
         await db.commit()
 
+    async def update_metadata_updated_at(
+        self,
+        db: AsyncSession,
+        scenario_id: str,
+    ):
+        """메타데이터 업데이트 시각 갱신"""
+        from datetime import datetime
+        
+        await db.execute(
+            update(ScenarioInformation)
+            .where(ScenarioInformation.scenario_id == scenario_id)
+            .values(metadata_updated_at=datetime.now())
+        )
+        await db.commit()
+
     async def deactivate_scenario_information(self, db: AsyncSession, ids: List[str]):
         """시나리오 소프트 삭제"""
         stmt = (

@@ -469,8 +469,8 @@ async def analyze_passenger_inflow(
 @private_simulation_router.post(
     "/{scenario_id}/metadata",
     status_code=status.HTTP_200_OK,
-    summary="시나리오 메타데이터 S3 저장",
-    description="시나리오 메타데이터를 S3에 직접 저장합니다",
+    summary="시나리오 메타데이터 S3 저장 및 Supabase 업데이트",
+    description="시나리오 메타데이터를 S3에 저장하고 Supabase의 metadata_updated_at도 업데이트합니다",
 )
 @inject
 async def save_scenario_metadata(
@@ -483,7 +483,7 @@ async def save_scenario_metadata(
         raise BadRequestException("Metadata is required")
 
     # ✅ 권한 검증은 의존성에서 이미 처리됨, 바로 비즈니스 로직 실행
-    return await sim_service.save_scenario_metadata(scenario_id, metadata)
+    return await sim_service.save_scenario_metadata(scenario_id, metadata, db)
 
 
 @private_simulation_router.get(
