@@ -8,6 +8,7 @@ import pandas as pd
 from dependency_injector.wiring import inject
 
 from app.routes.new_home.application.core.facility_chart import build_facility_chart
+from app.routes.new_home.domain.aircraft_reference import get_aircraft_class, get_aircraft_metadata, get_aircraft_name
 from app.routes.new_home.infra.repository import NewHomeRepository
 
 
@@ -270,6 +271,7 @@ class NewHomeService:
         )
 
         flights_group["hour"] = flights_group["scheduled_departure_local"].dt.hour
+        flights_group["aircraft_class"] = flights_group["aircraft_type_iata"].apply(get_aircraft_class)
 
         total_flights = int(len(flights_group))
         total_passengers = int(flights_group["passengers"].sum())
@@ -313,6 +315,31 @@ class NewHomeService:
                     "label": f"{hour:02d}:00",
                     "flights": int(hour_counts.loc[hour]) if hour in hour_counts.index else 0,
                     "carriers": carriers,
+                }
+            )
+
+        def _format_class_label(code: str) -> str:
+            if not code or code == "Unknown":
+                return "Unknown Class"
+            return f"Class {code}"
+
+        class_distribution_rows = (
+            flights_group.groupby("aircraft_class", dropna=False)["flight_number"]
+            .count()
+            .reset_index(name="flights")
+        )
+
+        class_distribution: List[Dict[str, object]] = []
+        for _, class_row in class_distribution_rows.sort_values("flights", ascending=False).iterrows():
+            class_code = class_row.get("aircraft_class") or "Unknown"
+            flights = int(class_row.get("flights", 0) or 0)
+            ratio = float(flights / total_flights) if total_flights else 0.0
+            class_distribution.append(
+                {
+                    "class": class_code,
+                    "label": _format_class_label(class_code),
+                    "flights": flights,
+                    "ratio": round(ratio, 4),
                 }
             )
 
@@ -361,13 +388,20 @@ class NewHomeService:
                 carrier_aircraft["operating_carrier_name"] == row["operating_carrier_name"]
             ].sort_values("flights", ascending=False)
 
-            top_aircraft = [
-                {
-                    "type": aircraft_row["aircraft_type_iata"] or "Unknown",
-                    "flights": int(aircraft_row["flights"]),
-                }
-                for _, aircraft_row in aircraft_rows.head(3).iterrows()
-            ]
+            top_aircraft: List[Dict[str, object]] = []
+            for _, aircraft_row in aircraft_rows.head(3).iterrows():
+                code = aircraft_row.get("aircraft_type_iata")
+                code_str = str(code) if pd.notna(code) else None
+                metadata = get_aircraft_metadata(code_str)
+                top_aircraft.append(
+                    {
+                        "type": metadata.get("name") or metadata.get("code") or "Unknown",
+                        "code": metadata.get("code"),
+                        "class": metadata.get("class") or "Unknown",
+                        "manufacturer": metadata.get("manufacturer"),
+                        "flights": int(aircraft_row["flights"]),
+                    }
+                )
 
             destination_info = (
                 {
@@ -406,6 +440,9 @@ class NewHomeService:
         for _, detail in detail_rows.iterrows():
             departure_dt = detail["scheduled_departure_local"]
             arrival_dt = detail["scheduled_arrival_local"]
+            aircraft_code = detail.get("aircraft_type_iata")
+            aircraft_code_str = str(aircraft_code) if pd.notna(aircraft_code) else None
+            aircraft_metadata = get_aircraft_metadata(aircraft_code_str)
 
             flight_details.append(
                 {
@@ -423,7 +460,10 @@ class NewHomeService:
                         "country": detail.get("arrival_country"),
                         "datetime": arrival_dt.isoformat() if pd.notna(arrival_dt) else None,
                     },
-                    "aircraft": detail.get("aircraft_type_iata") or "Unknown",
+                    "aircraft": aircraft_metadata.get("name") or aircraft_metadata.get("code") or "Unknown",
+                    "aircraftCode": aircraft_metadata.get("code"),
+                    "aircraftClass": aircraft_metadata.get("class") or "Unknown",
+                    "aircraftManufacturer": aircraft_metadata.get("manufacturer"),
                     "passengers": int(detail.get("passengers", 0)),
                     "totalSeats": int(detail.get("total_seats", 0)) if pd.notna(detail.get("total_seats")) else None,
                 }
@@ -439,6 +479,7 @@ class NewHomeService:
                 "lastDeparture": last_departure.isoformat() if pd.notna(last_departure) else None,
             },
             "hours": hours_summary,
+            "classDistribution": class_distribution,
             "carriers": carriers_summary,
             "flights": flight_details[:500],
         }

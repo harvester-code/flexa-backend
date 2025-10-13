@@ -1,0 +1,2712 @@
+{
+  "100": {
+    "manufacturer": "Fokker",
+    "name": "Fokker 100",
+    "class": "C"
+  },
+  "141": {
+    "manufacturer": "British Aerospace",
+    "name": "BAe 146-100 Passenger",
+    "class": "C"
+  },
+  "142": {
+    "manufacturer": "British Aerospace",
+    "name": "BAe 146-200 Passenger",
+    "class": "C"
+  },
+  "143": {
+    "manufacturer": "British Aerospace",
+    "name": "BAe 146-300 Passenger",
+    "class": "C"
+  },
+  "146": {
+    "manufacturer": "British Aerospace",
+    "name": "BAe 146 Passenger",
+    "class": "C"
+  },
+  "219": {
+    "manufacturer": "Indonesian Aerospace",
+    "name": "Indonesian Aerospace (IAe) N219",
+    "class": null
+  },
+  "220": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A220 Passenger",
+    "class": "C"
+  },
+  "221": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A220-100 Passenger",
+    "class": "C"
+  },
+  "223": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A220-300 Passenger",
+    "class": "C"
+  },
+  "275": {
+    "manufacturer": "Embraer",
+    "name": "Embraer175 E2",
+    "class": null
+  },
+  "290": {
+    "manufacturer": "Embraer",
+    "name": "Embraer 190 E2",
+    "class": "C"
+  },
+  "295": {
+    "manufacturer": "Embraer",
+    "name": "Embraer 195 E2",
+    "class": "C"
+  },
+  "310": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A310 Passenger",
+    "class": "D"
+  },
+  "312": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A310-200 Passenger",
+    "class": "D"
+  },
+  "313": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A310-300 Passenger",
+    "class": "D"
+  },
+  "318": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A318",
+    "class": "C"
+  },
+  "319": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A319",
+    "class": "C"
+  },
+  "320": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A320",
+    "class": "C"
+  },
+  "321": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A321",
+    "class": "C"
+  },
+  "330": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A330",
+    "class": "E"
+  },
+  "332": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A330-200",
+    "class": "E"
+  },
+  "333": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A330-300",
+    "class": "E"
+  },
+  "338": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A330-800neo Passenger",
+    "class": "E"
+  },
+  "339": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A330-900neo",
+    "class": "E"
+  },
+  "340": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A340",
+    "class": "E"
+  },
+  "342": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A340-200",
+    "class": "E"
+  },
+  "343": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A340-300",
+    "class": "E"
+  },
+  "345": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A340-500",
+    "class": "E"
+  },
+  "346": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A340-600",
+    "class": "E"
+  },
+  "350": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A350",
+    "class": "E"
+  },
+  "351": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A350-1000",
+    "class": "E"
+  },
+  "358": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A350-800",
+    "class": "E"
+  },
+  "359": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A350-900",
+    "class": "E"
+  },
+  "380": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A380 Passenger",
+    "class": "F"
+  },
+  "388": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A380-800 Passenger",
+    "class": "F"
+  },
+  "703": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 707-320B/320C (Passenger)",
+    "class": "D"
+  },
+  "707": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 707 /720 Passenger",
+    "class": "D"
+  },
+  "717": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 717-200",
+    "class": "C"
+  },
+  "721": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 727-100 (Passenger)",
+    "class": "C"
+  },
+  "722": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 727-200 Passenger",
+    "class": "C"
+  },
+  "727": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 727 (Passenger)",
+    "class": "C"
+  },
+  "731": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-100 Passenger",
+    "class": "C"
+  },
+  "732": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-200 Passenger",
+    "class": "C"
+  },
+  "733": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-300 Passenger",
+    "class": "C"
+  },
+  "734": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-400 Passenger",
+    "class": "C"
+  },
+  "735": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-500 Passenger",
+    "class": "C"
+  },
+  "736": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-600 Passenger",
+    "class": "C"
+  },
+  "737": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737 Passenger",
+    "class": "C"
+  },
+  "738": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-800 Passenger",
+    "class": "C"
+  },
+  "739": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-900 Passenger",
+    "class": "C"
+  },
+  "741": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 747-100 (Passenger)",
+    "class": "E"
+  },
+  "742": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 747-200 (Passenger)",
+    "class": "E"
+  },
+  "743": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 747-300 /747-100 /200 Sud (Pax)",
+    "class": "E"
+  },
+  "744": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 747-400 (Passenger)",
+    "class": "E"
+  },
+  "747": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 747 (Passenger)",
+    "class": "F"
+  },
+  "748": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 747 (Passenger)",
+    "class": "F"
+  },
+  "752": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 757-200 Passenger",
+    "class": "D"
+  },
+  "753": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 757-300 Passenger",
+    "class": "D"
+  },
+  "757": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 757 (Passenger)",
+    "class": "D"
+  },
+  "762": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 767-200 Passenger",
+    "class": "D"
+  },
+  "763": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 767-300 Passenger",
+    "class": "D"
+  },
+  "764": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 767-400 Passenger",
+    "class": "D"
+  },
+  "767": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 767 Passenger",
+    "class": "D"
+  },
+  "772": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 777-200/200ER Passenger",
+    "class": "E"
+  },
+  "773": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 777-300 Passenger",
+    "class": "E"
+  },
+  "777": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 777 Passenger",
+    "class": "E"
+  },
+  "779": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 777-9 Passenger",
+    "class": "E"
+  },
+  "781": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 787-10",
+    "class": "E"
+  },
+  "787": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 787",
+    "class": "E"
+  },
+  "788": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 787-8",
+    "class": "E"
+  },
+  "789": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 787-9",
+    "class": "E"
+  },
+  "919": {
+    "manufacturer": "Comac",
+    "name": "Comac C919",
+    "class": null
+  },
+  "14F": {
+    "manufacturer": "British Aerospace",
+    "name": "BAe 146 (Freighter)",
+    "class": "C"
+  },
+  "14X": {
+    "manufacturer": "British Aerospace",
+    "name": "BAE Systems 146-100 Freighter",
+    "class": "C"
+  },
+  "14Y": {
+    "manufacturer": "British Aerospace",
+    "name": "BAE Systems 146-200 (Freighter)",
+    "class": "C"
+  },
+  "14Z": {
+    "manufacturer": "British Aerospace",
+    "name": "BAE Systems 146-300 (Freighter)",
+    "class": "C"
+  },
+  "31A": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A318 (sharklets)",
+    "class": "C"
+  },
+  "31B": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A319 (sharklets)",
+    "class": "C"
+  },
+  "31F": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A310 Freighter",
+    "class": "D"
+  },
+  "31N": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A319neo",
+    "class": "C"
+  },
+  "31X": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A310-200 Freighter",
+    "class": "D"
+  },
+  "31Y": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A310-300 Freighter",
+    "class": "D"
+  },
+  "32A": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A320 (Sharklets)",
+    "class": "C"
+  },
+  "32B": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A321 (Sharklets)",
+    "class": "C"
+  },
+  "32F": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A320 (Freighter)",
+    "class": "C"
+  },
+  "32N": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A320neo",
+    "class": "C"
+  },
+  "32Q": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A321neo",
+    "class": "C"
+  },
+  "32S": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A318/319/320/321",
+    "class": "C"
+  },
+  "32X": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A321 (Freighter)",
+    "class": "C"
+  },
+  "33B": {
+    "manufacturer": "Airbus Industrie",
+    "name": "AIRBUS Beluga XL",
+    "class": "E"
+  },
+  "33F": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A330 Freighter",
+    "class": "E"
+  },
+  "33X": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A330-200 Freighter",
+    "class": "E"
+  },
+  "33Y": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A330-300 Freighter",
+    "class": "E"
+  },
+  "38F": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A380-800F(Freighter)",
+    "class": "F"
+  },
+  "70F": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 707-320B /320C (Freighter)",
+    "class": "D"
+  },
+  "70M": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 707 (Mixed Config)",
+    "class": "D"
+  },
+  "72A": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 727-200 Advanced",
+    "class": "C"
+  },
+  "72B": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 727-100 (Mixed Configuration)",
+    "class": "C"
+  },
+  "72C": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 727-200 (Mixed Config)",
+    "class": "C"
+  },
+  "72F": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 727 (Freighter)",
+    "class": "C"
+  },
+  "72M": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 727 (Mixed Configuration)",
+    "class": "C"
+  },
+  "72S": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 727-200 (Pax)",
+    "class": "C"
+  },
+  "72W": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 727-200 (Passenger) winglets",
+    "class": "C"
+  },
+  "72X": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 727-100 (Freighter)",
+    "class": "C"
+  },
+  "72Y": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 727-200 (Freighter)",
+    "class": "C"
+  },
+  "73A": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-200 /200C Advanced (Pax)",
+    "class": "C"
+  },
+  "73C": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-300 (winglets) Passenger",
+    "class": "C"
+  },
+  "73E": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-500 (winglets) Passenger",
+    "class": "C"
+  },
+  "73F": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737 (Freighter)",
+    "class": "C"
+  },
+  "73G": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-700 Passenger",
+    "class": "C"
+  },
+  "73H": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-800 (winglets) Passenger",
+    "class": "C"
+  },
+  "73J": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-900 (winglets) Passenger",
+    "class": "C"
+  },
+  "73K": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-800 Freighter (winglets)",
+    "class": "C"
+  },
+  "73L": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-200 (Mixed Configuration)",
+    "class": "C"
+  },
+  "73M": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737 (Mixed Configuration)",
+    "class": "C"
+  },
+  "73N": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-300 (Mixed Configuration)",
+    "class": "C"
+  },
+  "73P": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-400 (Freighter)",
+    "class": "C"
+  },
+  "73Q": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-400 (Mixed Configuration)",
+    "class": "C"
+  },
+  "73R": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-700 (Mixed Configuration)",
+    "class": "C"
+  },
+  "73S": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-700 Freighter",
+    "class": "C"
+  },
+  "73T": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-700 (Winglets) Freighter",
+    "class": "C"
+  },
+  "73U": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-800 Freighter",
+    "class": "C"
+  },
+  "73W": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-700 (winglets) Passenger",
+    "class": "C"
+  },
+  "73X": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-200 (Freighter)",
+    "class": "C"
+  },
+  "73Y": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-300 (Freighter)",
+    "class": "C"
+  },
+  "74B": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 747-400 Swingtail Freighter",
+    "class": "E"
+  },
+  "74C": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 747-200 (Mixed Configuration)",
+    "class": "E"
+  },
+  "74D": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 747-300 /747-200 Sud (Mxd Config",
+    "class": "E"
+  },
+  "74E": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 747-400 (Mixed Configuration)",
+    "class": "E"
+  },
+  "74F": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 747 (Freighter)",
+    "class": "F"
+  },
+  "74H": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 747-8 Passenger",
+    "class": "F"
+  },
+  "74J": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 747-400 (Domestic) Passenger",
+    "class": "E"
+  },
+  "74L": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 747SP Passenger",
+    "class": "E"
+  },
+  "74M": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 747 (Mixed Configuration)",
+    "class": "E"
+  },
+  "74N": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 747-8f (Freighter)",
+    "class": "F"
+  },
+  "74R": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 747SR Passenger",
+    "class": "E"
+  },
+  "74T": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 747-100 Freighter",
+    "class": "E"
+  },
+  "74U": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 747-300/747-200 SUD (Freighter)",
+    "class": "E"
+  },
+  "74V": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 747SR (Freighter)",
+    "class": "E"
+  },
+  "74X": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 747-200 (Freighter)",
+    "class": "E"
+  },
+  "74Y": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 747-400F (Freighter)",
+    "class": "E"
+  },
+  "75C": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 757-200 Freighter",
+    "class": "D"
+  },
+  "75F": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 757-200PF (Freighter)",
+    "class": "D"
+  },
+  "75M": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 757-200 Mixed Configuration",
+    "class": "D"
+  },
+  "75T": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 757-300 (winglets) Passenger",
+    "class": "D"
+  },
+  "75V": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 757-200 Freighter (winglets)",
+    "class": "C"
+  },
+  "75W": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 757-200 (winglets) Passenger",
+    "class": "D"
+  },
+  "76F": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 767 Freighter",
+    "class": "D"
+  },
+  "76V": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 767-300 (winglets) Freighter",
+    "class": "D"
+  },
+  "76W": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 767-300 (winglets) Passenger",
+    "class": "D"
+  },
+  "76X": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 767-200 Freighter",
+    "class": "D"
+  },
+  "76Y": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 767-300 Freighter",
+    "class": "D"
+  },
+  "77F": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 777 Freighter",
+    "class": "E"
+  },
+  "77L": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 777-200LR",
+    "class": "E"
+  },
+  "77W": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 777-300ER Passenger",
+    "class": "E"
+  },
+  "77X": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 777-200F Freighter",
+    "class": "E"
+  },
+  "7F8": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-800 F (Scimitar Winglets)",
+    "class": "E"
+  },
+  "7M1": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737 MAX 10 Passenger",
+    "class": "C"
+  },
+  "7M7": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737MAX 7 Passenger",
+    "class": "C"
+  },
+  "7M8": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737MAX 8 Passenger",
+    "class": "C"
+  },
+  "7M9": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737MAX 9 Passenger",
+    "class": "C"
+  },
+  "7S7": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-700 (Scimitar Winglets) Pax",
+    "class": "C"
+  },
+  "7S8": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-800 (Scimitar Winglets) Pax",
+    "class": "C"
+  },
+  "7S9": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 737-900 (Scimitar Winglets) Pax",
+    "class": "C"
+  },
+  "A22": {
+    "manufacturer": "Antonov",
+    "name": "Antonov An-22",
+    "class": null
+  },
+  "A26": {
+    "manufacturer": "Antonov",
+    "name": "Antonov An-26",
+    "class": "C"
+  },
+  "A28": {
+    "manufacturer": "Antonov",
+    "name": "Antonov An28 /Pzl Mielec M-28 Skytruck",
+    "class": "B"
+  },
+  "A30": {
+    "manufacturer": "Antonov",
+    "name": "Antonov An-30",
+    "class": "C"
+  },
+  "A32": {
+    "manufacturer": "Antonov",
+    "name": "Antonov An-32",
+    "class": "C"
+  },
+  "A38": {
+    "manufacturer": "Antonov",
+    "name": "Antonov AN-38",
+    "class": null
+  },
+  "A40": {
+    "manufacturer": "Antonov",
+    "name": "Antonov AN-140",
+    "class": "C"
+  },
+  "A4F": {
+    "manufacturer": "Antonov",
+    "name": "Antonov AN-124 Ruslan",
+    "class": "F"
+  },
+  "A58": {
+    "manufacturer": "Antonov",
+    "name": "Antonov An-158",
+    "class": "C"
+  },
+  "A5F": {
+    "manufacturer": "Antonov",
+    "name": "Antonov An-225",
+    "class": "F"
+  },
+  "A78": {
+    "manufacturer": "Antonov",
+    "name": "Antonov An-178",
+    "class": null
+  },
+  "A81": {
+    "manufacturer": "Antonov",
+    "name": "Antonov An148-100",
+    "class": "C"
+  },
+  "AB3": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A300 Passenger",
+    "class": "D"
+  },
+  "AB4": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A300B2/B4 Passenger",
+    "class": "D"
+  },
+  "AB6": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A300-600 Passenger",
+    "class": "D"
+  },
+  "ABB": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A300-600ST Beluga (Freighter)",
+    "class": "D"
+  },
+  "ABF": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A300 (Freighter)",
+    "class": "D"
+  },
+  "ABX": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A300B4/A300C4/A300F4 Freighter",
+    "class": "D"
+  },
+  "ABY": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus A300-600 Freighter",
+    "class": "D"
+  },
+  "ACD": {
+    "manufacturer": "Rockwell",
+    "name": "Twin (aero) Commander /turbo /jetprop",
+    "class": "A"
+  },
+  "ACP": {
+    "manufacturer": "Other",
+    "name": "Twin Commander Aircraft",
+    "class": "A"
+  },
+  "ACT": {
+    "manufacturer": "Other",
+    "name": "Twin (Aero) Turbo/Jetprop Commander",
+    "class": "A"
+  },
+  "AGH": {
+    "manufacturer": "Agusta",
+    "name": "AgustaWestland A109",
+    "class": "A"
+  },
+  "AI4": {
+    "manufacturer": "Airbus Industrie",
+    "name": "AIRBUS Atlas",
+    "class": null
+  },
+  "AMT": {
+    "manufacturer": "Other",
+    "name": "Amtrak Train",
+    "class": null
+  },
+  "AN4": {
+    "manufacturer": "Antonov",
+    "name": "Antonov AN-24",
+    "class": "C"
+  },
+  "AN6": {
+    "manufacturer": "Antonov",
+    "name": "Antonov AN-26 /30 /32",
+    "class": "C"
+  },
+  "AN7": {
+    "manufacturer": "Antonov",
+    "name": "Antonov AN-72 /74",
+    "class": "C"
+  },
+  "ANF": {
+    "manufacturer": "Antonov",
+    "name": "Antonov AN-12",
+    "class": "C"
+  },
+  "APH": {
+    "manufacturer": "Aerospatiale",
+    "name": "Airbus Helicopters H215",
+    "class": "A"
+  },
+  "AR1": {
+    "manufacturer": "Avro International Aerospace",
+    "name": "Avro RJ100",
+    "class": "C"
+  },
+  "AR7": {
+    "manufacturer": "Avro International Aerospace",
+    "name": "Avro RJ70",
+    "class": "C"
+  },
+  "AR8": {
+    "manufacturer": "Avro International Aerospace",
+    "name": "Avro RJ85",
+    "class": "C"
+  },
+  "ARJ": {
+    "manufacturer": "Avro International Aerospace",
+    "name": "Avro RJ70 /rj85 /rj100",
+    "class": "C"
+  },
+  "AT3": {
+    "manufacturer": "Avions de Transports Regional",
+    "name": "ATR 42 300 /400",
+    "class": "C"
+  },
+  "AT4": {
+    "manufacturer": "Avions de Transports Regional",
+    "name": "ATR 42-300 /320",
+    "class": "C"
+  },
+  "AT5": {
+    "manufacturer": "Avions de Transports Regional",
+    "name": "ATR 42-500",
+    "class": "C"
+  },
+  "AT7": {
+    "manufacturer": "Avions de Transports Regional",
+    "name": "ATR 72",
+    "class": "C"
+  },
+  "ATF": {
+    "manufacturer": "Avions de Transports Regional",
+    "name": "ATR 72 (Freighter)",
+    "class": "C"
+  },
+  "ATP": {
+    "manufacturer": "British Aerospace",
+    "name": "BAe ATP",
+    "class": "C"
+  },
+  "ATR": {
+    "manufacturer": "Avions de Transports Regional",
+    "name": "ATR42 /ATR72",
+    "class": "C"
+  },
+  "ATZ": {
+    "manufacturer": "Avions de Transports Regional",
+    "name": "ATR 42 Freighter",
+    "class": "C"
+  },
+  "AW6": {
+    "manufacturer": "Agusta",
+    "name": "AgustaWestland AW169",
+    "class": "A"
+  },
+  "AW8": {
+    "manufacturer": "Agusta",
+    "name": "AgustaWestland AW189",
+    "class": "A"
+  },
+  "AWH": {
+    "manufacturer": "AgustaWestland",
+    "name": "Agustawestland Aw139",
+    "class": "A"
+  },
+  "B11": {
+    "manufacturer": "British Aerospace",
+    "name": "BAe (BAC) 1-11",
+    "class": "C"
+  },
+  "B12": {
+    "manufacturer": "British Aerospace",
+    "name": "BAe (BAC) 1-11 200",
+    "class": "C"
+  },
+  "B13": {
+    "manufacturer": "British Aerospace",
+    "name": "BAe (BAC) 1-11 300",
+    "class": "C"
+  },
+  "B14": {
+    "manufacturer": "British Aerospace",
+    "name": "BAe (BAC) 1-11 400 /475",
+    "class": "C"
+  },
+  "B15": {
+    "manufacturer": "British Aerospace",
+    "name": "BAe (BAC /ROMBAC) 1-11 500",
+    "class": "C"
+  },
+  "B72": {
+    "manufacturer": "Boeing",
+    "name": "Boeing 720/020B",
+    "class": "D"
+  },
+  "BE1": {
+    "manufacturer": "Beechcraft",
+    "name": "Beechcraft 1900 Airliner",
+    "class": "B"
+  },
+  "BE2": {
+    "manufacturer": "Beechcraft",
+    "name": "Beechcraft-Lght Acft-Twin Piston Engine",
+    "class": "A"
+  },
+  "BE4": {
+    "manufacturer": "Beechcraft",
+    "name": "Hawker 400 Beechjet/400A/400XP/400T",
+    "class": null
+  },
+  "BE9": {
+    "manufacturer": "Beechcraft",
+    "name": "Beechcraft C99 Airliner",
+    "class": null
+  },
+  "BEC": {
+    "manufacturer": "Beechcraft",
+    "name": "Beechcraft (Light Aircraft)",
+    "class": "A"
+  },
+  "BEF": {
+    "manufacturer": "Beechcraft",
+    "name": "Hawker Beechcraft 1900 (Freighter)",
+    "class": null
+  },
+  "BEH": {
+    "manufacturer": "Beechcraft",
+    "name": "Beechcraft 1900D Airliner",
+    "class": "B"
+  },
+  "BEP": {
+    "manufacturer": "Beechcraft",
+    "name": "Hawker Beechcraft (Light/single piston)",
+    "class": "A"
+  },
+  "BES": {
+    "manufacturer": "Beechcraft",
+    "name": "Beechcraft 1900C Airliner",
+    "class": "B"
+  },
+  "BET": {
+    "manufacturer": "Beechcraft",
+    "name": "Beechcraft (Lght Acft - Twin Turboprop)",
+    "class": "A"
+  },
+  "BH2": {
+    "manufacturer": "Bell",
+    "name": "Bell (Helicopters)",
+    "class": "A"
+  },
+  "BNI": {
+    "manufacturer": "Britten-Norman",
+    "name": "BN BN-2a /BN-2b Islander",
+    "class": "A"
+  },
+  "BNT": {
+    "manufacturer": "Britten-Norman",
+    "name": "BN BN-2a Mk.iii Trislander",
+    "class": "B"
+  },
+  "BTA": {
+    "manufacturer": "Other",
+    "name": "Business Turbo-Prop Aircraft",
+    "class": null
+  },
+  "BUS": {
+    "manufacturer": "Other",
+    "name": "Bus",
+    "class": "A"
+  },
+  "C17": {
+    "manufacturer": "Boeing",
+    "name": "Boeing C17 Globemaster",
+    "class": null
+  },
+  "C19": {
+    "manufacturer": "Comac",
+    "name": "COMAC C-919",
+    "class": null
+  },
+  "C21": {
+    "manufacturer": "Comac",
+    "name": "Comac ARJ21",
+    "class": null
+  },
+  "C27": {
+    "manufacturer": "Comac",
+    "name": "Comac ARJ21-700",
+    "class": "C"
+  },
+  "C75": {
+    "manufacturer": "Bombardier",
+    "name": "Bombardier Global 7500",
+    "class": null
+  },
+  "CC6": {
+    "manufacturer": "Bombardier",
+    "name": "Bombardier Global 6000 / 6500",
+    "class": null
+  },
+  "CC7": {
+    "manufacturer": "Bombardier",
+    "name": "Bombardier Global 7000",
+    "class": null
+  },
+  "CCJ": {
+    "manufacturer": "Canadair",
+    "name": "Canadair CL-600/601/604/605/650",
+    "class": "B"
+  },
+  "CCX": {
+    "manufacturer": "Bombardier",
+    "name": "Bombardier BD-700 Global Exp/G5000/5500",
+    "class": "C"
+  },
+  "CD2": {
+    "manufacturer": "Government Aircraft Factories",
+    "name": "Gippsland Aeronautics N22B/N24A Nomad",
+    "class": "B"
+  },
+  "CJ1": {
+    "manufacturer": "Cessna",
+    "name": "Cessna 500/501/525/M2 Citation",
+    "class": null
+  },
+  "CJ2": {
+    "manufacturer": "Cessna",
+    "name": "Cessna 550/551/552 Citation",
+    "class": null
+  },
+  "CJ5": {
+    "manufacturer": "Cessna",
+    "name": "Cessna 560 Citation",
+    "class": null
+  },
+  "CJ6": {
+    "manufacturer": "Cessna",
+    "name": "Cessna 650 Citation",
+    "class": null
+  },
+  "CJ7": {
+    "manufacturer": "Cessna",
+    "name": "CESSNA 700 Citation Longitude",
+    "class": null
+  },
+  "CJ8": {
+    "manufacturer": "Cessna",
+    "name": "Cessna 680 Citation",
+    "class": null
+  },
+  "CJL": {
+    "manufacturer": "Cessna",
+    "name": "Cessna 560 XL/XLS Citation",
+    "class": null
+  },
+  "CJM": {
+    "manufacturer": "Cessna",
+    "name": "Cessna 510 Mustang Citation",
+    "class": null
+  },
+  "CJS": {
+    "manufacturer": "Cessna",
+    "name": "CESSNA Citation Sovereign",
+    "class": null
+  },
+  "CJT": {
+    "manufacturer": "Cessna",
+    "name": "Cessna Citation Latitude",
+    "class": null
+  },
+  "CJX": {
+    "manufacturer": "Cessna",
+    "name": "Cessna 750 Citation X",
+    "class": null
+  },
+  "CL3": {
+    "manufacturer": "Bombardier",
+    "name": "Bombardier Challenger 300",
+    "class": "B"
+  },
+  "CL4": {
+    "manufacturer": "Canadair",
+    "name": "Canadair CL-44D4",
+    "class": "D"
+  },
+  "CL5": {
+    "manufacturer": "Bombardier",
+    "name": "Bombardier Challenger 350",
+    "class": null
+  },
+  "CN1": {
+    "manufacturer": "Cessna",
+    "name": "Cessna Light Acft(single Piston Engine)",
+    "class": "A"
+  },
+  "CN2": {
+    "manufacturer": "Cessna",
+    "name": "Cessna Light Acft (Twin piston engines)",
+    "class": "A"
+  },
+  "CNA": {
+    "manufacturer": "Cessna",
+    "name": "Cessna (Light Aircraft)",
+    "class": "A"
+  },
+  "CNC": {
+    "manufacturer": "Cessna",
+    "name": "Cessna Light Aircraft(Single Turboprop)",
+    "class": "A"
+  },
+  "CNF": {
+    "manufacturer": "Cessna",
+    "name": "Cessna 208B Caravan",
+    "class": null
+  },
+  "CNJ": {
+    "manufacturer": "Cessna",
+    "name": "Cessna Citation",
+    "class": "B"
+  },
+  "CNT": {
+    "manufacturer": "Cessna",
+    "name": "Cessna Light Aircraft (Twin Turboprop",
+    "class": "A"
+  },
+  "CR1": {
+    "manufacturer": "Canadair",
+    "name": "Canadair Regional Jet 100",
+    "class": "B"
+  },
+  "CR2": {
+    "manufacturer": "Canadair",
+    "name": "Canadair Regional Jet 200",
+    "class": "B"
+  },
+  "CR5": {
+    "manufacturer": "Canadair",
+    "name": "Bombardier Regional Jet 550",
+    "class": "Z"
+  },
+  "CR7": {
+    "manufacturer": "Canadair",
+    "name": "Canadair Regional Jet 700",
+    "class": "B"
+  },
+  "CR9": {
+    "manufacturer": "Canadair",
+    "name": "Canadair Regional Jet 900",
+    "class": "B"
+  },
+  "CRA": {
+    "manufacturer": "Canadair",
+    "name": "Canadair CRJ Series 705",
+    "class": "C"
+  },
+  "CRF": {
+    "manufacturer": "Canadair",
+    "name": "Canadair Regional Jet Freighter",
+    "class": null
+  },
+  "CRJ": {
+    "manufacturer": "Canadair",
+    "name": "Canadair Regional Jet",
+    "class": "B"
+  },
+  "CRK": {
+    "manufacturer": "Canadair",
+    "name": "Canadair (Bombardier) Regional Jet 1000",
+    "class": "C"
+  },
+  "CRV": {
+    "manufacturer": "Aerospatiale",
+    "name": "Aerospatiale SE210 Caravelle",
+    "class": "C"
+  },
+  "CS1": {
+    "manufacturer": "Canadair",
+    "name": "Bombardier CS100",
+    "class": "C"
+  },
+  "CS2": {
+    "manufacturer": "Casa",
+    "name": "CASA C212 /Nusantara NC-212 Aviocar",
+    "class": "B"
+  },
+  "CS3": {
+    "manufacturer": "Canadair",
+    "name": "Bombardier CS300",
+    "class": "C"
+  },
+  "CS4": {
+    "manufacturer": "Cessna",
+    "name": "Cessna 408 SkyCourier",
+    "class": null
+  },
+  "CS5": {
+    "manufacturer": "Airtech",
+    "name": "CASA /Nusantara CN-235",
+    "class": "C"
+  },
+  "CS9": {
+    "manufacturer": "Casa",
+    "name": "Casa / IAe C-295",
+    "class": null
+  },
+  "CSB": {
+    "manufacturer": "Canadair",
+    "name": "Bombardier C Series",
+    "class": null
+  },
+  "CV2": {
+    "manufacturer": "Convair",
+    "name": "Convair 240 (Passenger)",
+    "class": "C"
+  },
+  "CV4": {
+    "manufacturer": "Convair",
+    "name": "Convair 440 Metropolitan (Passenger)",
+    "class": "C"
+  },
+  "CV5": {
+    "manufacturer": "Convair",
+    "name": "Convair 580 Passenger",
+    "class": "C"
+  },
+  "CVF": {
+    "manufacturer": "Convair",
+    "name": "Convair 440 /580 /600 /640 (Freighter)",
+    "class": "C"
+  },
+  "CVR": {
+    "manufacturer": "Convair",
+    "name": "Convair 240 /440 /580 (Passenger)",
+    "class": "C"
+  },
+  "CVV": {
+    "manufacturer": "Convair",
+    "name": "Convair 240 (Freighter)",
+    "class": "C"
+  },
+  "CVX": {
+    "manufacturer": "Convair",
+    "name": "Convair 340/440 (Freighter)",
+    "class": "C"
+  },
+  "CVY": {
+    "manufacturer": "Convair",
+    "name": "Convair 580/5800/600/640 (freighter)",
+    "class": "C"
+  },
+  "CWC": {
+    "manufacturer": "Curtiss",
+    "name": "Curtiss C-46 Commando",
+    "class": "C"
+  },
+  "D10": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "Boeing (douglas) DC10 Passenger",
+    "class": "D"
+  },
+  "D11": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "Boeing (douglas) DC10-10 /15 Passenger",
+    "class": "D"
+  },
+  "D1C": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "Boeing (douglas) DC10-30 /40 (Pax)",
+    "class": "D"
+  },
+  "D1F": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "Boeing (douglas) DC10 (Freighter)",
+    "class": "D"
+  },
+  "D1M": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "Boeing (Douglas) DC10-30(Mixed Config)",
+    "class": "D"
+  },
+  "D1X": {
+    "manufacturer": "Boeing",
+    "name": "Boeing (Douglas) DC-10-10 (Freighter)",
+    "class": "D"
+  },
+  "D1Y": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "Boeing (douglas) DC10 - 30 /40 Freighte",
+    "class": "D"
+  },
+  "D20": {
+    "manufacturer": "Dassault",
+    "name": "Dassault Falcon 2000/2000DX",
+    "class": null
+  },
+  "D28": {
+    "manufacturer": "Fairchild Dornier",
+    "name": "Fairchild Dornier 228",
+    "class": "B"
+  },
+  "D2L": {
+    "manufacturer": "Dassault",
+    "name": "Dassault Falcon 2000EX/EASY/LX",
+    "class": null
+  },
+  "D38": {
+    "manufacturer": "Fairchild Dornier",
+    "name": "Fairchild Dornier 328-100",
+    "class": "B"
+  },
+  "D3F": {
+    "manufacturer": "Douglas",
+    "name": "Boeing (douglas) DC3 Freighter",
+    "class": "C"
+  },
+  "D3X": {
+    "manufacturer": "De Havilland Canada",
+    "name": "De Havilland DHC-8-300 Dash 8/8Q Frt",
+    "class": null
+  },
+  "D42": {
+    "manufacturer": "Diamond Aircraft Industries",
+    "name": "Diamond Aircraft DA42 Twin Star",
+    "class": "B"
+  },
+  "D4X": {
+    "manufacturer": "De Havilland Canada",
+    "name": "De Havilland DHC-8-400 Dash 8Q-Freight",
+    "class": null
+  },
+  "D6F": {
+    "manufacturer": "Douglas",
+    "name": "Boeing (douglas) DC6A /B /C Freighter",
+    "class": "C"
+  },
+  "D8F": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "Boeing (douglas) DC8 Freighter",
+    "class": "D"
+  },
+  "D8L": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "Boeing (Douglas) DC-8-62 Passenger",
+    "class": "D"
+  },
+  "D8M": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "McD-Douglas DC8 (Mixed Config)",
+    "class": "D"
+  },
+  "D8Q": {
+    "manufacturer": "Douglas",
+    "name": "Boeing (Douglas) DC-8-72 Passenger",
+    "class": "D"
+  },
+  "D8S": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "McD-Douglas DC8 60 and 70 Series",
+    "class": null
+  },
+  "D8T": {
+    "manufacturer": "Douglas",
+    "name": "Boeing (Douglas) DC-8-50 Freighter",
+    "class": "D"
+  },
+  "D8X": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "Boeing (douglas) DC-8-61 /62 /63 Frtr",
+    "class": "D"
+  },
+  "D8Y": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "Boeing (douglas) DC-8-71 /72 /73 Frtr",
+    "class": "D"
+  },
+  "D91": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "McD-Douglas DC9-10 /10F (Pax)",
+    "class": "C"
+  },
+  "D92": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "Boeing (douglas) DC-9-20",
+    "class": "C"
+  },
+  "D93": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "Boeing (Douglas) DC9-30 Passenger",
+    "class": "C"
+  },
+  "D94": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "Boeing (douglas) DC9-40 Passenger",
+    "class": "C"
+  },
+  "D95": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "Boeing (douglas) DC9-50 Passenger",
+    "class": "C"
+  },
+  "D9C": {
+    "manufacturer": "Douglas",
+    "name": "Boeing (Douglas) DC-9-30 Freighter",
+    "class": "C"
+  },
+  "D9D": {
+    "manufacturer": "Douglas",
+    "name": "Boeing (Douglas) DC-9-40 Freighter",
+    "class": null
+  },
+  "D9F": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "Boeing (Douglas) DC9 Freighter",
+    "class": "C"
+  },
+  "D9L": {
+    "manufacturer": "Dassault",
+    "name": "Dassault Falcon 900LX",
+    "class": null
+  },
+  "D9S": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "McD-Douglas DC9 30 /40 /50",
+    "class": null
+  },
+  "D9X": {
+    "manufacturer": "Douglas",
+    "name": "Boeing (Douglas) DC-9-10 Freighter",
+    "class": "C"
+  },
+  "DC3": {
+    "manufacturer": "Douglas",
+    "name": "Boeing (Douglas) DC-3 Passenger",
+    "class": "C"
+  },
+  "DC4": {
+    "manufacturer": "Douglas",
+    "name": "Boeing (Douglas) DC-4",
+    "class": "C"
+  },
+  "DC6": {
+    "manufacturer": "Douglas",
+    "name": "Boeing (douglas) DC-6b Passenger",
+    "class": "C"
+  },
+  "DC8": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "Boeing (Douglas) DC-8 Passenger",
+    "class": "D"
+  },
+  "DC9": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "Boeing (douglas) DC-9 Passenger",
+    "class": "C"
+  },
+  "DF1": {
+    "manufacturer": "Dassault",
+    "name": "Dassault Falcon 10/100",
+    "class": "A"
+  },
+  "DF2": {
+    "manufacturer": "Dassault",
+    "name": "Dassault Falcon 10 /20 /100 /200 /2000",
+    "class": "A"
+  },
+  "DF3": {
+    "manufacturer": "Dassault",
+    "name": "Dassault Falcon 50/900",
+    "class": "B"
+  },
+  "DF5": {
+    "manufacturer": "Dassault",
+    "name": "Dassault Falcon 50/50EX",
+    "class": "B"
+  },
+  "DF7": {
+    "manufacturer": "Dassault",
+    "name": "Dassault Falcon 7X",
+    "class": "B"
+  },
+  "DF8": {
+    "manufacturer": "Dassault",
+    "name": "Dassault Falcon 8X",
+    "class": "B"
+  },
+  "DF9": {
+    "manufacturer": "Dassault",
+    "name": "Dassault Falcon 900s EASY",
+    "class": "B"
+  },
+  "DFL": {
+    "manufacturer": "Dassault",
+    "name": "Dassault Falcon",
+    "class": "B"
+  },
+  "DH1": {
+    "manufacturer": "De Havilland Canada",
+    "name": "DHvilld-Bombardier DHC8-100 Dsh 8/8Q",
+    "class": "C"
+  },
+  "DH2": {
+    "manufacturer": "De Havilland Canada",
+    "name": "DHvilld-Bombardier DHC8-200 Dsh 8/8Q",
+    "class": "C"
+  },
+  "DH3": {
+    "manufacturer": "De Havilland Canada",
+    "name": "DHvilld-Bombardier DHC8-300 Dsh 8/8Q",
+    "class": "C"
+  },
+  "DH4": {
+    "manufacturer": "De Havilland Canada",
+    "name": "DHvilld-Bombardier DHC8 Dsh 8-400/8Q",
+    "class": "C"
+  },
+  "DH7": {
+    "manufacturer": "De Havilland Canada",
+    "name": "DHvilld-Bombardier DHC7 Dsh 7",
+    "class": "C"
+  },
+  "DH8": {
+    "manufacturer": "De Havilland Canada",
+    "name": "DHvilld-Bombardier DHC8 Dsh 8",
+    "class": "C"
+  },
+  "DHB": {
+    "manufacturer": "De Havilland Canada",
+    "name": "DHvilld-Bombardier DHC2 Bvr/Tb Bvr",
+    "class": "A"
+  },
+  "DHC": {
+    "manufacturer": "De Havilland Canada",
+    "name": "DHvilld-Bombardier DHC4 Caribou",
+    "class": "C"
+  },
+  "DHD": {
+    "manufacturer": "British Aerospace",
+    "name": "British Aerospace(De Havilland)104 Dove",
+    "class": "B"
+  },
+  "DHF": {
+    "manufacturer": "De Havilland Canada",
+    "name": "De Havilland (Bombardier) DHC-8 Frt",
+    "class": null
+  },
+  "DHH": {
+    "manufacturer": "British Aerospace",
+    "name": "British Aerospace(DeHavilland)114 Heron",
+    "class": "B"
+  },
+  "DHL": {
+    "manufacturer": "De Havilland Canada",
+    "name": "DHvilld-Bombardier DHC3 Tb Otter",
+    "class": "B"
+  },
+  "DHO": {
+    "manufacturer": "De Havilland Canada",
+    "name": "DHvilld-Bombardier DHC3 Otter/Tb Ottr",
+    "class": "B"
+  },
+  "DHP": {
+    "manufacturer": "De Havilland Canada",
+    "name": "DHvilld-Bombardier DHC2 Bvr",
+    "class": "A"
+  },
+  "DHR": {
+    "manufacturer": "De Havilland Canada",
+    "name": "De Havilland (Bombardier)DHC-2 Turbo",
+    "class": "A"
+  },
+  "DHS": {
+    "manufacturer": "De Havilland Canada",
+    "name": "DHvilld-Bombardier DHC3 Otter",
+    "class": "B"
+  },
+  "DHT": {
+    "manufacturer": "De Havilland Canada",
+    "name": "DHvilld-Bombardier DHC6 T/Otter",
+    "class": "B"
+  },
+  "E70": {
+    "manufacturer": "Embraer",
+    "name": "Embraer 170",
+    "class": "C"
+  },
+  "E75": {
+    "manufacturer": "Embraer",
+    "name": "Embraer 175",
+    "class": "C"
+  },
+  "E7W": {
+    "manufacturer": "Embraer",
+    "name": "Embraer 175 (Enhanced Winglets)",
+    "class": "C"
+  },
+  "E90": {
+    "manufacturer": "Embraer",
+    "name": "Embraer 190",
+    "class": "C"
+  },
+  "E95": {
+    "manufacturer": "Embraer",
+    "name": "Embraer 195",
+    "class": "C"
+  },
+  "EA5": {
+    "manufacturer": "Other",
+    "name": "Eclipse 500",
+    "class": null
+  },
+  "EAC": {
+    "manufacturer": "Other",
+    "name": "Eclipse",
+    "class": null
+  },
+  "EC3": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus Helicopters H130/H130T2",
+    "class": "A"
+  },
+  "EC4": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus Helicopters H 145 / H 145T2",
+    "class": "A"
+  },
+  "EC5": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus Helicopters H 155",
+    "class": "A"
+  },
+  "EC7": {
+    "manufacturer": "Airbus Industrie",
+    "name": "Airbus Helicopters H 175",
+    "class": "A"
+  },
+  "EM2": {
+    "manufacturer": "Embraer",
+    "name": "Embraer 120 Brasilia",
+    "class": "B"
+  },
+  "EM3": {
+    "manufacturer": "Embraer",
+    "name": "Embraer RJ135",
+    "class": "B"
+  },
+  "EM4": {
+    "manufacturer": "Embraer",
+    "name": "Embraer Legacy 450",
+    "class": "C"
+  },
+  "EM5": {
+    "manufacturer": "Embraer",
+    "name": "Embraer Legacy 500",
+    "class": null
+  },
+  "EMB": {
+    "manufacturer": "Embraer",
+    "name": "Embraer 110 Bandeirante",
+    "class": "B"
+  },
+  "EMJ": {
+    "manufacturer": "Embraer",
+    "name": "Embraer 170/195",
+    "class": "C"
+  },
+  "EML": {
+    "manufacturer": "Embraer",
+    "name": "Embraer Legacy",
+    "class": null
+  },
+  "EP1": {
+    "manufacturer": "Embraer",
+    "name": "Embraer EMB-500 Phenom 100",
+    "class": null
+  },
+  "EP3": {
+    "manufacturer": "Embraer",
+    "name": "Embraer EMB-505 Phenom 300",
+    "class": null
+  },
+  "EPH": {
+    "manufacturer": "Embraer",
+    "name": "Embraer Phenom",
+    "class": null
+  },
+  "EQF": {
+    "manufacturer": "Other",
+    "name": "Equipment Varies",
+    "class": null
+  },
+  "EQJ": {
+    "manufacturer": "Other",
+    "name": "Equipment Varies",
+    "class": null
+  },
+  "EQP": {
+    "manufacturer": "Other",
+    "name": "Equipment varies",
+    "class": null
+  },
+  "EQV": {
+    "manufacturer": "Other",
+    "name": "Equipment Varies",
+    "class": "C"
+  },
+  "ER3": {
+    "manufacturer": "Embraer",
+    "name": "Embraer RJ135",
+    "class": "B"
+  },
+  "ER4": {
+    "manufacturer": "Embraer",
+    "name": "Embraer RJ145",
+    "class": "B"
+  },
+  "ERD": {
+    "manufacturer": "Embraer",
+    "name": "Embraer RJ140",
+    "class": "B"
+  },
+  "ERJ": {
+    "manufacturer": "Embraer",
+    "name": "Embraer RJ 135/140/145",
+    "class": "B"
+  },
+  "ET5": {
+    "manufacturer": "Embraer",
+    "name": "Embraer Praetor 500",
+    "class": null
+  },
+  "ET6": {
+    "manufacturer": "Embraer",
+    "name": "Embraer Praetor 600",
+    "class": null
+  },
+  "ETR": {
+    "manufacturer": "Embraer",
+    "name": "Embraer Praetor ET5/ET6",
+    "class": null
+  },
+  "F21": {
+    "manufacturer": "Fokker",
+    "name": "Fokker F28-1000 Fellowship",
+    "class": "B"
+  },
+  "F22": {
+    "manufacturer": "Fokker",
+    "name": "Fokker F28-2000 Fellowship",
+    "class": "B"
+  },
+  "F23": {
+    "manufacturer": "Fokker",
+    "name": "Fokker F28-3000 Fellowship",
+    "class": "C"
+  },
+  "F24": {
+    "manufacturer": "Fokker",
+    "name": "Fokker F28-4000 Fellowship",
+    "class": "C"
+  },
+  "F27": {
+    "manufacturer": "Fokker",
+    "name": "Fokker F27 Friendship/Fairchild F27",
+    "class": "C"
+  },
+  "F28": {
+    "manufacturer": "Fokker",
+    "name": "Fokker F28 Fellowship",
+    "class": "B"
+  },
+  "F50": {
+    "manufacturer": "Fokker",
+    "name": "Fokker 50",
+    "class": "C"
+  },
+  "F5F": {
+    "manufacturer": "Fokker",
+    "name": "Fokker 50 Freighter",
+    "class": null
+  },
+  "F70": {
+    "manufacturer": "Fokker",
+    "name": "Fokker 70",
+    "class": "C"
+  },
+  "FA7": {
+    "manufacturer": "Fairchild Dornier",
+    "name": "Fairchild Dornier 728",
+    "class": "C"
+  },
+  "FK7": {
+    "manufacturer": "Fairchild",
+    "name": "Fairchild Industries FH227",
+    "class": "C"
+  },
+  "FRJ": {
+    "manufacturer": "Fairchild Dornier",
+    "name": "Fairchild Dornier 328jet",
+    "class": "B"
+  },
+  "G2B": {
+    "manufacturer": "Gulfstream Aerospace",
+    "name": "Gulfstream Aerospace G-1159 IIB",
+    "class": null
+  },
+  "G2S": {
+    "manufacturer": "Gulfstream Aerospace",
+    "name": "Gulfstream Aerospace G-1159 IISP",
+    "class": null
+  },
+  "GA1": {
+    "manufacturer": "GippsAero",
+    "name": "Gippsland Aeronautics GA10",
+    "class": null
+  },
+  "GA5": {
+    "manufacturer": "Gulfstream Aerospace",
+    "name": "GULFSTREAM AEROSPACE G500",
+    "class": null
+  },
+  "GA6": {
+    "manufacturer": "Gulfstream Aerospace",
+    "name": "GULFSTREAM AEROSPACE G600",
+    "class": null
+  },
+  "GA8": {
+    "manufacturer": "GippsAero",
+    "name": "Gippsland Aeronautics GA8 Airvan",
+    "class": null
+  },
+  "GJ2": {
+    "manufacturer": "Gulfstream Aerospace",
+    "name": "Gulfstream Aerospace G1159 II",
+    "class": null
+  },
+  "GJ3": {
+    "manufacturer": "Gulfstream Aerospace",
+    "name": "Gulfstream Aerospace G-1159A III",
+    "class": null
+  },
+  "GJ4": {
+    "manufacturer": "Gulfstream Aerospace",
+    "name": "Gulfstream Aerospace IV (G300-450)",
+    "class": "B"
+  },
+  "GJ5": {
+    "manufacturer": "Gulfstream Aerospace",
+    "name": "Gulfstream Aerospace V (G500/G550)",
+    "class": "C"
+  },
+  "GJ6": {
+    "manufacturer": "Gulfstream Aerospace",
+    "name": "Gulfstream Aerospace G650",
+    "class": "C"
+  },
+  "GR1": {
+    "manufacturer": "Gulfstream Aerospace",
+    "name": "Gulfstream Aerospace G-100/G-150",
+    "class": null
+  },
+  "GR2": {
+    "manufacturer": "Gulfstream Aerospace",
+    "name": "Gulfstream Aerospace G-200 (Galaxy)",
+    "class": null
+  },
+  "GR3": {
+    "manufacturer": "Gulfstream Aerospace",
+    "name": "Gulfstream Aerospace G280",
+    "class": null
+  },
+  "GRG": {
+    "manufacturer": "Grumman",
+    "name": "Grumman G-21 Goose (Amphibian)",
+    "class": "A"
+  },
+  "GRJ": {
+    "manufacturer": "Gulfstream Aerospace",
+    "name": "Gulfstream Aerospace G/stream 2/3/4/5/6",
+    "class": "C"
+  },
+  "GRM": {
+    "manufacturer": "Grumman",
+    "name": "Grumman G-73 Mallard (Amphibian)",
+    "class": "B"
+  },
+  "GRS": {
+    "manufacturer": "Gulfstream Aerospace",
+    "name": "Gulfstream Aerospace G159 G 1",
+    "class": "B"
+  },
+  "H20": {
+    "manufacturer": "Beechcraft",
+    "name": "Hawker 200",
+    "class": null
+  },
+  "H21": {
+    "manufacturer": "Beechcraft",
+    "name": "Hawker 1000",
+    "class": null
+  },
+  "H24": {
+    "manufacturer": "Beechcraft",
+    "name": "Hawker 4000",
+    "class": null
+  },
+  "H25": {
+    "manufacturer": "British Aerospace",
+    "name": "British Aerospace (Hawker Siddeley) 125",
+    "class": "A"
+  },
+  "H28": {
+    "manufacturer": "Beechcraft",
+    "name": "Hawker 850XP/900",
+    "class": null
+  },
+  "H29": {
+    "manufacturer": "Beechcraft",
+    "name": "Hawker 900XP",
+    "class": null
+  },
+  "HBA": {
+    "manufacturer": "Beechcraft",
+    "name": "Hawker Beechcraft",
+    "class": null
+  },
+  "HEC": {
+    "manufacturer": "Helio",
+    "name": "Helio Courier",
+    "class": "A"
+  },
+  "HHJ": {
+    "manufacturer": "Honda Aircraft Company",
+    "name": "Honda HA-420 JondaJet",
+    "class": null
+  },
+  "HOV": {
+    "manufacturer": "Other",
+    "name": "Hovercraft",
+    "class": "A"
+  },
+  "HPH": {
+    "manufacturer": "British Aerospace",
+    "name": "BAe(H /Page) Herald",
+    "class": null
+  },
+  "HS7": {
+    "manufacturer": "British Aerospace",
+    "name": "BAe (HS) 748",
+    "class": "C"
+  },
+  "HSF": {
+    "manufacturer": "British Aerospace",
+    "name": "BAe (HS) Argosy",
+    "class": null
+  },
+  "I14": {
+    "manufacturer": "Ilyushin",
+    "name": "Ilyushin IL114",
+    "class": "C"
+  },
+  "I4F": {
+    "manufacturer": "Ilyushin",
+    "name": "Ilyushin II-114T Freighter",
+    "class": null
+  },
+  "I9F": {
+    "manufacturer": "Ilyushin",
+    "name": "Ilyushin II-96 Freighter",
+    "class": "E"
+  },
+  "ICE": {
+    "manufacturer": "Other",
+    "name": "Inter-City Express Train",
+    "class": null
+  },
+  "IL6": {
+    "manufacturer": "Ilyushin",
+    "name": "Ilyushin Il-62",
+    "class": "D"
+  },
+  "IL7": {
+    "manufacturer": "Ilyushin",
+    "name": "Ilyushin IL-76",
+    "class": "D"
+  },
+  "IL8": {
+    "manufacturer": "Ilyushin",
+    "name": "Ilyushin IL-18",
+    "class": "D"
+  },
+  "IL9": {
+    "manufacturer": "Ilyushin",
+    "name": "Ilyushin Il-96 Passenger",
+    "class": "E"
+  },
+  "ILW": {
+    "manufacturer": "Ilyushin",
+    "name": "Ilyushin IL-86",
+    "class": "D"
+  },
+  "J31": {
+    "manufacturer": "British Aerospace",
+    "name": "BAe Jetstream 31",
+    "class": "B"
+  },
+  "J32": {
+    "manufacturer": "British Aerospace",
+    "name": "BAe Jetstream 32",
+    "class": "B"
+  },
+  "J41": {
+    "manufacturer": "British Aerospace",
+    "name": "BAe Jetstream 41",
+    "class": "B"
+  },
+  "JST": {
+    "manufacturer": "British Aerospace",
+    "name": "BAe Jetstream",
+    "class": "B"
+  },
+  "JU5": {
+    "manufacturer": "MBB",
+    "name": "Junkers Ju 52/3m",
+    "class": "C"
+  },
+  "L10": {
+    "manufacturer": "Lockheed",
+    "name": "Lockheed L1011 Tristar Passenger",
+    "class": "D"
+  },
+  "L11": {
+    "manufacturer": "Lockheed",
+    "name": "Lockheed L1011 Tristar 1 /50 /100 /150",
+    "class": "D"
+  },
+  "L12": {
+    "manufacturer": "Lockheed",
+    "name": "Lockheed L1011-200 /250 Tristar",
+    "class": null
+  },
+  "L15": {
+    "manufacturer": "Lockheed",
+    "name": "Lockheed L1011 TriStar 500 Passenger",
+    "class": "D"
+  },
+  "L1A": {
+    "manufacturer": "Lockheed",
+    "name": "Lockheed L1011-1 TriStar",
+    "class": null
+  },
+  "L1F": {
+    "manufacturer": "Lockheed",
+    "name": "Lockheed L1011 Tristar Freighter",
+    "class": "D"
+  },
+  "L49": {
+    "manufacturer": "Lockheed",
+    "name": "Lockheed L-1049 Super Constellation",
+    "class": "D"
+  },
+  "L4F": {
+    "manufacturer": "Let",
+    "name": "Aircraft Industries (LET)410 freight",
+    "class": null
+  },
+  "L4T": {
+    "manufacturer": "Let",
+    "name": "Let 410",
+    "class": "B"
+  },
+  "LCH": {
+    "manufacturer": "Other",
+    "name": "Launch/Boat",
+    "class": "A"
+  },
+  "LJ2": {
+    "manufacturer": "Learjet",
+    "name": "Learjet 23/24/25",
+    "class": null
+  },
+  "LJ3": {
+    "manufacturer": "Learjet",
+    "name": "Learjet 28/29/31/35/36",
+    "class": null
+  },
+  "LJ4": {
+    "manufacturer": "Learjet",
+    "name": "Learjet 40/45",
+    "class": null
+  },
+  "LJ6": {
+    "manufacturer": "Learjet",
+    "name": "Learjet 55/60",
+    "class": null
+  },
+  "LJ7": {
+    "manufacturer": "Learjet",
+    "name": "Learjet 70/75",
+    "class": null
+  },
+  "LJ8": {
+    "manufacturer": "Learjet",
+    "name": "Learjet 85",
+    "class": null
+  },
+  "LMO": {
+    "manufacturer": "Other",
+    "name": "Limousine",
+    "class": "A"
+  },
+  "LOE": {
+    "manufacturer": "Lockheed",
+    "name": "Lockheed L188 Electra (Passenger)",
+    "class": "D"
+  },
+  "LOF": {
+    "manufacturer": "Lockheed",
+    "name": "Lockheed L188 Electra (Freighter)",
+    "class": "D"
+  },
+  "LOH": {
+    "manufacturer": "Lockheed",
+    "name": "Lockheed L182 /l282 /l382 (L100) Hercul",
+    "class": "D"
+  },
+  "LOM": {
+    "manufacturer": "Lockheed",
+    "name": "Lockheed L188 Electra (Mixed Config)",
+    "class": "D"
+  },
+  "LRJ": {
+    "manufacturer": "Learjet",
+    "name": "Learjet",
+    "class": "A"
+  },
+  "M11": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "Boeing (douglas) MD-11 Passenger",
+    "class": "D"
+  },
+  "M1F": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "Boeing (douglas) MD-11 (Freighter)",
+    "class": "D"
+  },
+  "M1M": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "Boeing (douglas) MD-11 Mixed Config",
+    "class": "D"
+  },
+  "M2F": {
+    "manufacturer": "Douglas",
+    "name": "Boeing (Douglas) MD82 Freighter",
+    "class": null
+  },
+  "M3F": {
+    "manufacturer": "Douglas",
+    "name": "Boeing (Douglas) MD83 Freighter",
+    "class": null
+  },
+  "M6F": {
+    "manufacturer": "Xian",
+    "name": "Xian Yunshuji MA600 Freighter",
+    "class": null
+  },
+  "M80": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "Boeing (douglas) MD-80",
+    "class": "C"
+  },
+  "M81": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "Boeing (douglas) MD-81",
+    "class": "C"
+  },
+  "M82": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "Boeing (douglas) MD-82",
+    "class": "C"
+  },
+  "M83": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "Boeing (douglas) MD-83",
+    "class": "C"
+  },
+  "M87": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "Boeing (douglas) MD-87",
+    "class": "C"
+  },
+  "M88": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "Boeing (douglas) MD-88",
+    "class": "C"
+  },
+  "M8F": {
+    "manufacturer": "Douglas",
+    "name": "Boeing (Douglas) MD88 Freighter",
+    "class": null
+  },
+  "M90": {
+    "manufacturer": "McDonnell Douglas",
+    "name": "Boeing (douglas) MD-90",
+    "class": "C"
+  },
+  "MA6": {
+    "manufacturer": "Xian",
+    "name": "Xian Yunshuji Ma-60",
+    "class": null
+  },
+  "MBH": {
+    "manufacturer": "MBB",
+    "name": "Airbus Helicopters BO 105",
+    "class": "A"
+  },
+  "MD9": {
+    "manufacturer": "MD Helicopters",
+    "name": "MD Helicopters MD 900 Explorer",
+    "class": "A"
+  },
+  "MIH": {
+    "manufacturer": "Mil",
+    "name": "Mil MI-8 /MI-17 /MI-171 /MI-172",
+    "class": "A"
+  },
+  "MTL": {
+    "manufacturer": "Other",
+    "name": "Metroliner Train",
+    "class": null
+  },
+  "MU2": {
+    "manufacturer": "Mitsubishi",
+    "name": "Mitsubishi MU-2",
+    "class": "A"
+  },
+  "ND2": {
+    "manufacturer": "Aerospatiale",
+    "name": "Aerospatiale (nord) 262",
+    "class": "B"
+  },
+  "NDC": {
+    "manufacturer": "Aerospatiale",
+    "name": "Aerospatiale SN601 Corvette",
+    "class": "A"
+  },
+  "NDE": {
+    "manufacturer": "Aerospatiale",
+    "name": "Airbus Helicopters H125",
+    "class": "A"
+  },
+  "NDH": {
+    "manufacturer": "Aerospatiale",
+    "name": "Airbus Helicopters A365C/A365N Dauphin2",
+    "class": "A"
+  },
+  "P18": {
+    "manufacturer": "Piaggio Aero Industries",
+    "name": "Piaggio P180 Avanti II",
+    "class": null
+  },
+  "PA1": {
+    "manufacturer": "Piper",
+    "name": "Piper (Light Aircraft - Single Piston)",
+    "class": "A"
+  },
+  "PA2": {
+    "manufacturer": "Piper",
+    "name": "Piper (Light Aircraft - Twin Piston)",
+    "class": "A"
+  },
+  "PAG": {
+    "manufacturer": "Piper",
+    "name": "Piper (Light Aircraft)",
+    "class": "A"
+  },
+  "PAT": {
+    "manufacturer": "Piper",
+    "name": "Piper (Light Aircraft - Twin Turboprop)",
+    "class": "A"
+  },
+  "PL2": {
+    "manufacturer": "Pilatus",
+    "name": "Pilatus PC-12",
+    "class": "B"
+  },
+  "PL4": {
+    "manufacturer": "Pilatus",
+    "name": "Pilatus PC-24",
+    "class": null
+  },
+  "PL6": {
+    "manufacturer": "Pilatus",
+    "name": "Pilatus PC6 Turbo-Porter",
+    "class": "B"
+  },
+  "PN6": {
+    "manufacturer": "Partenavia",
+    "name": "Partenavia P68",
+    "class": "A"
+  },
+  "PR1": {
+    "manufacturer": "Beechcraft",
+    "name": "Hawker 390 Premier 1/1A",
+    "class": null
+  },
+  "RFS": {
+    "manufacturer": "Other",
+    "name": "Road Feeder Service (Truck)",
+    "class": "A"
+  },
+  "S20": {
+    "manufacturer": "Saab",
+    "name": "Saab 2000",
+    "class": "C"
+  },
+  "S58": {
+    "manufacturer": "Sikorsky",
+    "name": "Sikorsky S-58T",
+    "class": "A"
+  },
+  "S61": {
+    "manufacturer": "Sikorsky",
+    "name": "Sikorsky S61",
+    "class": "A"
+  },
+  "S76": {
+    "manufacturer": "Sikorsky",
+    "name": "Sikorsky S-76",
+    "class": "A"
+  },
+  "S9S": {
+    "manufacturer": "Sukhoi",
+    "name": "Sukhoi Superjet 100-95 (Saberlets)",
+    "class": null
+  },
+  "SF3": {
+    "manufacturer": "Saab",
+    "name": "Saab 340",
+    "class": "B"
+  },
+  "SFA": {
+    "manufacturer": "Saab",
+    "name": "Saab 340 Passenger",
+    "class": null
+  },
+  "SFB": {
+    "manufacturer": "Saab",
+    "name": "Saab 340B",
+    "class": null
+  },
+  "SFF": {
+    "manufacturer": "Saab",
+    "name": "Saab 340 Freighter",
+    "class": null
+  },
+  "SH3": {
+    "manufacturer": "Shorts",
+    "name": "Shorts 330 (sd3-30)",
+    "class": "B"
+  },
+  "SH6": {
+    "manufacturer": "Shorts",
+    "name": "Shorts 360 (sd3-60)",
+    "class": "B"
+  },
+  "SHB": {
+    "manufacturer": "Shorts",
+    "name": "Shorts SC.5 Belfast",
+    "class": "D"
+  },
+  "SHS": {
+    "manufacturer": "Shorts",
+    "name": "Shorts Skyvan (sC-7)",
+    "class": "B"
+  },
+  "SSC": {
+    "manufacturer": "Aerospatiale/British Aerospace",
+    "name": "Aerospatiale /BAe Concorde",
+    "class": "C"
+  },
+  "SU1": {
+    "manufacturer": "Sukhoi",
+    "name": "Sukhoi Superjet",
+    "class": null
+  },
+  "SU7": {
+    "manufacturer": "Sukhoi",
+    "name": "Sukhoi Superjet 100-75",
+    "class": null
+  },
+  "SU9": {
+    "manufacturer": "Sukhoi",
+    "name": "Sukhoi Superjet 100-95",
+    "class": "A"
+  },
+  "SWF": {
+    "manufacturer": "Fairchild",
+    "name": "Fairchild (Swearingen)SA226 freight",
+    "class": null
+  },
+  "SWM": {
+    "manufacturer": "Fairchild",
+    "name": "Fairchild Sa26 /Sa226 /Sa227 Merlin /Me",
+    "class": "A"
+  },
+  "SY8": {
+    "manufacturer": "Other",
+    "name": "Shaanxi Y-8",
+    "class": null
+  },
+  "T12": {
+    "manufacturer": "Tecnam",
+    "name": "Tecnam P2012 Traveler",
+    "class": "C"
+  },
+  "T20": {
+    "manufacturer": "Tupolev",
+    "name": "Tupolev Tu-204/Tu-214",
+    "class": "D"
+  },
+  "T2F": {
+    "manufacturer": "Tupolev",
+    "name": "Tupolev Tu-204 Freighter",
+    "class": "D"
+  },
+  "T34": {
+    "manufacturer": "Tupolev",
+    "name": "Tupolev Tu-334",
+    "class": null
+  },
+  "TBM": {
+    "manufacturer": "Other",
+    "name": "SOCATA TBM-700",
+    "class": null
+  },
+  "TGV": {
+    "manufacturer": "Other",
+    "name": "Train A Grand Vitesse",
+    "class": null
+  },
+  "THS": {
+    "manufacturer": "Other",
+    "name": "High Speed Train",
+    "class": null
+  },
+  "THT": {
+    "manufacturer": "Other",
+    "name": "Hotel Train",
+    "class": null
+  },
+  "TPT": {
+    "manufacturer": "Tecnam",
+    "name": "Tecnam P2012",
+    "class": null
+  },
+  "TRN": {
+    "manufacturer": "Other",
+    "name": "Train",
+    "class": "A"
+  },
+  "TRS": {
+    "manufacturer": "Other",
+    "name": "High Speed Train",
+    "class": null
+  },
+  "TSL": {
+    "manufacturer": "Other",
+    "name": "Sleeper Train",
+    "class": null
+  },
+  "TU3": {
+    "manufacturer": "Tupolev",
+    "name": "Tupolev Tu134",
+    "class": "C"
+  },
+  "TU5": {
+    "manufacturer": "Tupolev",
+    "name": "Tupolev Tu154",
+    "class": "D"
+  },
+  "VCV": {
+    "manufacturer": "British Aerospace",
+    "name": "BAe (BAC-Vickers) Viscount",
+    "class": "C"
+  },
+  "VGF": {
+    "manufacturer": "British Aerospace",
+    "name": "BAe (Vickers) Merchantman",
+    "class": null
+  },
+  "WWP": {
+    "manufacturer": "Israel Aircraft Industries",
+    "name": "Israel Aircraft Ind.1124 Westwind",
+    "class": "A"
+  },
+  "YK2": {
+    "manufacturer": "Yakovlev",
+    "name": "Yakovlev Yak-42/142",
+    "class": "C"
+  },
+  "YK4": {
+    "manufacturer": "Yakovlev",
+    "name": "Yakovlev Yak-40",
+    "class": "C"
+  },
+  "YM3": {
+    "manufacturer": "Yakovlev",
+    "name": "Yakovelev MC-21-300 Passenger",
+    "class": null
+  },
+  "YMC": {
+    "manufacturer": "Yakovlev",
+    "name": "Yakovelev MC-21",
+    "class": null
+  },
+  "YN2": {
+    "manufacturer": "Harbin",
+    "name": "Harbin Yunshuji Y12",
+    "class": "B"
+  },
+  "YN7": {
+    "manufacturer": "Xian",
+    "name": "Xian Yunshuji Y7 /Ma60",
+    "class": "C"
+  },
+  "YS1": {
+    "manufacturer": "NAMC",
+    "name": "NAMC YS-11",
+    "class": null
+  }
+}
