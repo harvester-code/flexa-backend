@@ -313,85 +313,8 @@ class SimulationRepository(ISimulationRepository):
     # 4. 시뮬레이션 상태 및 권한 관리
     # =====================================
 
-    async def update_simulation_start_end_at(
-        self, db: AsyncSession, scenario_id: str, column: str, time
-    ):
-        """시뮬레이션 시작/종료 시간 업데이트
-
-        Args:
-            db (AsyncSession): Database session.
-            scenario_id (str): Scenario ID to update.
-            column (str): Column to update ('start' or 'end' or 'error').
-            time: The time to set.
-
-        Raises:
-            ValueError: If column is not 'start' or 'end' or 'error', or if scenario_id is invalid.
-            Exception: If database operation fails.
-        """
-        # Input validation
-        if not scenario_id or not scenario_id.strip():
-            raise ValueError("Scenario ID cannot be empty")
-
-        if column not in ["start", "end", "error"]:
-            raise ValueError("Invalid time parameter. Use 'start' or 'end' or 'error'")
-
-        if not time:
-            raise ValueError("Time parameter cannot be None")
-
-        try:
-            if column == "start":
-                result = await db.execute(
-                    update(ScenarioInformation)
-                    .where(ScenarioInformation.scenario_id == scenario_id)
-                    .values(
-                        {
-                            ScenarioInformation.status: "running",
-                            ScenarioInformation.simulation_start_at: time,
-                            ScenarioInformation.simulation_end_at: None,
-                        }
-                    )
-                )
-
-            elif column == "end":
-                result = await db.execute(
-                    update(ScenarioInformation)
-                    .where(ScenarioInformation.scenario_id == scenario_id)
-                    .values(
-                        {
-                            ScenarioInformation.status: "done",
-                            ScenarioInformation.simulation_end_at: time,
-                        }
-                    )
-                )
-
-            elif column == "error":
-                result = await db.execute(
-                    update(ScenarioInformation)
-                    .where(ScenarioInformation.scenario_id == scenario_id)
-                    .values(
-                        {
-                            ScenarioInformation.status: "error",
-                            ScenarioInformation.simulation_end_at: None,
-                        }
-                    )
-                )
-
-            # Check if any rows were affected
-            if result.rowcount == 0:
-                raise ValueError(f"No scenario found with ID: {scenario_id}")
-
-            await db.commit()
-
-        except ValueError:
-            # Re-raise ValueError as is
-            await db.rollback()
-            raise
-        except Exception as e:
-            # Rollback transaction and re-raise with more context
-            await db.rollback()
-            raise Exception(
-                f"Failed to update simulation time for scenario {scenario_id}: {str(e)}"
-            ) from e
+    # 기존 update_simulation_start_end_at 메서드는 사용되지 않아 삭제됨
+    # 현재는 개별 메서드들(update_simulation_start_at 등)을 사용
 
     async def check_user_scenario_permission(
         self, db: AsyncSession, user_id: str, scenario_id: str

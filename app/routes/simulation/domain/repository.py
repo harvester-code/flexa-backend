@@ -49,9 +49,5 @@ class ISimulationRepository(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def update_simulation_start_end_at(self):
-        raise NotImplementedError
-
-    @abstractmethod
     def check_user_scenario_permission(self):
         raise NotImplementedError

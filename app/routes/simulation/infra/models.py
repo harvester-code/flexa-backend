@@ -24,7 +24,6 @@ class ScenarioInformation(Base):
     target_flight_schedule_date: Mapped[str] = mapped_column(     # character varying
         String, nullable=True
     )
-    status: Mapped[str] = mapped_column(String, nullable=False, default="Yet")  # 기본값 'Yet'
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     simulation_start_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=True
