@@ -539,7 +539,7 @@ class SimulationService:
                 return {
                     "message": "Metadata saved successfully",
                     "scenario_id": scenario_id,
-                    "saved_at": datetime.now().isoformat(),
+                    "saved_at": datetime.now().replace(microsecond=0).isoformat(),
                 }
             else:
                 raise Exception("Failed to save metadata to S3")

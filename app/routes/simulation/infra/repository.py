@@ -235,7 +235,7 @@ class SimulationRepository(ISimulationRepository):
         await db.execute(
             update(ScenarioInformation)
             .where(ScenarioInformation.scenario_id == scenario_id)
-            .values(metadata_updated_at=datetime.now())
+            .values(metadata_updated_at=datetime.now().replace(microsecond=0))
         )
         await db.commit()
 
