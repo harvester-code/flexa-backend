@@ -115,22 +115,6 @@ class RunSimulationBody(BaseModel):
     process_flow: List[Dict[str, Any]]  # 공항 프로세스 단계별 설정
 
 
-class PassengerInflowBody(BaseModel):
-    """
-    승객 유입량 분석 요청 스키마
-    
-    프로세스 흐름 기반으로 각 시설별 15분 간격 승객 유입량을 계산합니다.
-    S3의 show-up-passenger.parquet 파일과 연계하여 실제 승객 데이터를 분석합니다.
-    
-    주요 계산:
-    - show_up_time + 누적 travel_time_minutes로 각 시설 도착 시간 산출
-    - 15분 단위로 시간 그룹핑하여 시설별 승객 수 집계
-    - entry_conditions, passenger_conditions 적용하여 승객 필터링
-    """
-    
-    process_flow: List[Dict[str, Any]]  # 공항 프로세스 단계별 설정
-
-
 class FlightFiltersResponse(BaseModel):
     """
     항공편 필터링 메타데이터 응답 스키마

@@ -25,7 +25,6 @@ from app.routes.simulation.application.core import (
     FlightScheduleStorage,
     FlightScheduleResponse,
     FlightFiltersResponse,
-    PassengerInflowResponse,
     ShowUpPassengerStorage,
     ShowUpPassengerResponse,
     RunSimulationStorage,
@@ -54,7 +53,6 @@ class SimulationService:
         self.flight_response = FlightScheduleResponse()
         self.flight_filters_response = FlightFiltersResponse()
         self.passenger_response = ShowUpPassengerResponse()
-        self.passenger_inflow_response = PassengerInflowResponse()
         self.simulation_response = RunSimulationResponse()
 
     # =====================================
@@ -489,31 +487,6 @@ class SimulationService:
         except Exception as e:
             logger.error(f"Simulation execution failed: {str(e)}")
             raise  # Storage에서 이미 HTTPException을 발생시키므로 재발생
-
-    # =====================================
-    # 4-1. 승객 유입량 분석 (Passenger Inflow Analysis)
-    # =====================================
-    
-    async def analyze_passenger_inflow(
-        self, scenario_id: str, process_flow: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
-        """
-        승객 유입량 분석 - Core 모듈 위임
-        
-        Args:
-            scenario_id: 시나리오 UUID
-            process_flow: 공항 프로세스 단계별 설정 리스트
-            
-        Returns:
-            시간대별 시설 그룹별 승객 유입량 데이터
-            
-        Raises:
-            HTTPException: Core 모듈에서 발생하는 모든 오류
-        """
-        return await self.passenger_inflow_response.build_response(
-            scenario_id=scenario_id,
-            process_flow=process_flow,
-        )
 
     # =====================================
     # 5. 메타데이터 처리 (S3 Save/Load)
