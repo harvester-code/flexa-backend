@@ -230,14 +230,49 @@ class SimulationRepository(ISimulationRepository):
         scenario_id: str,
     ):
         """메타데이터 업데이트 시각 갱신"""
-        from datetime import datetime
+        from datetime import datetime, timezone
         
         await db.execute(
             update(ScenarioInformation)
             .where(ScenarioInformation.scenario_id == scenario_id)
-            .values(metadata_updated_at=datetime.now().replace(microsecond=0))
+            .values(metadata_updated_at=datetime.now(timezone.utc).replace(microsecond=0))
         )
         await db.commit()
+
+    async def update_simulation_start_at(
+        self,
+        db: AsyncSession,
+        scenario_id: str,
+    ):
+        """시뮬레이션 시작 시각 갱신"""
+        from datetime import datetime
+        from loguru import logger
+        
+        try:
+            from datetime import timezone
+            current_time = datetime.now(timezone.utc).replace(microsecond=0)
+            logger.info(f"🕐 Setting simulation_start_at to: {current_time} for scenario: {scenario_id}")
+            
+            result = await db.execute(
+                update(ScenarioInformation)
+                .where(ScenarioInformation.scenario_id == scenario_id)
+                .values(simulation_start_at=current_time)
+            )
+            
+            rows_affected = result.rowcount
+            logger.info(f"📝 Update query executed, rows affected: {rows_affected}")
+            
+            if rows_affected == 0:
+                logger.warning(f"⚠️ No rows updated for scenario_id: {scenario_id}")
+            
+            await db.commit()
+            logger.info(f"✅ Transaction committed for scenario: {scenario_id}")
+            
+        except Exception as e:
+            logger.error(f"❌ Error in update_simulation_start_at: {str(e)}")
+            await db.rollback()
+            logger.error(f"🔄 Transaction rolled back for scenario: {scenario_id}")
+            raise
 
     async def deactivate_scenario_information(self, db: AsyncSession, ids: List[str]):
         """시나리오 소프트 삭제"""

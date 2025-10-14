@@ -397,6 +397,7 @@ async def run_simulation(
             scenario_id=scenario_id,
             setting=setting,
             process_flow=simulation_request.process_flow,
+            db=db,
         )
 
         logger.info(f"🚀 시뮬레이션 실행 요청 완료: scenario_id={scenario_id}")

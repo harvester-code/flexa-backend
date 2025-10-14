@@ -27,6 +27,10 @@ class ISimulationRepository(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
+    def update_simulation_start_at(self):
+        raise NotImplementedError
+
+    @abstractmethod
     def deactivate_scenario_information(self):
         raise NotImplementedError
 

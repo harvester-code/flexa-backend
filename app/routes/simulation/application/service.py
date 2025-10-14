@@ -9,7 +9,7 @@
 5. 메타데이터 처리 (S3 저장/로드)
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 import awswrangler as wr
@@ -95,8 +95,8 @@ class SimulationService:
                 airport=airport,
                 memo=memo,
                 target_flight_schedule_date=None,
-                created_at=datetime.now().replace(microsecond=0),
-                updated_at=datetime.now().replace(microsecond=0),
+                created_at=datetime.now(timezone.utc).replace(microsecond=0),
+                updated_at=datetime.now(timezone.utc).replace(microsecond=0),
                 scenario_id=scenario_id,
             )
 
@@ -283,8 +283,8 @@ class SimulationService:
                 airport=source_scenario.airport,
                 memo=source_scenario.memo,
                 target_flight_schedule_date=source_scenario.target_flight_schedule_date,
-                created_at=datetime.now().replace(microsecond=0),
-                updated_at=datetime.now().replace(microsecond=0),
+                created_at=datetime.now(timezone.utc).replace(microsecond=0),
+                updated_at=datetime.now(timezone.utc).replace(microsecond=0),
                 scenario_id=new_scenario_id,
             )
 
@@ -452,7 +452,7 @@ class SimulationService:
     # =====================================
 
     async def run_simulation(
-        self, scenario_id: str, setting: Dict[str, Any], process_flow: List[Dict[str, Any]]
+        self, scenario_id: str, setting: Dict[str, Any], process_flow: List[Dict[str, Any]], db=None
     ) -> Dict[str, str]:
         """
         시뮬레이션 실행 요청 - SQS 메시지 전송
@@ -461,6 +461,7 @@ class SimulationService:
             scenario_id: 시나리오 UUID
             setting: 시뮬레이션 기본 설정 (airport, date, scenario_id)
             process_flow: 공항 프로세스 단계별 설정 리스트
+            db: 데이터베이스 세션 (선택적)
 
         Returns:
             Dict with message_id, status, scenario_id
@@ -469,6 +470,23 @@ class SimulationService:
             Exception: SQS 전송 실패 시
         """
         try:
+            logger.info(f"🎯 Starting run_simulation for scenario: {scenario_id}")
+            
+            # 0. 시뮬레이션 시작 시간 업데이트 (SQS 전송 전)
+            if db is not None:
+                try:
+                    logger.info(f"🔄 Attempting to update simulation_start_at for scenario: {scenario_id}")
+                    await self.simulation_repo.update_simulation_start_at(db, scenario_id)
+                    logger.info(f"✅ Successfully updated simulation_start_at for scenario {scenario_id}")
+                except Exception as db_error:
+                    logger.error(f"❌ Failed to update simulation_start_at for scenario {scenario_id}: {str(db_error)}")
+                    logger.error(f"❌ Exception type: {type(db_error)}")
+                    import traceback
+                    logger.error(f"❌ Traceback: {traceback.format_exc()}")
+                    # DB 업데이트 실패해도 시뮬레이션은 계속 진행
+            else:
+                logger.warning(f"⚠️ Database session is None for scenario {scenario_id}")
+
             # 1. 시뮬레이션 실행 (Storage Layer)
             storage_result = await self.simulation_storage.execute_simulation(
                 scenario_id=scenario_id,
@@ -539,7 +557,7 @@ class SimulationService:
                 return {
                     "message": "Metadata saved successfully",
                     "scenario_id": scenario_id,
-                    "saved_at": datetime.now().replace(microsecond=0).isoformat(),
+                    "saved_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
                 }
             else:
                 raise Exception("Failed to save metadata to S3")
@@ -569,7 +587,7 @@ class SimulationService:
                 return {
                     "scenario_id": scenario_id,
                     "metadata": metadata,
-                    "loaded_at": datetime.now().replace(microsecond=0).isoformat(),
+                    "loaded_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
                 }
             else:
                 # 파일이 없는 경우 - 빈 메타데이터 반환 (정상적인 상황)
@@ -579,7 +597,7 @@ class SimulationService:
                 return {
                     "scenario_id": scenario_id,
                     "metadata": None,
-                    "loaded_at": datetime.now().replace(microsecond=0).isoformat(),
+                    "loaded_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
                     "is_new_scenario": True
                 }
 
@@ -620,7 +638,7 @@ class SimulationService:
             return {
                 "message": "Metadata deleted successfully" if success else "Metadata was already deleted or does not exist",
                 "scenario_id": scenario_id,
-                "deleted_at": datetime.now().replace(microsecond=0).isoformat(),
+                "deleted_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
             }
 
         except Exception as e:
