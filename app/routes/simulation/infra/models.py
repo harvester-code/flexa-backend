@@ -72,7 +72,6 @@ class UserInformation(Base):
     profile_image_url: Mapped[str] = mapped_column(String, nullable=True)
     position: Mapped[str] = mapped_column(String, nullable=True)
     introduction: Mapped[str] = mapped_column(String, nullable=True)  # bio → introduction
-    group_id: Mapped[int] = mapped_column(Integer, nullable=True)     # 데이터베이스에 존재함
     timezone: Mapped[str] = mapped_column(String, nullable=False)     # 데이터베이스에 존재함
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(

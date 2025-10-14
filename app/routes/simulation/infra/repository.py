@@ -94,7 +94,6 @@ class SimulationRepository(ISimulationRepository):
                     "airport": scenario_info.airport,
                     "memo": scenario_info.memo,
                     "target_flight_schedule_date": scenario_info.target_flight_schedule_date,
-                    "status": scenario_info.status,
                     "is_active": scenario_info.is_active,
                     "simulation_start_at": scenario_info.simulation_start_at,
                     "simulation_end_at": scenario_info.simulation_end_at,
