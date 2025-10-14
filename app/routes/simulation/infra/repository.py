@@ -123,6 +123,7 @@ class SimulationRepository(ISimulationRepository):
                     "simulation_end_at": simulation_end_at,  # 업데이트된 시간 사용
                     "created_at": scenario_info.created_at,
                     "updated_at": scenario_info.updated_at,
+                    "metadata_updated_at": scenario_info.metadata_updated_at,
                     # UserInformation 필드들
                     "first_name": row[1],
                     "last_name": row[2],
@@ -439,4 +440,3 @@ class SimulationRepository(ISimulationRepository):
                 return result.scalar_one_or_none() is not None
         except Exception:
             return False
-
