@@ -70,17 +70,42 @@ class SimulationRepository(ISimulationRepository):
 
             # 결과를 리스트로 반환
             scenarios = []
+            scenarios_to_update = []  # 업데이트가 필요한 시나리오들
+            
             for row in result:
                 scenario_info = row[0]  # ScenarioInformation 객체
 
-                # S3Manager를 사용하여 simulation-pax.parquet 파일 존재 여부 확인
+                # S3Manager를 사용하여 simulation-pax.parquet 파일 존재 여부 및 메타데이터 확인
                 has_simulation_data = False
+                file_last_modified = None
+                
                 if scenario_info.scenario_id:
-                    # 비동기 함수를 호출하기 위해 await 사용
-                    has_simulation_data = await self.s3_manager.check_exists_async(
+                    # 파일 메타데이터 가져오기 (존재 여부 + 저장 시간)
+                    file_metadata = await self.s3_manager.get_metadata_async(
                         scenario_id=scenario_info.scenario_id,
                         filename="simulation-pax.parquet"
                     )
+                    
+                    if file_metadata:
+                        has_simulation_data = True
+                        file_last_modified = file_metadata.get('last_modified')
+                
+                # 🆕 자동 완료 시간 업데이트 로직 (S3 파일 저장 시간 사용)
+                simulation_end_at = scenario_info.simulation_end_at
+                if (has_simulation_data and 
+                    scenario_info.simulation_end_at is None and 
+                    str(scenario_info.user_id) == user_id):  # 본인 시나리오만
+                    
+                    # S3 파일 시간 또는 현재 시간 사용
+                    file_time = file_last_modified if file_last_modified else datetime.utcnow()
+                    
+                    # DB에서 자동으로 초 단위로 truncate하므로 Python에서 처리 불필요
+                    scenarios_to_update.append({
+                        'scenario_id': scenario_info.scenario_id,
+                        'simulation_end_at': file_time
+                    })
+                    # 응답에는 파일 시간 사용 (DB 저장 시 자동으로 초 단위가 됨)
+                    simulation_end_at = file_time
 
                 scenario_dict = {
                     # ScenarioInformation 필드들
@@ -95,7 +120,7 @@ class SimulationRepository(ISimulationRepository):
                     "target_flight_schedule_date": scenario_info.target_flight_schedule_date,
                     "is_active": scenario_info.is_active,
                     "simulation_start_at": scenario_info.simulation_start_at,
-                    "simulation_end_at": scenario_info.simulation_end_at,
+                    "simulation_end_at": simulation_end_at,  # 업데이트된 시간 사용
                     "created_at": scenario_info.created_at,
                     "updated_at": scenario_info.updated_at,
                     # UserInformation 필드들
@@ -106,6 +131,36 @@ class SimulationRepository(ISimulationRepository):
                     "has_simulation_data": has_simulation_data,
                 }
                 scenarios.append(scenario_dict)
+            
+            # 🆕 일괄 DB 업데이트 (변경이 있는 경우에만, S3 파일 저장 시간 사용)
+            if scenarios_to_update:
+                try:
+                    # 각 시나리오별로 개별 업데이트 (서로 다른 시간 저장)
+                    for scenario_update in scenarios_to_update:
+                        scenario_id = scenario_update['scenario_id']
+                        end_time = scenario_update['simulation_end_at']
+                        
+                        update_stmt = (
+                            update(ScenarioInformation)
+                            .where(ScenarioInformation.scenario_id == scenario_id)
+                            .values(
+                                simulation_end_at=end_time,
+                                updated_at=func.timezone('utc', func.now())  # DB 기본값으로 자동 truncate
+                            )
+                        )
+                        await db.execute(update_stmt)
+                    
+                    await db.commit()
+                    
+                    # 성공 로그
+                    scenario_ids = [s['scenario_id'] for s in scenarios_to_update]
+                    print(f"✅ Updated simulation_end_at for {len(scenario_ids)} scenarios using S3 file timestamps")
+                    
+                except Exception as e:
+                    # DB 업데이트 실패해도 목록 조회는 계속 진행
+                    scenario_ids = [s['scenario_id'] for s in scenarios_to_update]
+                    print(f"⚠️ Warning: Failed to update simulation_end_at for scenarios {scenario_ids}: {e}")
+                    await db.rollback()
 
             return scenarios
 
