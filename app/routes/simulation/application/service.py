@@ -349,7 +349,7 @@ class SimulationService:
         """사용자 정보 조회"""
         try:
             query = select(UserInformation).where(
-                UserInformation.supabase_user_id == user_id
+                UserInformation.user_id == user_id
             )
             result = await db.execute(query)
             return result.scalar_one_or_none()

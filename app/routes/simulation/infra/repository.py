@@ -13,7 +13,6 @@ from app.routes.simulation.domain.simulation import (
     ScenarioInformation as ScenarioInformationVO,
 )
 from app.routes.simulation.infra.models import (
-    OperationSetting,
     ScenarioInformation,
     UserInformation,
 )
@@ -292,22 +291,6 @@ class SimulationRepository(ISimulationRepository):
     # 3. 승객 스케줄 처리 (Show-up Passenger)
     # =====================================
 
-    async def fetch_processing_procedures(self):
-        """기본 프로세싱 절차 조회"""
-        default_procedures = {
-            "process": [
-                {
-                    "name": "Check-In",
-                    "nodes": ["A", "B", "C", "D", "E", "F", "G", "H", "J", "K"],
-                },
-                {"name": "Boarding Pass", "nodes": ["DG1", "DG2", "DG3", "DG4"]},
-                {"name": "Security", "nodes": ["SC1", "SC2", "SC3", "SC4"]},
-                {"name": "Passport", "nodes": ["PC1", "PC2", "PC3", "PC4"]},
-            ]
-        }
-
-        return default_procedures
-
     # =====================================
     # 4. 시뮬레이션 상태 및 권한 관리
     # =====================================
@@ -367,19 +350,3 @@ class SimulationRepository(ISimulationRepository):
         except Exception:
             return False
 
-    async def fetch_scenario_location(
-        self,
-        db: AsyncSession,
-        group_id: str,
-    ):
-        """시나리오 위치(터미널) 정보 조회"""
-        async with db.begin():
-            result = await db.execute(
-                select(OperationSetting.terminal_name).where(
-                    OperationSetting.group_id == int(group_id)
-                )
-            )
-            scenario_info = [row["terminal_name"] for row in result.mappings().all()]
-            scenario_info.append("Un-decided")
-
-        return scenario_info

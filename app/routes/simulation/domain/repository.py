@@ -13,9 +13,6 @@ class ISimulationRepository(metaclass=ABCMeta):
     def fetch_scenario_information(self):
         raise NotImplementedError
 
-    @abstractmethod
-    def fetch_scenario_location(self):
-        raise NotImplementedError
 
     @abstractmethod
     def create_scenario_information(self):
@@ -44,9 +41,6 @@ class ISimulationRepository(metaclass=ABCMeta):
     def update_scenario_target_flight_schedule_date(self):
         raise NotImplementedError
 
-    @abstractmethod
-    def fetch_processing_procedures(self):
-        raise NotImplementedError
 
     @abstractmethod
     def check_user_scenario_permission(self):

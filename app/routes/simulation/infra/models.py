@@ -42,23 +42,9 @@ class ScenarioInformation(Base):
     )
 
 
-# ScenarioMetadata 테이블은 더 이상 사용하지 않음
 
 
 
-
-
-class OperationSetting(Base):
-    __tablename__ = "operation_setting"
-    __table_args__ = {"extend_existing": True}
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    terminal_name: Mapped[str] = mapped_column(String(36), nullable=False)
-    terminal_process: Mapped[dict] = mapped_column(JSONB, nullable=True)
-    processing_procedure: Mapped[dict] = mapped_column(JSONB, nullable=True)
-    terminal_layout: Mapped[dict] = mapped_column(JSONB, nullable=True)
-    terminal_layout_image_url: Mapped[str] = mapped_column(String(36), nullable=True)
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
 
 class UserInformation(Base):
@@ -71,7 +57,7 @@ class UserInformation(Base):
     last_name: Mapped[str] = mapped_column(String, nullable=False)
     profile_image_url: Mapped[str] = mapped_column(String, nullable=True)
     position: Mapped[str] = mapped_column(String, nullable=True)
-    introduction: Mapped[str] = mapped_column(String, nullable=True)  # bio → introduction
+    introduction: Mapped[str] = mapped_column(Text, nullable=True)  # bio → introduction
     timezone: Mapped[str] = mapped_column(String, nullable=False)     # 데이터베이스에 존재함
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
