@@ -95,8 +95,8 @@ class SimulationService:
                 airport=airport,
                 memo=memo,
                 target_flight_schedule_date=None,
-                created_at=datetime.now(),
-                updated_at=datetime.now(),
+                created_at=datetime.now().replace(microsecond=0),
+                updated_at=datetime.now().replace(microsecond=0),
                 scenario_id=scenario_id,
             )
 
@@ -283,8 +283,8 @@ class SimulationService:
                 airport=source_scenario.airport,
                 memo=source_scenario.memo,
                 target_flight_schedule_date=source_scenario.target_flight_schedule_date,
-                created_at=datetime.now(),
-                updated_at=datetime.now(),
+                created_at=datetime.now().replace(microsecond=0),
+                updated_at=datetime.now().replace(microsecond=0),
                 scenario_id=new_scenario_id,
             )
 
@@ -569,7 +569,7 @@ class SimulationService:
                 return {
                     "scenario_id": scenario_id,
                     "metadata": metadata,
-                    "loaded_at": datetime.now().isoformat(),
+                    "loaded_at": datetime.now().replace(microsecond=0).isoformat(),
                 }
             else:
                 # 파일이 없는 경우 - 빈 메타데이터 반환 (정상적인 상황)
@@ -579,7 +579,7 @@ class SimulationService:
                 return {
                     "scenario_id": scenario_id,
                     "metadata": None,
-                    "loaded_at": datetime.now().isoformat(),
+                    "loaded_at": datetime.now().replace(microsecond=0).isoformat(),
                     "is_new_scenario": True
                 }
 
@@ -620,7 +620,7 @@ class SimulationService:
             return {
                 "message": "Metadata deleted successfully" if success else "Metadata was already deleted or does not exist",
                 "scenario_id": scenario_id,
-                "deleted_at": datetime.now().isoformat(),
+                "deleted_at": datetime.now().replace(microsecond=0).isoformat(),
             }
 
         except Exception as e:

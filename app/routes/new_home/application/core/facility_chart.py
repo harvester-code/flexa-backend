@@ -263,7 +263,7 @@ def build_facility_chart(
     )
 
     bottleneck_times = [
-        time_range[idx].isoformat()
+        time_range[idx].floor('s').isoformat()
         for idx, (inflow, cap) in enumerate(zip(inflow_totals, capacity))
         if inflow > cap and cap > 0
     ]
@@ -282,7 +282,7 @@ def build_facility_chart(
         zone_id=zone_id,
         zone_name=zone_name,
         interval_minutes=interval_minutes,
-        time_range=[ts.isoformat() for ts in time_range],
+        time_range=[ts.floor('s').isoformat() for ts in time_range],
         capacity=[float(val) for val in capacity],
         inflow_series=inflow_series,
         outflow_series=outflow_series,
