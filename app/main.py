@@ -16,7 +16,6 @@ from app.routes.simulation.interface.controller import (
     private_simulation_router,
     public_simulation_router,
 )
-from app.routes.system.interface.controller import system_router
 from packages.doppler.client import get_secret
 from packages.redshift.lifespan import lifespan
 
@@ -62,5 +61,3 @@ app.include_router(public_simulation_router, prefix=API_PREFIX, tags=["Simulatio
 app.include_router(home_router, prefix=API_PREFIX, tags=["Homes"])
 app.include_router(new_home_router, prefix=API_PREFIX, tags=["New Homes"])
 
-
-app.include_router(system_router, prefix=API_PREFIX, tags=["System"])

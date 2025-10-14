@@ -60,19 +60,6 @@ class RunSimulationStorage:
                 detail=f"Failed to queue simulation: {str(e)}",
             )
 
-    async def save_simulation_result(self, scenario_id: str, result_data: dict):
-        """
-        시뮬레이션 결과를 S3에 저장 (향후 구현)
-
-        Args:
-            scenario_id: 시나리오 ID
-            result_data: 시뮬레이션 결과 데이터
-        """
-        # TODO: 시뮬레이션 결과를 S3에 저장하는 로직 구현
-        # 현재는 Lambda에서 직접 S3에 저장하므로 추후 필요시 구현
-        pass
-
-
 class RunSimulationResponse:
     """시뮬레이션 결과 프론트엔드 응답 생성 전담 클래스"""
 

@@ -17,7 +17,6 @@ from fastapi import HTTPException, status
 from loguru import logger
 from sqlalchemy import Connection
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
 from ulid import ULID
 
 # Application - Core Structure
@@ -33,7 +32,6 @@ from app.routes.simulation.application.core import (
 from app.routes.simulation.domain.simulation import (
     ScenarioInformation,
 )
-from app.routes.simulation.infra.models import UserInformation
 
 # Packages
 from packages.aws.s3.s3_manager import S3Manager
@@ -137,39 +135,6 @@ class SimulationService:
             return await self.simulation_repo.deactivate_scenario_information(db, ids)
         except Exception as e:
             logger.error(f"Failed to deactivate scenarios {ids}: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to deactivate scenarios",
-            )
-
-    async def deactivate_scenario_information_with_validation(
-        self, db: AsyncSession, scenario_ids: List[str], user_id: str
-    ):
-        """권한 검증을 포함한 시나리오 bulk 소프트 삭제 (기존 방식 - 더 이상 사용 안 함)"""
-        try:
-            # 🔒 각 시나리오에 대한 권한 검증
-            for scenario_id in scenario_ids:
-                scenario_exists = await self.validate_scenario_exists(
-                    db, scenario_id, user_id
-                )
-                if not scenario_exists:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail=f"Scenario '{scenario_id}' not found or you don't have permission to access it.",
-                    )
-
-            # ✅ 권한 검증 완료, bulk 삭제 실행
-            return await self.simulation_repo.deactivate_scenario_information(
-                db, scenario_ids
-            )
-
-        except HTTPException:
-            # HTTPException은 그대로 재발생
-            raise
-        except Exception as e:
-            logger.error(
-                f"Failed to deactivate scenarios with validation {scenario_ids}: {str(e)}"
-            )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to deactivate scenarios",
@@ -339,23 +304,6 @@ class SimulationService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to update scenario target date",
-            )
-
-    async def get_user_information_by_id(
-        self, db: AsyncSession, user_id: str
-    ) -> UserInformation | None:
-        """사용자 정보 조회"""
-        try:
-            query = select(UserInformation).where(
-                UserInformation.user_id == user_id
-            )
-            result = await db.execute(query)
-            return result.scalar_one_or_none()
-        except Exception as e:
-            logger.error(f"Failed to get user information for {user_id}: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to get user information",
             )
 
     # =====================================

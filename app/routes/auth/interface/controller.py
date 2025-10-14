@@ -1,7 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
-from packages.supabase.dependencies import verify_token
 from packages.supabase.auth import sign_in_with_password
 
 auth_router = APIRouter(
@@ -48,50 +47,4 @@ async def login(login_data: LoginRequest):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
             headers={"WWW-Authenticate": "Bearer"},
-        )
-
-
-@auth_router.get(
-    "/me",
-    summary="Get Current User Information",
-    description="""
-    Retrieve detailed information about the currently logged-in user.
-    
-    ### 사용 방법:
-    1. 먼저 `/auth/login` 엔드포인트로 로그인하여 토큰을 발급받으세요
-    2. 발급받은 토큰으로 Authorize 해주세요
-    3. 이 엔드포인트를 호출하면 현재 로그인한 사용자의 정보를 볼 수 있습니다
-    
-    ### 반환 정보:
-    - 기본 정보 (ID, 이메일, 전화번호)
-    - 계정 생성/수정 시간
-    - 이메일 확인 상태
-    - 마지막 로그인 시간
-    - 사용자 역할 및 메타데이터
-    - 인증 관련 정보
-    """,
-    response_description="Returns detailed user information",
-)
-async def read_users_me(user=Depends(verify_token)):
-    try:
-        return {
-            "id": user.id,
-            "email": user.email,
-            "phone": user.phone,
-            "created_at": user.created_at,
-            "updated_at": user.updated_at,
-            "email_confirmed_at": user.email_confirmed_at,
-            "last_sign_in_at": user.last_sign_in_at,
-            "role": user.role,
-            "aud": user.aud,
-            "user_metadata": user.user_metadata,
-            "app_metadata": user.app_metadata,
-            "identities": user.identities,
-            "factors": user.factors,
-        }
-
-    except Exception as _:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error",
         )

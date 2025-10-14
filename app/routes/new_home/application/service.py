@@ -30,28 +30,6 @@ class NewHomeService:
             raise ValueError("process_flow 데이터 형식이 올바르지 않습니다.")
         return process_flow
 
-    async def get_facility_chart(
-        self,
-        scenario_id: str,
-        step_name: str,
-        facility_id: str,
-        interval_minutes: int = 60,
-    ) -> Dict:
-        pax_df = await self.repository.load_passenger_dataframe(scenario_id)
-        if pax_df is None or pax_df.empty:
-            raise ValueError("시뮬레이션 승객 데이터를 불러올 수 없습니다.")
-
-        process_flow = await self._load_process_flow(scenario_id)
-
-        chart = build_facility_chart(
-            pax_df=pax_df,
-            process_flow=process_flow,
-            step_name=step_name,
-            facility_id=facility_id,
-            interval_minutes=interval_minutes,
-        )
-        return chart.to_dict()
-
     async def get_all_facility_charts(
         self,
         scenario_id: str,
