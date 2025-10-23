@@ -8,8 +8,12 @@ import pandas as pd
 from dependency_injector.wiring import inject
 
 from app.routes.new_home.application.core.facility_chart import build_facility_chart
-from app.routes.new_home.domain.aircraft_reference import get_aircraft_class, get_aircraft_metadata, get_aircraft_name
+from app.routes.new_home.domain.aircraft_reference import get_aircraft_class, get_aircraft_metadata
 from app.routes.new_home.infra.repository import NewHomeRepository
+
+
+DEFAULT_INTERVAL_MINUTES = 60
+DEFAULT_TOP_N = 10
 
 
 class NewHomeService:
@@ -30,17 +34,18 @@ class NewHomeService:
             raise ValueError("process_flow 데이터 형식이 올바르지 않습니다.")
         return process_flow
 
-    async def get_all_facility_charts(
-        self,
-        scenario_id: str,
-        interval_minutes: int = 60,
-    ) -> Dict[str, List[Dict]]:
+    async def _load_passenger_dataframe(self, scenario_id: str) -> pd.DataFrame:
         pax_df = await self.repository.load_passenger_dataframe(scenario_id)
         if pax_df is None or pax_df.empty:
             raise ValueError("시뮬레이션 승객 데이터를 불러올 수 없습니다.")
+        return pax_df
 
-        process_flow = await self._load_process_flow(scenario_id)
-
+    def _build_facility_charts(
+        self,
+        pax_df: pd.DataFrame,
+        process_flow: List[dict],
+        interval_minutes: int,
+    ) -> Dict[str, List[Dict]]:
         charts_by_step: List[Dict] = []
         for step in process_flow:
             step_name = step.get("name")
@@ -81,28 +86,20 @@ class NewHomeService:
 
         return {"steps": charts_by_step}
 
-    async def get_passenger_summary(
-        self,
-        scenario_id: str,
-        top_n: int = 10,
-    ) -> Dict[str, Dict[str, List[Dict[str, object]]]]:
-        pax_df = await self.repository.load_passenger_dataframe(scenario_id)
-        if pax_df is None or pax_df.empty:
-            raise ValueError("시뮬레이션 승객 데이터를 불러올 수 없습니다.")
+    def _build_passenger_summary(self, pax_df: pd.DataFrame, top_n: int) -> Dict[str, Dict[str, List[Dict[str, object]]]]:
+        working_df = pax_df.copy()
 
-        pax_df = pax_df.copy()
-
-        total_passengers = int(len(pax_df))
+        total_passengers = int(len(working_df))
 
         flight_dates = (
-            pax_df["flight_date"].dropna().astype(str).sort_values().unique().tolist()
+            working_df["flight_date"].dropna().astype(str).sort_values().unique().tolist()
         )
 
-        show_up_times = pd.to_datetime(pax_df["show_up_time"], errors="coerce")
+        show_up_times = pd.to_datetime(working_df["show_up_time"], errors="coerce")
         show_up_start = show_up_times.min()
         show_up_end = show_up_times.max()
 
-        summary = {
+        return {
             "totals": {
                 "passengers": total_passengers,
                 "flightDates": flight_dates,
@@ -112,87 +109,13 @@ class NewHomeService:
                 },
             },
             "dimensions": {
-                "carrier": self._summarize_carriers(pax_df, top_n),
-                "city": self._summarize_arrivals(pax_df, level="city", top_n=top_n),
-                "country": self._summarize_arrivals(pax_df, level="country", top_n=top_n),
+                "carrier": self._summarize_carriers(working_df, top_n),
+                "city": self._summarize_arrivals(working_df, level="city", top_n=top_n),
+                "country": self._summarize_arrivals(working_df, level="country", top_n=top_n),
             },
         }
 
-        return summary
-
-    def _summarize_carriers(self, pax_df: pd.DataFrame, top_n: int) -> List[Dict[str, object]]:
-        carrier_group = (
-            pax_df.groupby("operating_carrier_name")
-            .agg(
-                passengers=("operating_carrier_name", "size"),
-                flights=("flight_number", "nunique"),
-                destinations=("arrival_airport_iata", "nunique"),
-            )
-            .reset_index()
-        )
-
-        destination_breakdown = (
-            pax_df.groupby(
-                [
-                    "operating_carrier_name",
-                    "arrival_airport_iata",
-                    "arrival_city",
-                    "arrival_country",
-                ]
-            )
-            .size()
-            .reset_index(name="passengers")
-        )
-
-        top_destinations = (
-            destination_breakdown.sort_values("passengers", ascending=False)
-            .groupby("operating_carrier_name")
-            .first()
-            .reset_index()
-        )
-
-        carrier_group = carrier_group.merge(
-            top_destinations,
-            on="operating_carrier_name",
-            how="left",
-            suffixes=("", "_top"),
-        )
-
-        carrier_group["top_destination_share"] = (
-            carrier_group["passengers_top"] / carrier_group["passengers"]
-        ).fillna(0)
-
-        carrier_group = carrier_group.sort_values("passengers", ascending=False).head(top_n)
-
-        records: List[Dict[str, object]] = []
-        for _, row in carrier_group.iterrows():
-            records.append(
-                {
-                    "label": row.get("operating_carrier_name"),
-                    "passengers": int(row.get("passengers", 0)),
-                    "flights": int(row.get("flights", 0)),
-                    "destinations": int(row.get("destinations", 0)),
-                    "topDestination": {
-                        "airport": row.get("arrival_airport_iata"),
-                        "city": row.get("arrival_city"),
-                        "country": row.get("arrival_country"),
-                        "passengers": int(row.get("passengers_top", 0) or 0),
-                        "share": round(float(row.get("top_destination_share", 0) or 0), 4),
-                    },
-                }
-            )
-
-        return records
-
-    async def get_flight_summary(
-        self,
-        scenario_id: str,
-        top_n: int = 10,
-    ) -> Dict[str, object]:
-        pax_df = await self.repository.load_passenger_dataframe(scenario_id)
-        if pax_df is None or pax_df.empty:
-            raise ValueError("시뮬레이션 승객 데이터를 불러올 수 없습니다.")
-
+    def _build_flight_summary(self, pax_df: pd.DataFrame, top_n: int) -> Dict[str, object]:
         flights_df = pax_df.dropna(subset=["flight_number"]).copy()
         if flights_df.empty:
             return {
@@ -460,6 +383,86 @@ class NewHomeService:
             "classDistribution": class_distribution,
             "carriers": carriers_summary,
             "flights": flight_details[:500],
+        }
+
+    def _summarize_carriers(self, pax_df: pd.DataFrame, top_n: int) -> List[Dict[str, object]]:
+        carrier_group = (
+            pax_df.groupby("operating_carrier_name")
+            .agg(
+                passengers=("operating_carrier_name", "size"),
+                flights=("flight_number", "nunique"),
+                destinations=("arrival_airport_iata", "nunique"),
+            )
+            .reset_index()
+        )
+
+        destination_breakdown = (
+            pax_df.groupby(
+                [
+                    "operating_carrier_name",
+                    "arrival_airport_iata",
+                    "arrival_city",
+                    "arrival_country",
+                ]
+            )
+            .size()
+            .reset_index(name="passengers")
+        )
+
+        top_destinations = (
+            destination_breakdown.sort_values("passengers", ascending=False)
+            .groupby("operating_carrier_name")
+            .first()
+            .reset_index()
+        )
+
+        carrier_group = carrier_group.merge(
+            top_destinations,
+            on="operating_carrier_name",
+            how="left",
+            suffixes=("", "_top"),
+        )
+
+        carrier_group["top_destination_share"] = (
+            carrier_group["passengers_top"] / carrier_group["passengers"]
+        ).fillna(0)
+
+        carrier_group = carrier_group.sort_values("passengers", ascending=False).head(top_n)
+
+        records: List[Dict[str, object]] = []
+        for _, row in carrier_group.iterrows():
+            records.append(
+                {
+                    "label": row.get("operating_carrier_name"),
+                    "passengers": int(row.get("passengers", 0)),
+                    "flights": int(row.get("flights", 0)),
+                    "destinations": int(row.get("destinations", 0)),
+                    "topDestination": {
+                        "airport": row.get("arrival_airport_iata"),
+                        "city": row.get("arrival_city"),
+                        "country": row.get("arrival_country"),
+                        "passengers": int(row.get("passengers_top", 0) or 0),
+                        "share": round(float(row.get("top_destination_share", 0) or 0), 4),
+                    },
+                }
+            )
+
+        return records
+
+    async def get_dashboard_summary(self, scenario_id: str) -> Dict[str, object]:
+        pax_df = await self._load_passenger_dataframe(scenario_id)
+        process_flow = await self._load_process_flow(scenario_id)
+
+        facility_charts = self._build_facility_charts(
+            pax_df, process_flow, DEFAULT_INTERVAL_MINUTES
+        )
+        passenger_summary = self._build_passenger_summary(pax_df, DEFAULT_TOP_N)
+        flight_summary = self._build_flight_summary(pax_df, DEFAULT_TOP_N)
+
+        return {
+            "facilityCharts": facility_charts,
+            "passengerSummary": passenger_summary,
+            "flightSummary": flight_summary,
         }
 
     def _summarize_arrivals(
