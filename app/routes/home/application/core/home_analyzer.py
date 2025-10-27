@@ -14,12 +14,13 @@ class HomeAnalyzer:
         process_flow: Optional[List[dict]] = None,
         metadata: Optional[Dict[str, Any]] = None,
         country_to_airports_path: Optional[str] = None,
+        interval_minutes: int = 60,
     ):
         # 전체 데이터를 유지 - 각 함수에서 status 기준으로 필터링
         self.pax_df = pax_df.copy()
 
         self.percentile = percentile
-        self.time_unit = "10min"
+        self.interval_minutes = interval_minutes
         self.process_list = self._get_process_list()
         self.process_flow_map = self._build_process_flow_map(process_flow)
         self.metadata = metadata  # facility_metrics 계산을 위해 추가
@@ -797,8 +798,9 @@ class HomeAnalyzer:
 
         return data
 
-    def get_alert_issues(self, top_n: int = 8, time_interval: str = "30min"):
+    def get_alert_issues(self, top_n: int = 8, alert_interval_minutes: int = 30):
         """알림 및 이슈 데이터 생성"""
+        time_interval = f"{alert_interval_minutes}min"
         result_df = pd.concat(
             [
                 self._create_process_dataframe(process, time_interval)
@@ -830,10 +832,10 @@ class HomeAnalyzer:
             ]
         return data
 
-    def get_flow_chart_data(self, time_unit: str = None):
+    def get_flow_chart_data(self, interval_minutes: int = None):
         """플로우 차트 데이터 생성 - 계층 구조로 변경"""
-        time_unit = time_unit or self.time_unit
-        time_df = self._create_time_df_index(time_unit)
+        interval_minutes = interval_minutes or self.interval_minutes
+        time_df = self._create_time_df_index(interval_minutes)
         data = {"times": time_df.index.strftime("%Y-%m-%d %H:%M:%S").tolist()}
 
         for process in self.process_list:
@@ -855,10 +857,6 @@ class HomeAnalyzer:
             }
 
             step_config = self.process_flow_map.get(process) if self.process_flow_map else None
-            try:
-                interval_minutes = int(pd.Timedelta(time_unit).total_seconds() / 60)
-            except ValueError:
-                interval_minutes = 0
 
             if facilities:
                 process_data = all_process_data[has_zone].copy()
@@ -866,12 +864,13 @@ class HomeAnalyzer:
                 process_data[f"{process}_waiting_seconds"] = waiting_series.dt.total_seconds()
 
                 # 시간 플로어링을 복사본에서 계산
+                time_freq = f"{interval_minutes}min"
                 process_data[f"{process}_on_floored"] = process_data[
                     f"{process}_on_pred"
-                ].dt.floor(time_unit)
+                ].dt.floor(time_freq)
                 process_data[f"{process}_done_floored"] = process_data[
                     f"{process}_done_time"
-                ].dt.floor(time_unit)
+                ].dt.floor(time_freq)
 
                 # 한번에 모든 메트릭 계산
                 metrics = {
@@ -1365,12 +1364,33 @@ class HomeAnalyzer:
             "node": row["process_name"],
         }
 
-    def _create_time_df_index(self, time_unit):
-        """시간별 데이터프레임 생성"""
-        last_date = self.pax_df["show_up_time"].dt.date.unique()[-1]
-        time_index = pd.date_range(
-            start=f"{last_date} 00:00:00", end=f"{last_date} 23:59:59", freq=time_unit
-        )
+    def _create_time_df_index(self, interval_minutes: int):
+        """실제 데이터 기반 동적 시간 범위 생성"""
+        # 모든 프로세스의 시간 컬럼에서 timestamp 수집
+        all_timestamps = []
+
+        for process in self.process_list:
+            for col_suffix in ['on_pred', 'start_time', 'done_time']:
+                col = f"{process}_{col_suffix}"
+                if col in self.pax_df.columns:
+                    ts = pd.to_datetime(self.pax_df[col], errors='coerce').dropna()
+                    if not ts.empty:
+                        all_timestamps.append(ts)
+
+        # 폴백: 시간 데이터가 없으면 show_up_time 기준으로 00:00~23:59 사용
+        if not all_timestamps:
+            last_date = self.pax_df["show_up_time"].dt.date.unique()[-1]
+            time_index = pd.date_range(
+                start=f"{last_date} 00:00:00",
+                end=f"{last_date} 23:59:59",
+                freq=f"{interval_minutes}min"
+            )
+            return pd.DataFrame(index=time_index)
+
+        # 실제 데이터의 최소/최대 시간으로 범위 설정
+        min_ts = min(s.min() for s in all_timestamps).floor(f"{interval_minutes}min")
+        max_ts = max(s.max() for s in all_timestamps).ceil(f"{interval_minutes}min")
+        time_index = pd.date_range(min_ts, max_ts, freq=f"{interval_minutes}min")
         return pd.DataFrame(index=time_index)
 
     def _build_process_flow_map(self, process_flow: Optional[List[dict]]) -> Dict[str, dict]:

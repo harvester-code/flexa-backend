@@ -61,17 +61,19 @@ class HomeService:
         percentile: Optional[int] = None,
         process_flow: Optional[List[dict]] = None,
         metadata: Optional[Dict[str, Any]] = None,
+        interval_minutes: int = 60,
     ) -> HomeAnalyzer:
         return HomeAnalyzer(
             pax_df,
             percentile,
             process_flow=process_flow,
             metadata=metadata,
-            country_to_airports_path=self.country_to_airports_path
+            country_to_airports_path=self.country_to_airports_path,
+            interval_minutes=interval_minutes,
         )
 
     async def fetch_static_data(
-        self, scenario_id: Optional[str]
+        self, scenario_id: Optional[str], interval_minutes: int = 60
     ) -> Optional[Dict[str, Any]]:
         """KPI와 무관한 정적 데이터 반환"""
 
@@ -80,7 +82,9 @@ class HomeService:
             return None
 
         process_flow = await self._load_process_flow(scenario_id)
-        calculator = self._create_calculator(pax_df, process_flow=process_flow)
+        calculator = self._create_calculator(
+            pax_df, process_flow=process_flow, interval_minutes=interval_minutes
+        )
 
         return {
             "alert_issues": calculator.get_alert_issues(),
