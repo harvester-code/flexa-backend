@@ -3,82 +3,6 @@ from typing import Any, Dict, Optional, List
 import numpy as np
 import pandas as pd
 
-def _extract_block_period(block: dict) -> Optional[tuple[pd.Timestamp, pd.Timestamp]]:
-    period = block.get("period", "")
-    if not period:
-        return None
-
-    if len(period) > 19 and period[19] == "-":
-        start_str = period[:19]
-        end_str = period[20:]
-    else:
-        parts = period.split(" - ")
-        if len(parts) != 2:
-            return None
-        start_str, end_str = parts
-
-    block_start = pd.to_datetime(start_str.strip(), errors="coerce")
-    block_end = pd.to_datetime(end_str.strip(), errors="coerce")
-    if pd.isna(block_start) or pd.isna(block_end):
-        return None
-    return block_start, block_end
-
-
-def _calculate_capacity_for_slot(
-    facility_config: dict,
-    start: pd.Timestamp,
-    end: pd.Timestamp,
-) -> float:
-    slot_capacity = 0.0
-    for block in facility_config.get("operating_schedule", {}).get("time_blocks", []):
-        if not block.get("activate", True):
-            continue
-
-        period_bounds = _extract_block_period(block)
-        if not period_bounds:
-            continue
-        block_start, block_end = period_bounds
-
-        if start >= block_end or end <= block_start:
-            continue
-
-        overlap_start = max(start, block_start)
-        overlap_end = min(end, block_end)
-        overlap_minutes = max((overlap_end - overlap_start).total_seconds() / 60.0, 0)
-        if overlap_minutes == 0:
-            continue
-
-        process_time_seconds = block.get("process_time_seconds")
-        if not process_time_seconds:
-            continue
-
-        capacity_per_hour = 3600.0 / process_time_seconds
-        slot_capacity += (overlap_minutes / 60.0) * capacity_per_hour
-    return slot_capacity
-
-
-def _calculate_step_capacity_series_by_zone(
-    step_config: dict,
-    time_range: pd.DatetimeIndex,
-    interval_minutes: int,
-) -> Dict[str, List[float]]:
-    zone_capacity: Dict[str, List[float]] = {}
-    if time_range.empty:
-        return zone_capacity
-
-    for zone_name, zone in step_config.get("zones", {}).items():
-        total_capacity = [0.0] * len(time_range)
-        for facility in zone.get("facilities", []):
-            facility_capacity: List[float] = []
-            for start in time_range:
-                end = start + pd.Timedelta(minutes=interval_minutes)
-                facility_capacity.append(
-                    _calculate_capacity_for_slot(facility, start, end)
-                )
-            total_capacity = [curr + add for curr, add in zip(total_capacity, facility_capacity)]
-        zone_capacity[zone_name] = total_capacity
-    return zone_capacity
-
 
 class HomeAnalyzer:
     def __init__(
@@ -255,7 +179,7 @@ class HomeAnalyzer:
 
                 zone_capacity_map: Dict[str, List[float]] = {}
                 if step_config and interval_minutes > 0:
-                    zone_capacity_map = _calculate_step_capacity_series_by_zone(
+                    zone_capacity_map = self._calculate_step_capacity_series_by_zone(
                         step_config,
                         time_df.index,
                         interval_minutes,
@@ -553,6 +477,85 @@ class HomeAnalyzer:
             for col in self.pax_df.columns
             if "on_pred" in col
         ]
+
+    def _extract_block_period(self, block: dict) -> Optional[tuple[pd.Timestamp, pd.Timestamp]]:
+        """운영 스케줄 블록의 시작/종료 시간 추출"""
+        period = block.get("period", "")
+        if not period:
+            return None
+
+        if len(period) > 19 and period[19] == "-":
+            start_str = period[:19]
+            end_str = period[20:]
+        else:
+            parts = period.split(" - ")
+            if len(parts) != 2:
+                return None
+            start_str, end_str = parts
+
+        block_start = pd.to_datetime(start_str.strip(), errors="coerce")
+        block_end = pd.to_datetime(end_str.strip(), errors="coerce")
+        if pd.isna(block_start) or pd.isna(block_end):
+            return None
+        return block_start, block_end
+
+    def _calculate_capacity_for_slot(
+        self,
+        facility_config: dict,
+        start: pd.Timestamp,
+        end: pd.Timestamp,
+    ) -> float:
+        """특정 시간 슬롯에 대한 시설 용량 계산"""
+        slot_capacity = 0.0
+        for block in facility_config.get("operating_schedule", {}).get("time_blocks", []):
+            if not block.get("activate", True):
+                continue
+
+            period_bounds = self._extract_block_period(block)
+            if not period_bounds:
+                continue
+            block_start, block_end = period_bounds
+
+            if start >= block_end or end <= block_start:
+                continue
+
+            overlap_start = max(start, block_start)
+            overlap_end = min(end, block_end)
+            overlap_minutes = max((overlap_end - overlap_start).total_seconds() / 60.0, 0)
+            if overlap_minutes == 0:
+                continue
+
+            process_time_seconds = block.get("process_time_seconds")
+            if not process_time_seconds:
+                continue
+
+            capacity_per_hour = 3600.0 / process_time_seconds
+            slot_capacity += (overlap_minutes / 60.0) * capacity_per_hour
+        return slot_capacity
+
+    def _calculate_step_capacity_series_by_zone(
+        self,
+        step_config: dict,
+        time_range: pd.DatetimeIndex,
+        interval_minutes: int,
+    ) -> Dict[str, List[float]]:
+        """프로세스 스텝의 zone별 시간대별 용량 계산"""
+        zone_capacity: Dict[str, List[float]] = {}
+        if time_range.empty:
+            return zone_capacity
+
+        for zone_name, zone in step_config.get("zones", {}).items():
+            total_capacity = [0.0] * len(time_range)
+            for facility in zone.get("facilities", []):
+                facility_capacity: List[float] = []
+                for start in time_range:
+                    end = start + pd.Timedelta(minutes=interval_minutes)
+                    facility_capacity.append(
+                        self._calculate_capacity_for_slot(facility, start, end)
+                    )
+                total_capacity = [curr + add for curr, add in zip(total_capacity, facility_capacity)]
+            zone_capacity[zone_name] = total_capacity
+        return zone_capacity
 
     def _format_waiting_time(self, time_value):
         """대기 시간을 hour, minute, second로 분리하여 딕셔너리로 반환"""
