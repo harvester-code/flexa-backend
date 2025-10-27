@@ -888,11 +888,38 @@ class HomeAnalyzer:
                     )[f"{process}_waiting_seconds"].mean(),
                 }
 
+                # 항공사별 메트릭 계산 (항공사 필터링을 위해)
+                airline_col = "operating_carrier_iata"
+                metrics_by_airline = {}
+                if airline_col in process_data.columns:
+                    metrics_by_airline = {
+                        "inflow": process_data.groupby(
+                            [f"{process}_on_floored", f"{process}_zone", airline_col]
+                        ).size(),
+                        "outflow": process_data.groupby(
+                            [f"{process}_done_floored", f"{process}_zone", airline_col]
+                        ).size(),
+                        "queue_length": process_data.groupby(
+                            [f"{process}_on_floored", f"{process}_zone", airline_col]
+                        )[f"{process}_queue_length"].mean(),
+                        "waiting_time": process_data.groupby(
+                            [f"{process}_on_floored", f"{process}_zone", airline_col]
+                        )[f"{process}_waiting_seconds"].mean(),
+                    }
+
                 # unstack하고 reindex 한번에
                 pivoted = {
                     k: v.unstack(fill_value=0).reindex(time_df.index, fill_value=0)
                     for k, v in metrics.items()
                 }
+
+                # 항공사별 데이터도 unstack
+                pivoted_by_airline = {}
+                if metrics_by_airline:
+                    for metric_key, metric_series in metrics_by_airline.items():
+                        # MultiIndex: (time, zone, airline) -> DataFrame with MultiIndex columns (zone, airline)
+                        unstacked = metric_series.unstack(level=[1, 2], fill_value=0)
+                        pivoted_by_airline[metric_key] = unstacked.reindex(time_df.index, fill_value=0)
 
                 # 결과 구성
                 process_facility_data = {}
@@ -936,6 +963,28 @@ class HomeAnalyzer:
                         .tolist()
                         for k in facility_data.keys()
                     }
+
+                    # 항공사별 데이터 추가
+                    if pivoted_by_airline:
+                        airlines_data = {}
+                        # 해당 zone의 모든 항공사 데이터 추출
+                        for metric_key, metric_df in pivoted_by_airline.items():
+                            # metric_df.columns는 MultiIndex: (zone, airline)
+                            if metric_df.columns.nlevels == 2:
+                                # 해당 zone의 항공사들
+                                zone_airlines = [col for col in metric_df.columns if col[0] == facility_name]
+                                for zone_name, airline_code in zone_airlines:
+                                    if airline_code not in airlines_data:
+                                        airlines_data[airline_code] = {}
+                                    series_data = metric_df[(zone_name, airline_code)]
+                                    airlines_data[airline_code][metric_key] = (
+                                        series_data.round().astype(int).tolist()
+                                        if metric_key in ["queue_length", "waiting_time"]
+                                        else series_data.astype(int).tolist()
+                                    )
+
+                        if airlines_data:
+                            process_facility_data[node_name]["airlines"] = airlines_data
 
                     if node_name in zone_capacity_map:
                         process_facility_data[node_name]["capacity"] = [
