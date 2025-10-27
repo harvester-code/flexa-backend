@@ -37,21 +37,35 @@ class HomeAnalyzer:
             # 해당 프로세스에서 completed된 승객만 사용
             process_completed_df = self._filter_by_status(self.pax_df, process)
 
-            # 대기시간 계산 (평균)
-            waiting_time = self._get_waiting_time(process_completed_df, process)
-            valid_wait = waiting_time.dropna()
-            if len(valid_wait) > 0:
-                mean_wait = valid_wait.mean()
-                pax_experience_waiting[process] = self._format_waiting_time(mean_wait)
+            # 대기시간 계산 (open + queue)
+            open_wait = self._get_open_wait_time(process_completed_df, process)
+            queue_wait = self._get_waiting_time(process_completed_df, process)
+            total_wait = open_wait + queue_wait
+
+            # 각각의 평균 계산
+            valid_open = open_wait.dropna()
+            valid_queue = queue_wait.dropna()
+            valid_total = total_wait.dropna()
+
+            if len(valid_total) > 0:
+                pax_experience_waiting[process] = {
+                    "total": self._format_waiting_time(valid_total.mean()),
+                    "open_wait": self._format_waiting_time(valid_open.mean() if len(valid_open) > 0 else 0),
+                    "queue_wait": self._format_waiting_time(valid_queue.mean() if len(valid_queue) > 0 else 0)
+                }
             else:
-                pax_experience_waiting[process] = {"hour": 0, "minute": 0, "second": 0}
+                pax_experience_waiting[process] = {
+                    "total": {"hour": 0, "minute": 0, "second": 0},
+                    "open_wait": {"hour": 0, "minute": 0, "second": 0},
+                    "queue_wait": {"hour": 0, "minute": 0, "second": 0}
+                }
 
             # 대기열 계산 (평균)
             queue_col = f"{process}_queue_length"
             if queue_col in process_completed_df.columns:
-                valid_queue = process_completed_df[queue_col].dropna()
-                if len(valid_queue) > 0:
-                    mean_queue = int(valid_queue.mean())
+                valid_queue_length = process_completed_df[queue_col].dropna()
+                if len(valid_queue_length) > 0:
+                    mean_queue = int(valid_queue_length.mean())
                     pax_experience_queue[process] = mean_queue
                 else:
                     pax_experience_queue[process] = 0
@@ -60,16 +74,31 @@ class HomeAnalyzer:
 
         # 전체 평균 계산 (모든 프로세스의 평균)
         total_wait_seconds = sum(
-            wt["hour"] * 3600 + wt["minute"] * 60 + wt["second"]
+            wt["total"]["hour"] * 3600 + wt["total"]["minute"] * 60 + wt["total"]["second"]
             for wt in pax_experience_waiting.values()
         )
+        total_open_wait_seconds = sum(
+            wt["open_wait"]["hour"] * 3600 + wt["open_wait"]["minute"] * 60 + wt["open_wait"]["second"]
+            for wt in pax_experience_waiting.values()
+        )
+        total_queue_wait_seconds = sum(
+            wt["queue_wait"]["hour"] * 3600 + wt["queue_wait"]["minute"] * 60 + wt["queue_wait"]["second"]
+            for wt in pax_experience_waiting.values()
+        )
+
         total_wait_avg = total_wait_seconds / len(self.process_list) if self.process_list else 0
+        total_open_avg = total_open_wait_seconds / len(self.process_list) if self.process_list else 0
+        total_queue_avg_wait = total_queue_wait_seconds / len(self.process_list) if self.process_list else 0
         total_queue_avg = sum(pax_experience_queue.values()) / len(self.process_list) if self.process_list else 0
 
         # 응답 데이터 구성
         data = {
             "throughput": throughput,
-            "waiting_time": self._format_waiting_time(total_wait_avg),
+            "waiting_time": {
+                "total": self._format_waiting_time(total_wait_avg),
+                "open_wait": self._format_waiting_time(total_open_avg),
+                "queue_wait": self._format_waiting_time(total_queue_avg_wait)
+            },
             "queue_length": int(total_queue_avg),
             "pax_experience": {
                 "waiting_time": pax_experience_waiting,
@@ -673,6 +702,22 @@ class HomeAnalyzer:
             return queue_series
 
         return pd.Series(pd.NaT, index=df.index, dtype="timedelta64[ns]")
+
+    def _get_open_wait_time(self, df, process):
+        """Open wait 대기시간 반환 (시설이 열리기를 기다리는 시간)"""
+        open_col = f"{process}_open_wait_time"
+
+        if open_col in df.columns:
+            open_series = pd.to_timedelta(df[open_col])
+            return open_series
+
+        return pd.Series(pd.NaT, index=df.index, dtype="timedelta64[ns]")
+
+    def _get_total_wait_time(self, df, process):
+        """Total wait time = open_wait + queue_wait"""
+        open_wait = self._get_open_wait_time(df, process)
+        queue_wait = self._get_waiting_time(df, process)
+        return open_wait + queue_wait
 
 
     def _calculate_waiting_time(self, process_df, process):
