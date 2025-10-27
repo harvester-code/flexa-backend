@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Literal
+from typing import Dict, List, Literal, Optional
 
 import pandas as pd
 
@@ -14,6 +14,59 @@ from app.routes.new_home.infra.repository import NewHomeRepository
 
 DEFAULT_INTERVAL_MINUTES = 60
 DEFAULT_TOP_N = 10
+
+
+def _seconds_to_hms(total_seconds: float) -> Dict[str, int]:
+    """초를 {hour, minute, second} 딕셔너리로 변환합니다."""
+    if pd.isna(total_seconds) or total_seconds is None:
+        return {"hour": 0, "minute": 0, "second": 0}
+
+    total_seconds = int(total_seconds)
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    seconds = total_seconds % 60
+    return {"hour": hours, "minute": minutes, "second": seconds}
+
+
+def _add_is_boarded_column(pax_df: pd.DataFrame, process_list: List[str]) -> pd.DataFrame:
+    """
+    is_boarded 열을 추가합니다.
+    탑승 조건:
+    1. 모든 프로세스에서 failed가 없음 (skipped는 괜찮음)
+    2. 마지막 프로세스(security) 완료 시간이 출발 시간보다 빠름
+    """
+    def calculate_boarded(row):
+        # 조건 1: 모든 필수 프로세스를 통과했는가? (failed가 없는가?)
+        for process in process_list:
+            status = row.get(f'{process}_status')
+            if status == 'failed':  # failed만 체크 (skipped는 괜찮음)
+                return False
+
+        # 조건 2: 마지막 완료된 프로세스를 출발 시간 전에 끝냈는가?
+        # process_list를 역순으로 순회하여 completed인 마지막 프로세스 찾기
+        last_completed_process = None
+        for process in reversed(process_list):
+            status = row.get(f'{process}_status')
+            if status == 'completed':
+                last_completed_process = process
+                break
+
+        # completed된 프로세스가 없으면 실패
+        if last_completed_process is None:
+            return False
+
+        done_time = row.get(f'{last_completed_process}_done_time')
+        scheduled_departure = row.get('scheduled_departure_local')
+
+        if pd.notna(done_time) and pd.notna(scheduled_departure):
+            return done_time < scheduled_departure
+
+        # done_time이 없으면 프로세스를 완료하지 못한 것
+        return False
+
+    working_df = pax_df.copy()
+    working_df['is_boarded'] = working_df.apply(calculate_boarded, axis=1)
+    return working_df
 
 
 class NewHomeService:
@@ -114,6 +167,123 @@ class NewHomeService:
                 "country": self._summarize_arrivals(working_df, level="country", top_n=top_n),
             },
         }
+
+    def _build_time_metrics(self, pax_df: pd.DataFrame, process_list: List[str]) -> Optional[Dict[str, object]]:
+        """
+        time_metrics와 dwell_times를 계산합니다.
+        Python 분석기의 get_summary() 메서드 로직을 따릅니다.
+        """
+        try:
+            # is_boarded 열 추가
+            working_df = _add_is_boarded_column(pax_df, process_list)
+
+            # 각 승객마다 completed한 프로세스들의 시간을 합산
+            total_open_wait_per_pax = pd.Series([pd.Timedelta(0)] * len(working_df), index=working_df.index)
+            total_queue_wait_per_pax = pd.Series([pd.Timedelta(0)] * len(working_df), index=working_df.index)
+            total_process_time_per_pax = pd.Series([pd.Timedelta(0)] * len(working_df), index=working_df.index)
+
+            for process in process_list:
+                status_col = f"{process}_status"
+                open_wait_col = f"{process}_open_wait_time"
+                queue_wait_col = f"{process}_queue_wait_time"
+                start_time_col = f"{process}_start_time"
+                done_time_col = f"{process}_done_time"
+
+                # 해당 프로세스를 completed한 여객만 시간 합산 (status == 'completed')
+                if status_col in working_df.columns:
+                    completed_mask = working_df[status_col] == 'completed'
+
+                    # open_wait_time 합산
+                    if open_wait_col in working_df.columns:
+                        open_wait_values = working_df[open_wait_col].fillna(pd.Timedelta(0))
+                        total_open_wait_per_pax = total_open_wait_per_pax + open_wait_values.where(completed_mask, pd.Timedelta(0))
+
+                    # queue_wait_time 합산
+                    if queue_wait_col in working_df.columns:
+                        queue_wait_values = working_df[queue_wait_col].fillna(pd.Timedelta(0))
+                        total_queue_wait_per_pax = total_queue_wait_per_pax + queue_wait_values.where(completed_mask, pd.Timedelta(0))
+
+                    # process_time 합산: done_time - start_time
+                    if start_time_col in working_df.columns and done_time_col in working_df.columns:
+                        process_duration = (working_df[done_time_col] - working_df[start_time_col]).fillna(pd.Timedelta(0))
+                        total_process_time_per_pax = total_process_time_per_pax + process_duration.where(completed_mask, pd.Timedelta(0))
+
+            # 각 승객의 전체 대기시간 계산 (open + queue)
+            total_wait_per_pax = total_open_wait_per_pax + total_queue_wait_per_pax
+
+            # 평균 계산 (percentile은 추후 지원 가능)
+            total_open_wait_value = total_open_wait_per_pax.dt.total_seconds().mean()
+            total_queue_wait_value = total_queue_wait_per_pax.dt.total_seconds().mean()
+            total_wait_value = total_wait_per_pax.dt.total_seconds().mean()
+            total_process_time_value = total_process_time_per_pax.dt.total_seconds().mean()
+
+            # 초를 HMS로 변환
+            open_wait = _seconds_to_hms(total_open_wait_value)
+            queue_wait = _seconds_to_hms(total_queue_wait_value)
+            total_wait = _seconds_to_hms(total_wait_value)
+            process_time = _seconds_to_hms(total_process_time_value)
+
+            # dwell_times 계산 (mean 방식)
+            commercial_dwell_per_pax = []
+            for idx, row in working_df.iterrows():
+                if row['is_boarded']:  # 모든 프로세스 성공
+                    # 각 승객의 마지막 completed 프로세스 찾기
+                    last_completed_process = None
+                    for process in reversed(process_list):
+                        status_col = f"{process}_status"
+                        if status_col in working_df.columns and row[status_col] == 'completed':
+                            last_completed_process = process
+                            break
+
+                    if last_completed_process and 'scheduled_departure_local' in working_df.columns:
+                        last_done_col = f"{last_completed_process}_done_time"
+                        if last_done_col in working_df.columns:
+                            if pd.notna(row[last_done_col]) and pd.notna(row['scheduled_departure_local']):
+                                dwell = (row['scheduled_departure_local'] - row[last_done_col]).total_seconds()
+                                commercial_dwell_per_pax.append(max(0, dwell))
+                            else:
+                                commercial_dwell_per_pax.append(0)
+                        else:
+                            commercial_dwell_per_pax.append(0)
+                    else:
+                        commercial_dwell_per_pax.append(0)
+                else:  # 중간에 실패
+                    commercial_dwell_per_pax.append(0)
+
+            commercial_dwell_value = sum(commercial_dwell_per_pax) / len(commercial_dwell_per_pax) if commercial_dwell_per_pax else 0
+
+            # airport_dwell_time = total_wait + process_time + commercial_dwell_time의 평균
+            airport_dwell_per_pax = []
+            for i, (wait_seconds, proc_seconds, comm_seconds) in enumerate(zip(
+                total_wait_per_pax.dt.total_seconds(),
+                total_process_time_per_pax.dt.total_seconds(),
+                commercial_dwell_per_pax
+            )):
+                airport_dwell_per_pax.append(wait_seconds + proc_seconds + comm_seconds)
+
+            airport_dwell_value = sum(airport_dwell_per_pax) / len(airport_dwell_per_pax) if airport_dwell_per_pax else 0
+
+            # 초를 HMS로 변환
+            commercial_dwell_time = _seconds_to_hms(commercial_dwell_value)
+            airport_dwell_time = _seconds_to_hms(airport_dwell_value)
+
+            return {
+                "timeMetrics": {
+                    "metric": "mean",
+                    "open_wait": open_wait,
+                    "queue_wait": queue_wait,
+                    "total_wait": total_wait,
+                    "process_time": process_time,
+                },
+                "dwellTimes": {
+                    "commercial_dwell_time": commercial_dwell_time,
+                    "airport_dwell_time": airport_dwell_time,
+                }
+            }
+        except Exception as e:
+            # 계산 중 오류 발생 시 None 반환
+            print(f"Time metrics 계산 중 오류 발생: {e}")
+            return None
 
     def _build_flight_summary(self, pax_df: pd.DataFrame, top_n: int) -> Dict[str, object]:
         flights_df = pax_df.dropna(subset=["flight_number"]).copy()
@@ -453,11 +623,21 @@ class NewHomeService:
         pax_df = await self._load_passenger_dataframe(scenario_id)
         process_flow = await self._load_process_flow(scenario_id)
 
+        # process_flow에서 process_list 추출
+        process_list = [step.get("name") for step in process_flow if step.get("name")]
+
         facility_charts = self._build_facility_charts(
             pax_df, process_flow, DEFAULT_INTERVAL_MINUTES
         )
         passenger_summary = self._build_passenger_summary(pax_df, DEFAULT_TOP_N)
         flight_summary = self._build_flight_summary(pax_df, DEFAULT_TOP_N)
+
+        # time_metrics와 dwell_times 계산
+        time_metrics_data = self._build_time_metrics(pax_df, process_list)
+
+        # flight_summary에 time_metrics와 dwell_times 추가
+        if time_metrics_data:
+            flight_summary.update(time_metrics_data)
 
         return {
             "facilityCharts": facility_charts,

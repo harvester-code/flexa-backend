@@ -52,8 +52,9 @@ class HomeService:
         pax_df: Any,
         percentile: Optional[int] = None,
         process_flow: Optional[List[dict]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> HomeAnalyzer:
-        return HomeAnalyzer(pax_df, percentile, process_flow=process_flow)
+        return HomeAnalyzer(pax_df, percentile, process_flow=process_flow, metadata=metadata)
 
     async def fetch_static_data(
         self, scenario_id: Optional[str]
@@ -85,9 +86,16 @@ class HomeService:
         if pax_df is None:
             return None
 
+        # metadata 로드 (facility_metrics 계산을 위해)
+        metadata = await self.s3_manager.get_json_async(
+            scenario_id=scenario_id,
+            filename="metadata-for-frontend.json",
+        )
+
         calculator = self._create_calculator(
             pax_df,
             percentile,
+            metadata=metadata,
         )
 
         return {
