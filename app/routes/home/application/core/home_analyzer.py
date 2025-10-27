@@ -196,15 +196,16 @@ class HomeAnalyzer:
     def _calculate_time_metrics_and_dwell_times(self) -> Optional[Dict[str, Any]]:
         """
         time_metrics와 dwell_times를 계산합니다.
+        Pax Experience와 동일한 방식: 각 프로세스별 completed 승객들의 평균을 구하고 합산
         """
         try:
             # is_boarded 열 추가
             working_df = self._add_is_boarded_column(self.pax_df)
 
-            # 각 승객마다 completed한 프로세스들의 시간을 합산
-            total_open_wait_per_pax = pd.Series([pd.Timedelta(0)] * len(working_df), index=working_df.index)
-            total_queue_wait_per_pax = pd.Series([pd.Timedelta(0)] * len(working_df), index=working_df.index)
-            total_process_time_per_pax = pd.Series([pd.Timedelta(0)] * len(working_df), index=working_df.index)
+            # 각 프로세스별로 completed한 승객들의 평균 시간을 구하고 합산
+            total_open_wait_seconds = 0
+            total_queue_wait_seconds = 0
+            total_process_time_seconds = 0
 
             for process in self.process_list:
                 status_col = f"{process}_status"
@@ -213,38 +214,49 @@ class HomeAnalyzer:
                 start_time_col = f"{process}_start_time"
                 done_time_col = f"{process}_done_time"
 
-                if status_col in working_df.columns:
-                    completed_mask = working_df[status_col] == 'completed'
+                if status_col not in working_df.columns:
+                    continue
 
-                    # open_wait_time 합산
-                    if open_wait_col in working_df.columns:
-                        open_wait_values = pd.to_timedelta(working_df[open_wait_col], errors='coerce').fillna(pd.Timedelta(0))
-                        total_open_wait_per_pax = total_open_wait_per_pax + open_wait_values.where(completed_mask, pd.Timedelta(0))
+                # 해당 프로세스에서 completed된 승객만 필터링
+                completed_df = working_df[working_df[status_col] == 'completed']
 
-                    # queue_wait_time 합산
-                    if queue_wait_col in working_df.columns:
-                        queue_wait_values = pd.to_timedelta(working_df[queue_wait_col], errors='coerce').fillna(pd.Timedelta(0))
-                        total_queue_wait_per_pax = total_queue_wait_per_pax + queue_wait_values.where(completed_mask, pd.Timedelta(0))
+                if len(completed_df) == 0:
+                    continue
 
-                    # process_time 합산
-                    if start_time_col in working_df.columns and done_time_col in working_df.columns:
-                        process_duration = (pd.to_datetime(working_df[done_time_col], errors='coerce') - pd.to_datetime(working_df[start_time_col], errors='coerce')).fillna(pd.Timedelta(0))
-                        total_process_time_per_pax = total_process_time_per_pax + process_duration.where(completed_mask, pd.Timedelta(0))
+                # open_wait_time 평균
+                if open_wait_col in completed_df.columns:
+                    open_wait_values = pd.to_timedelta(completed_df[open_wait_col], errors='coerce').dropna()
+                    if len(open_wait_values) > 0:
+                        total_open_wait_seconds += open_wait_values.dt.total_seconds().mean()
+
+                # queue_wait_time 평균
+                if queue_wait_col in completed_df.columns:
+                    queue_wait_values = pd.to_timedelta(completed_df[queue_wait_col], errors='coerce').dropna()
+                    if len(queue_wait_values) > 0:
+                        total_queue_wait_seconds += queue_wait_values.dt.total_seconds().mean()
+
+                # process_time 평균
+                if start_time_col in completed_df.columns and done_time_col in completed_df.columns:
+                    start_times = pd.to_datetime(completed_df[start_time_col], errors='coerce')
+                    done_times = pd.to_datetime(completed_df[done_time_col], errors='coerce')
+
+                    # 둘 다 valid한 경우만
+                    valid_mask = start_times.notna() & done_times.notna()
+                    if valid_mask.sum() > 0:
+                        process_duration = (done_times[valid_mask] - start_times[valid_mask])
+                        # 음수 제거
+                        process_duration = process_duration[process_duration.dt.total_seconds() >= 0]
+                        if len(process_duration) > 0:
+                            total_process_time_seconds += process_duration.dt.total_seconds().mean()
 
             # 전체 대기시간
-            total_wait_per_pax = total_open_wait_per_pax + total_queue_wait_per_pax
-
-            # 평균 계산
-            total_open_wait_value = total_open_wait_per_pax.dt.total_seconds().mean()
-            total_queue_wait_value = total_queue_wait_per_pax.dt.total_seconds().mean()
-            total_wait_value = total_wait_per_pax.dt.total_seconds().mean()
-            total_process_time_value = total_process_time_per_pax.dt.total_seconds().mean()
+            total_wait_seconds = total_open_wait_seconds + total_queue_wait_seconds
 
             # HMS 변환
-            open_wait = self._format_waiting_time(total_open_wait_value)
-            queue_wait = self._format_waiting_time(total_queue_wait_value)
-            total_wait = self._format_waiting_time(total_wait_value)
-            process_time = self._format_waiting_time(total_process_time_value)
+            open_wait = self._format_waiting_time(total_open_wait_seconds)
+            queue_wait = self._format_waiting_time(total_queue_wait_seconds)
+            total_wait = self._format_waiting_time(total_wait_seconds)
+            process_time = self._format_waiting_time(total_process_time_seconds)
 
             # dwell_times 계산
             commercial_dwell_per_pax = []
@@ -276,16 +288,9 @@ class HomeAnalyzer:
 
             commercial_dwell_value = sum(commercial_dwell_per_pax) / len(commercial_dwell_per_pax) if commercial_dwell_per_pax else 0
 
-            # airport_dwell_time
-            airport_dwell_per_pax = []
-            for i, (wait_seconds, proc_seconds, comm_seconds) in enumerate(zip(
-                total_wait_per_pax.dt.total_seconds(),
-                total_process_time_per_pax.dt.total_seconds(),
-                commercial_dwell_per_pax
-            )):
-                airport_dwell_per_pax.append(wait_seconds + proc_seconds + comm_seconds)
-
-            airport_dwell_value = sum(airport_dwell_per_pax) / len(airport_dwell_per_pax) if airport_dwell_per_pax else 0
+            # airport_dwell_time: total_wait + total_process_time + commercial_dwell
+            # 각 프로세스별 평균들의 합 + commercial dwell 평균
+            airport_dwell_value = total_wait_seconds + total_process_time_seconds + commercial_dwell_value
 
             commercial_dwell_time = self._format_waiting_time(commercial_dwell_value)
             airport_dwell_time = self._format_waiting_time(airport_dwell_value)
