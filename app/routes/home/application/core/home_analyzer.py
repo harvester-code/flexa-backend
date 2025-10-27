@@ -560,10 +560,6 @@ class HomeAnalyzer:
 
     def get_summary(self):
         """요약 데이터 생성"""
-        # 마지막 프로세스의 completed 수를 throughput으로 계산
-        last_process = self.process_list[-1]
-        throughput = int(self._filter_by_status(self.pax_df, last_process).shape[0])
-
         # 각 프로세스별로 completed된 승객의 경험을 독립적으로 계산
         pax_experience_waiting = {}
         pax_experience_queue = {}
@@ -607,34 +603,8 @@ class HomeAnalyzer:
             else:
                 pax_experience_queue[process] = 0
 
-        # 전체 평균 계산 (모든 프로세스의 평균)
-        total_wait_seconds = sum(
-            wt["total"]["hour"] * 3600 + wt["total"]["minute"] * 60 + wt["total"]["second"]
-            for wt in pax_experience_waiting.values()
-        )
-        total_open_wait_seconds = sum(
-            wt["open_wait"]["hour"] * 3600 + wt["open_wait"]["minute"] * 60 + wt["open_wait"]["second"]
-            for wt in pax_experience_waiting.values()
-        )
-        total_queue_wait_seconds = sum(
-            wt["queue_wait"]["hour"] * 3600 + wt["queue_wait"]["minute"] * 60 + wt["queue_wait"]["second"]
-            for wt in pax_experience_waiting.values()
-        )
-
-        total_wait_avg = total_wait_seconds / len(self.process_list) if self.process_list else 0
-        total_open_avg = total_open_wait_seconds / len(self.process_list) if self.process_list else 0
-        total_queue_avg_wait = total_queue_wait_seconds / len(self.process_list) if self.process_list else 0
-        total_queue_avg = sum(pax_experience_queue.values()) / len(self.process_list) if self.process_list else 0
-
         # 응답 데이터 구성
         data = {
-            "throughput": throughput,
-            "waiting_time": {
-                "total": self._format_waiting_time(total_wait_avg),
-                "open_wait": self._format_waiting_time(total_open_avg),
-                "queue_wait": self._format_waiting_time(total_queue_avg_wait)
-            },
-            "queue_length": int(total_queue_avg),
             "pax_experience": {
                 "waiting_time": pax_experience_waiting,
                 "queue_length": pax_experience_queue,
