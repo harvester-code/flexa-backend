@@ -1,4 +1,5 @@
 from typing import Any, Dict, Optional, List
+import os
 
 from dependency_injector.wiring import inject
 
@@ -13,6 +14,13 @@ class HomeService:
     def __init__(self, home_repo: HomeRepository, s3_manager: S3Manager):
         self.home_repo = home_repo
         self.s3_manager = s3_manager  # 새로운 S3Manager 추가
+
+        # country_to_airports.json 경로 설정
+        # 환경 변수로 설정 가능, 기본값은 현재 디렉토리
+        self.country_to_airports_path = os.getenv(
+            'COUNTRY_TO_AIRPORTS_PATH',
+            os.path.join(os.path.dirname(__file__), 'country_to_airports.json')
+        )
 
     async def _get_cached_data(
         self, scenario_id: Optional[str]
@@ -54,7 +62,13 @@ class HomeService:
         process_flow: Optional[List[dict]] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> HomeAnalyzer:
-        return HomeAnalyzer(pax_df, percentile, process_flow=process_flow, metadata=metadata)
+        return HomeAnalyzer(
+            pax_df,
+            percentile,
+            process_flow=process_flow,
+            metadata=metadata,
+            country_to_airports_path=self.country_to_airports_path
+        )
 
     async def fetch_static_data(
         self, scenario_id: Optional[str]

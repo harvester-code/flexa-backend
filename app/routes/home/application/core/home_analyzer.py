@@ -1,4 +1,6 @@
 from typing import Any, Dict, Optional, List
+import json
+import urllib.request
 
 import numpy as np
 import pandas as pd
@@ -11,6 +13,7 @@ class HomeAnalyzer:
         percentile: int | None = None,
         process_flow: Optional[List[dict]] = None,
         metadata: Optional[Dict[str, Any]] = None,
+        country_to_airports_path: Optional[str] = None,
     ):
         # 전체 데이터를 유지 - 각 함수에서 status 기준으로 필터링
         self.pax_df = pax_df.copy()
@@ -20,6 +23,134 @@ class HomeAnalyzer:
         self.process_list = self._get_process_list()
         self.process_flow_map = self._build_process_flow_map(process_flow)
         self.metadata = metadata  # facility_metrics 계산을 위해 추가
+        self.country_to_airports_path = country_to_airports_path
+        self._gdp_cache = {}  # GDP 조회 결과 캐싱
+
+    # ===============================
+    # 헬퍼 함수들
+    # ===============================
+
+    def _get_airport_gdp(self) -> Optional[Dict[str, Any]]:
+        """공항 코드로 GDP 정보 가져오기 (캐싱 지원)"""
+        if not self.metadata or not self.country_to_airports_path:
+            print(f"GDP 조회 실패: metadata={self.metadata is not None}, country_path={self.country_to_airports_path}")
+            return None
+
+        # 1. metadata에서 airport 코드 가져오기
+        airport_code = self.metadata.get('context', {}).get('airport')
+        if not airport_code:
+            print(f"GDP 조회 실패: airport_code가 metadata.context에 없음")
+            return None
+
+        print(f"GDP 조회 시작: airport_code={airport_code}")
+
+        # 캐시 확인
+        if airport_code in self._gdp_cache:
+            print(f"GDP 캐시에서 반환: {airport_code}")
+            return self._gdp_cache[airport_code]
+
+        try:
+            # 2. country_to_airports.json에서 국가 코드 찾기
+            with open(self.country_to_airports_path, 'r', encoding='utf-8') as f:
+                country_data = json.load(f)
+
+            country_code = None
+            country_name = None
+            for code, info in country_data.items():
+                if airport_code in info.get('airports', []):
+                    country_code = code
+                    country_name = info.get('name')
+                    break
+
+            if not country_code:
+                print(f"GDP 조회 실패: {airport_code}가 country_to_airports.json에 없음")
+                return None
+
+            print(f"국가 찾음: {country_name} ({country_code})")
+
+            # 3. World Bank API로 GDP, GDP PPP, 인구 조회
+            result = {
+                "airport_code": airport_code,
+                "country_code": country_code,
+                "country_name": country_name,
+                "gdp": None,
+                "gdp_ppp": None,
+                "population": None,
+                "gdp_per_capita": None,
+                "gdp_ppp_per_capita": None,
+            }
+
+            # GDP (current US$)
+            try:
+                url_gdp = f"https://api.worldbank.org/v2/country/{country_code}/indicator/NY.GDP.MKTP.CD?format=json&per_page=1&date=2020:2025"
+                with urllib.request.urlopen(url_gdp, timeout=10) as response:
+                    data = json.loads(response.read().decode())
+                    if len(data) > 1 and data[1] and len(data[1]) > 0:
+                        latest = data[1][0]
+                        if latest.get('value'):
+                            result["gdp"] = {
+                                "year": latest['date'],
+                                "value": latest['value'],
+                                "value_billions": round(latest['value'] / 1e9, 2),
+                                "formatted": f"${latest['value'] / 1e9:.2f}B",
+                                "indicator": "GDP (current US$)"
+                            }
+            except Exception as e:
+                print(f"GDP 조회 실패: {e}")
+
+            # GDP PPP (current international $)
+            try:
+                url_ppp = f"https://api.worldbank.org/v2/country/{country_code}/indicator/NY.GDP.MKTP.PP.CD?format=json&per_page=1&date=2020:2025"
+                with urllib.request.urlopen(url_ppp, timeout=10) as response:
+                    data = json.loads(response.read().decode())
+                    if len(data) > 1 and data[1] and len(data[1]) > 0:
+                        latest = data[1][0]
+                        if latest.get('value'):
+                            result["gdp_ppp"] = {
+                                "year": latest['date'],
+                                "value": latest['value'],
+                                "value_billions": round(latest['value'] / 1e9, 2),
+                                "formatted": f"${latest['value'] / 1e9:.2f}B",
+                                "indicator": "GDP, PPP (current international $)"
+                            }
+            except Exception as e:
+                print(f"GDP PPP 조회 실패: {e}")
+
+            # 인구 (Population, total)
+            try:
+                url_pop = f"https://api.worldbank.org/v2/country/{country_code}/indicator/SP.POP.TOTL?format=json&per_page=1&date=2020:2025"
+                with urllib.request.urlopen(url_pop, timeout=10) as response:
+                    data = json.loads(response.read().decode())
+                    if len(data) > 1 and data[1] and len(data[1]) > 0:
+                        latest = data[1][0]
+                        if latest.get('value'):
+                            result["population"] = {
+                                "year": latest['date'],
+                                "value": latest['value'],
+                                "formatted": f"{latest['value']:,.0f}",
+                                "indicator": "Population, total"
+                            }
+            except Exception as e:
+                print(f"인구 조회 실패: {e}")
+
+            # 1인당 GDP 계산
+            if result["gdp"] and result["population"]:
+                gdp_per_capita = result["gdp"]["value"] / result["population"]["value"]
+                result["gdp_per_capita"] = round(gdp_per_capita, 2)
+
+            if result["gdp_ppp"] and result["population"]:
+                gdp_ppp_per_capita = result["gdp_ppp"]["value"] / result["population"]["value"]
+                result["gdp_ppp_per_capita"] = round(gdp_ppp_per_capita, 2)
+
+            # 최소 하나라도 데이터가 있으면 반환
+            if result["gdp"] or result["gdp_ppp"]:
+                # 캐시 저장
+                self._gdp_cache[airport_code] = result
+                return result
+        except Exception as e:
+            print(f"GDP 조회 실패 ({airport_code}): {e}")
+
+        return None
 
     # ===============================
     # 메인 함수들
@@ -371,20 +502,16 @@ class HomeAnalyzer:
         - Commercial Dwell Time: 양수 (이득)
         """
         try:
-            if not self.metadata or not time_metrics_data:
+            if not time_metrics_data:
                 return None
 
-            # GDP 정보 가져오기
-            airport_context = self.metadata.get('context', {})
+            # GDP 정보 조회
+            airport_gdp = self._get_airport_gdp()
+            if not airport_gdp:
+                return None
 
-            # GDP PPP 사용 (없으면 GDP 사용)
-            gdp_per_capita = None
-
-            # metadata에 이미 계산된 GDP 정보가 있는지 확인
-            if 'gdp_ppp_per_capita' in airport_context:
-                gdp_per_capita = airport_context['gdp_ppp_per_capita']
-            elif 'gdp_per_capita' in airport_context:
-                gdp_per_capita = airport_context['gdp_per_capita']
+            # GDP PPP per capita 사용 (없으면 GDP per capita 사용)
+            gdp_per_capita = airport_gdp.get('gdp_ppp_per_capita') or airport_gdp.get('gdp_per_capita')
 
             # GDP 정보가 없으면 계산 불가
             if not gdp_per_capita:
@@ -419,7 +546,8 @@ class HomeAnalyzer:
                 "total_wait_value": round(total_wait_value, 2),
                 "process_time_value": round(process_time_value, 2),
                 "commercial_dwell_value": round(commercial_dwell_value, 2),
-                "currency": "USD"
+                "currency": "USD",
+                "airport_context": airport_gdp  # GDP 정보 포함
             }
         except Exception as e:
             print(f"Economic impact 계산 중 오류 발생: {e}")
