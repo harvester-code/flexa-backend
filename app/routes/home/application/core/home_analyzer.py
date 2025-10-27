@@ -11,19 +11,8 @@ class HomeAnalyzer:
         percentile: int | None = None,
         process_flow: Optional[List[dict]] = None,
     ):
-        # 1. on, done 값이 없는 경우, 처리 안된 여객이므로 제외하고 시작함
+        # 전체 데이터를 유지 - 각 함수에서 status 기준으로 필터링
         self.pax_df = pax_df.copy()
-        for process in [
-            col.replace("_on_pred", "")
-            for col in self.pax_df.columns
-            if "on_pred" in col
-        ]:
-            cols_to_check = [f"{process}_on_pred", f"{process}_done_time"]
-            self.pax_df = self.pax_df.dropna(subset=cols_to_check)
-        # 2. 처리 완료 시간이 예정 출발 시간보다 늦은 경우, 제외하고 시작함
-        # last_done_col = f"{process_list[-1]}_done_time"
-        # if last_done_col in pax_df.columns and 'scheduled_departure_local' in pax_df.columns:
-        #     pax_df = pax_df[pax_df[last_done_col] < pax_df['scheduled_departure_local']]
 
         self.percentile = percentile
         self.time_unit = "10min"
@@ -36,38 +25,55 @@ class HomeAnalyzer:
 
     def get_summary(self):
         """요약 데이터 생성"""
-        # 기본 데이터 계산
-        throughput = int(self.pax_df[f"{self.process_list[-1]}_done_time"].notna().sum())
+        # 마지막 프로세스의 completed 수를 throughput으로 계산
+        last_process = self.process_list[-1]
+        throughput = int(self._filter_by_status(self.pax_df, last_process).shape[0])
 
-        waiting_times_df = pd.DataFrame(
-            {
-                process: self._get_waiting_time(self.pax_df, process)
-                for process in self.process_list
-            }
-        ).dropna()
-        waiting_time_data = self._get_pax_experience_data(
-            waiting_times_df, "time"
-        )
+        # 각 프로세스별로 completed된 승객의 경험을 독립적으로 계산
+        pax_experience_waiting = {}
+        pax_experience_queue = {}
 
-        queue_lengths_df = pd.DataFrame(
-            {process: self.pax_df[f"{process}_queue_length"] for process in self.process_list}
-        ).dropna()
-        queue_data = self._get_pax_experience_data(
-            queue_lengths_df, "count"
+        for process in self.process_list:
+            # 해당 프로세스에서 completed된 승객만 사용
+            process_completed_df = self._filter_by_status(self.pax_df, process)
+
+            # 대기시간 계산 (평균)
+            waiting_time = self._get_waiting_time(process_completed_df, process)
+            valid_wait = waiting_time.dropna()
+            if len(valid_wait) > 0:
+                mean_wait = valid_wait.mean()
+                pax_experience_waiting[process] = self._format_waiting_time(mean_wait)
+            else:
+                pax_experience_waiting[process] = {"hour": 0, "minute": 0, "second": 0}
+
+            # 대기열 계산 (평균)
+            queue_col = f"{process}_queue_length"
+            if queue_col in process_completed_df.columns:
+                valid_queue = process_completed_df[queue_col].dropna()
+                if len(valid_queue) > 0:
+                    mean_queue = int(valid_queue.mean())
+                    pax_experience_queue[process] = mean_queue
+                else:
+                    pax_experience_queue[process] = 0
+            else:
+                pax_experience_queue[process] = 0
+
+        # 전체 평균 계산 (모든 프로세스의 평균)
+        total_wait_seconds = sum(
+            wt["hour"] * 3600 + wt["minute"] * 60 + wt["second"]
+            for wt in pax_experience_waiting.values()
         )
+        total_wait_avg = total_wait_seconds / len(self.process_list) if self.process_list else 0
+        total_queue_avg = sum(pax_experience_queue.values()) / len(self.process_list) if self.process_list else 0
 
         # 응답 데이터 구성
         data = {
             "throughput": throughput,
-            "waiting_time": waiting_time_data["total"],
-            "queue_length": queue_data["total"],
+            "waiting_time": self._format_waiting_time(total_wait_avg),
+            "queue_length": int(total_queue_avg),
             "pax_experience": {
-                "waiting_time": {
-                    process: waiting_time_data[process] for process in self.process_list
-                },
-                "queue_length": {
-                    process: queue_data[process] for process in self.process_list
-                },
+                "waiting_time": pax_experience_waiting,
+                "queue_length": pax_experience_queue,
             },
         }
         return data
@@ -112,11 +118,11 @@ class HomeAnalyzer:
         data = {"times": time_df.index.strftime("%Y-%m-%d %H:%M:%S").tolist()}
 
         for process in self.process_list:
+            # 해당 프로세스에서 completed 상태인 승객만 사용
+            all_process_data = self._filter_by_status(self.pax_df, process)
+
             # 프로세스 데이터를 분리: zone이 있는 데이터와 None 데이터
             zone_col = f"{process}_zone"
-
-            # None 값 (Skip/Bypass) 처리를 위한 데이터 분리
-            all_process_data = self.pax_df.copy()
             has_zone = all_process_data[zone_col].notna()
             no_zone = all_process_data[zone_col].isna()
 
@@ -264,18 +270,20 @@ class HomeAnalyzer:
     def get_facility_details(self):
         """시설 세부 정보 생성"""
 
-
         data = []
         for process in self.process_list:
+            # 해당 프로세스에서 completed 상태인 승객만 사용
+            process_completed_df = self._filter_by_status(self.pax_df, process)
+
             base_fields = ["zone", "facility", "queue_length", "on_pred", "done_time"]
             wait_fields = [
                 suffix
                 for suffix in ["queue_wait_time"]
-                if f"{process}_{suffix}" in self.pax_df.columns
+                if f"{process}_{suffix}" in process_completed_df.columns
             ]
             cols = [f"{process}_{field}" for field in base_fields] + [f"{process}_{field}" for field in wait_fields]
-            cols = [col for col in cols if col in self.pax_df.columns]
-            process_df = self.pax_df[cols].copy()
+            cols = [col for col in cols if col in process_completed_df.columns]
+            process_df = process_completed_df[cols].copy()
 
             # Overview 계산
             waiting_time = self._calculate_waiting_time(process_df, process)
@@ -342,12 +350,15 @@ class HomeAnalyzer:
         data = {}
 
         for process in self.process_list:
-            facilities = sorted(self.pax_df[f"{process}_zone"].dropna().unique())
+            # 해당 프로세스에서 completed 상태인 승객만 사용
+            process_completed_df = self._filter_by_status(self.pax_df, process)
+
+            facilities = sorted(process_completed_df[f"{process}_zone"].dropna().unique())
             wt_collection, ql_collection = [], []
             facility_data = {}
 
             for facility in facilities:
-                df = self.pax_df[self.pax_df[f"{process}_zone"] == facility].copy()
+                df = process_completed_df[process_completed_df[f"{process}_zone"] == facility].copy()
 
                 # 대기시간 분포 (초를 분으로 변환)
                 wt_mins = self._get_waiting_time(df, process).dt.total_seconds() / 60
@@ -389,22 +400,30 @@ class HomeAnalyzer:
         return data
 
     def get_sankey_diagram_data(self):
-        """산키 다이어그램 데이터 생성 - 계층 구조 지원"""
+        """산키 다이어그램 데이터 생성 - Completed만 표시 (모든 프로세스 완료한 승객)"""
+        # 모든 프로세스를 completed한 승객만 대상
+        all_completed_df = self.pax_df.copy()
+        for process in self.process_list:
+            status_col = f"{process}_status"
+            if status_col in all_completed_df.columns:
+                all_completed_df = all_completed_df[all_completed_df[status_col] == "completed"]
+
         # zone 기반으로 승객 플로우 생성 (시간 순서로 정렬)
         zone_cols = [
-            col for col in self.pax_df.columns
+            col for col in all_completed_df.columns
             if col.endswith("_zone")
         ]
+
         # {process}_done_time 기준으로 시간 순서 정렬
         timed_facilities = []
         for col in zone_cols:
             process_name = col.replace("_zone", "")
             done_time_col = f"{process_name}_done_time"
-            if done_time_col in self.pax_df.columns:
+            if done_time_col in all_completed_df.columns:
                 # 평균 완료 시간으로 정렬
-                avg_time = self.pax_df[done_time_col].mean()
+                avg_time = all_completed_df[done_time_col].mean()
                 timed_facilities.append((avg_time, col))
-        
+
         # 시간 순서대로 정렬 (체크인 → 게이트 순서)
         timed_facilities.sort(key=lambda x: x[0])
         target_columns = [col for _, col in timed_facilities]
@@ -419,7 +438,8 @@ class HomeAnalyzer:
                 "link": {"source": [], "target": [], "value": []},
             }
 
-        flow_df = self.pax_df.groupby(target_columns).size().reset_index(name="count")
+        # 전체 데이터에서 groupby (zone이 notna인 경우만)
+        flow_df = all_completed_df.groupby(target_columns, dropna=True).size().reset_index(name="count")
 
         # 동일한 결과를 보장하기 위해 각 컬럼의 고유값을 정렬
         unique_values = {}
@@ -445,10 +465,16 @@ class HomeAnalyzer:
                 targets.append(unique_values[col2][row[col2]])
                 values.append(int(row["count"]))
 
-        # 라벨도 정렬된 순서로 생성
+        # 라벨 생성 시 프로세스명 포함하여 고유하게 만들기
         labels = []
+        label_mapping = {}  # 원본 라벨 → 표시용 라벨
+
         for col in target_columns:
-            labels.extend(sorted(flow_df[col].unique()))
+            process_name = col.replace("_zone", "")
+            for facility in sorted(flow_df[col].unique()):
+                # 원본: facility, 표시용: facility (프로세스 정보는 process_info에서 관리)
+                label_mapping[facility] = facility
+                labels.append(facility)
 
         # 프로세스 정보 생성 (계층 구조를 위해)
         process_info = {}
@@ -477,6 +503,14 @@ class HomeAnalyzer:
             for col in self.pax_df.columns
             if "on_pred" in col
         ]
+
+    def _filter_by_status(self, df: pd.DataFrame, process: str) -> pd.DataFrame:
+        """특정 프로세스에서 status가 'completed'인 행만 반환"""
+        status_col = f"{process}_status"
+        if status_col in df.columns:
+            return df[df[status_col] == "completed"].copy()
+        # status 컬럼이 없는 경우 원본 반환 (하위 호환성)
+        return df.copy()
 
     def _extract_block_period(self, block: dict) -> Optional[tuple[pd.Timestamp, pd.Timestamp]]:
         """운영 스케줄 블록의 시작/종료 시간 추출"""
@@ -591,14 +625,15 @@ class HomeAnalyzer:
         return result_dict
 
     def _create_process_dataframe(self, process, time_interval):
-        """각 프로세스별 데이터프레임 생성"""
+        """각 프로세스별 데이터프레임 생성 (completed 상태만)"""
+        process_df = self._filter_by_status(self.pax_df, process)
         return pd.DataFrame(
             {
                 "process": process,
-                "datetime": self.pax_df[f"{process}_on_pred"].dt.floor(time_interval),
-                "waiting_time": self._get_waiting_time(self.pax_df, process),
-                "queue_length": self.pax_df[f"{process}_queue_length"],
-                "process_name": self.pax_df[f"{process}_zone"],
+                "datetime": process_df[f"{process}_on_pred"].dt.floor(time_interval),
+                "waiting_time": self._get_waiting_time(process_df, process),
+                "queue_length": process_df[f"{process}_queue_length"],
+                "process_name": process_df[f"{process}_zone"],
             }
         )
 
