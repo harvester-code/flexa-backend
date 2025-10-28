@@ -1311,6 +1311,25 @@ class HomeAnalyzer:
             if status_col in all_completed_df.columns:
                 all_completed_df = all_completed_df[all_completed_df[status_col] == "completed"]
 
+        # operating_carrier_name 컬럼을 첫 번째 레이어로 추가
+        target_columns = []
+
+        # 첫 번째 레이어: Airline (operating_carrier_name)
+        if "operating_carrier_name" in all_completed_df.columns:
+            # operating_carrier_name이 있는 데이터만 필터링
+            all_completed_df = all_completed_df[all_completed_df["operating_carrier_name"].notna()].copy()
+
+            # 항공사별 승객 수 카운트
+            airline_counts = all_completed_df["operating_carrier_name"].value_counts()
+
+            # 상위 10개 항공사 추출
+            top_10_airlines = airline_counts.head(10).index.tolist()
+
+            # 11번째부터는 "ETC"로 변경
+            all_completed_df.loc[~all_completed_df["operating_carrier_name"].isin(top_10_airlines), "operating_carrier_name"] = "ETC"
+
+            target_columns.append("operating_carrier_name")
+
         # zone 기반으로 승객 플로우 생성 (시간 순서로 정렬)
         zone_cols = [
             col for col in all_completed_df.columns
@@ -1329,10 +1348,13 @@ class HomeAnalyzer:
 
         # 시간 순서대로 정렬 (체크인 → 게이트 순서)
         timed_facilities.sort(key=lambda x: x[0])
-        target_columns = [col for _, col in timed_facilities]
+        zone_target_columns = [col for _, col in timed_facilities]
         # 시간 정보가 없는 경우 원래 방식 사용
-        if not target_columns:
-            target_columns = zone_cols
+        if not zone_target_columns:
+            zone_target_columns = zone_cols
+
+        # target_columns에 zone 컬럼들 추가
+        target_columns.extend(zone_target_columns)
 
         # 빈 컬럼 리스트 처리
         if not target_columns:
@@ -1373,7 +1395,12 @@ class HomeAnalyzer:
         label_mapping = {}  # 원본 라벨 → 표시용 라벨
 
         for col in target_columns:
-            process_name = col.replace("_zone", "")
+            # operating_carrier_name인 경우 특별 처리
+            if col == "operating_carrier_name":
+                process_name = "airline"
+            else:
+                process_name = col.replace("_zone", "")
+
             for facility in sorted(flow_df[col].unique()):
                 # 원본: facility, 표시용: facility (프로세스 정보는 process_info에서 관리)
                 label_mapping[facility] = facility
@@ -1382,10 +1409,17 @@ class HomeAnalyzer:
         # 프로세스 정보 생성 (계층 구조를 위해)
         process_info = {}
         for col in target_columns:
-            process_name = col.replace("_zone", "")
+            # operating_carrier_name인 경우 특별 처리
+            if col == "operating_carrier_name":
+                process_name = "airline"
+                display_name = "Airline"
+            else:
+                process_name = col.replace("_zone", "")
+                display_name = process_name.replace("_", " ").title()
+
             facilities = sorted(flow_df[col].unique())
             process_info[process_name] = {
-                "process_name": process_name.replace("_", " ").title(),
+                "process_name": display_name,
                 "facilities": facilities
             }
 
