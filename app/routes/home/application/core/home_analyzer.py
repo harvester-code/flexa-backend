@@ -991,6 +991,79 @@ class HomeAnalyzer:
                             int(round(value)) for value in zone_capacity_map[node_name]
                         ]
 
+                    # ===== 개별 facility 레벨 데이터 추가 =====
+                    # 해당 zone에 속한 개별 facility 데이터 계산
+                    facility_col = f"{process}_facility"
+                    if facility_col in process_data.columns:
+                        # 해당 zone의 데이터만 필터링
+                        zone_process_data = process_data[process_data[f"{process}_zone"] == facility_name].copy()
+
+                        if not zone_process_data.empty:
+                            # 개별 facility 목록
+                            individual_facilities = sorted(zone_process_data[facility_col].dropna().unique())
+
+                            if individual_facilities:
+                                # 개별 facility별 메트릭 계산
+                                facility_metrics = {
+                                    "inflow": zone_process_data.groupby(
+                                        [f"{process}_on_floored", facility_col]
+                                    ).size(),
+                                    "outflow": zone_process_data.groupby(
+                                        [f"{process}_done_floored", facility_col]
+                                    ).size(),
+                                    "queue_length": zone_process_data.groupby(
+                                        [f"{process}_on_floored", facility_col]
+                                    )[f"{process}_queue_length"].mean(),
+                                    "waiting_time": zone_process_data.groupby(
+                                        [f"{process}_on_floored", facility_col]
+                                    )[f"{process}_waiting_seconds"].mean(),
+                                }
+
+                                # unstack
+                                facility_pivoted = {
+                                    k: v.unstack(fill_value=0).reindex(time_df.index, fill_value=0)
+                                    for k, v in facility_metrics.items()
+                                }
+
+                                # 개별 facility capacity 계산
+                                facility_capacity_map: Dict[str, List[float]] = {}
+                                if step_config and interval_minutes > 0:
+                                    facility_capacity_map = self._calculate_step_capacity_series_by_facility(
+                                        step_config,
+                                        facility_name,
+                                        time_df.index,
+                                        interval_minutes,
+                                    )
+
+                                # 개별 facility 데이터 구성
+                                sub_facility_data = {}
+                                for individual_facility in individual_facilities:
+                                    ind_fac_data = {
+                                        k: facility_pivoted[k].get(individual_facility, pd.Series(0, index=time_df.index))
+                                        for k in facility_metrics.keys()
+                                    }
+
+                                    sub_facility_data[individual_facility] = {
+                                        k: (
+                                            ind_fac_data[k].round()
+                                            if k in ["queue_length", "waiting_time"]
+                                            else ind_fac_data[k]
+                                        )
+                                        .astype(int)
+                                        .tolist()
+                                        for k in ind_fac_data.keys()
+                                    }
+
+                                    # capacity 추가
+                                    if individual_facility in facility_capacity_map:
+                                        sub_facility_data[individual_facility]["capacity"] = [
+                                            int(round(value)) for value in facility_capacity_map[individual_facility]
+                                        ]
+
+                                # zone 데이터에 추가
+                                process_facility_data[node_name]["sub_facilities"] = individual_facilities
+                                process_facility_data[node_name]["facility_data"] = sub_facility_data
+
                 # None/Skip 데이터 처리 - 프로세스를 건너뛴 승객
                 if no_zone.any():
                     skip_count = no_zone.sum()
@@ -1357,6 +1430,37 @@ class HomeAnalyzer:
                 total_capacity = [curr + add for curr, add in zip(total_capacity, facility_capacity)]
             zone_capacity[zone_name] = total_capacity
         return zone_capacity
+
+    def _calculate_step_capacity_series_by_facility(
+        self,
+        step_config: dict,
+        zone_name: str,
+        time_range: pd.DatetimeIndex,
+        interval_minutes: int,
+    ) -> Dict[str, List[float]]:
+        """프로세스 스텝의 특정 zone 내 개별 facility별 시간대별 용량 계산"""
+        facility_capacity_map: Dict[str, List[float]] = {}
+        if time_range.empty:
+            return facility_capacity_map
+
+        zone = step_config.get("zones", {}).get(zone_name)
+        if not zone:
+            return facility_capacity_map
+
+        for facility in zone.get("facilities", []):
+            facility_id = facility.get("id")
+            if not facility_id:
+                continue
+
+            facility_capacity: List[float] = []
+            for start in time_range:
+                end = start + pd.Timedelta(minutes=interval_minutes)
+                facility_capacity.append(
+                    self._calculate_capacity_for_slot(facility, start, end)
+                )
+            facility_capacity_map[facility_id] = facility_capacity
+
+        return facility_capacity_map
 
     def _format_waiting_time(self, time_value):
         """대기 시간을 hour, minute, second로 분리하여 딕셔너리로 반환"""
