@@ -393,6 +393,71 @@ class HomeAnalyzer:
             print(f"Time metrics 계산 중 오류 발생: {e}")
             return None
 
+    def _calculate_opened_counts(self) -> Dict[str, Any]:
+        """
+        metadata의 process_flow에서 각 프로세스/존별 opened 정보 계산
+
+        Returns:
+            {
+                "travel_tax": {
+                    "total": 12,
+                    "opened": 9,
+                    "zones": {
+                        "B": {"total": 3, "opened": 3},
+                        ...
+                    }
+                },
+                ...
+            }
+        """
+        result = {}
+
+        if not self.metadata or 'process_flow' not in self.metadata:
+            return result
+
+        process_flow = self.metadata['process_flow']
+
+        for process_info in process_flow:
+            process_name = process_info.get('name')
+            if not process_name:
+                continue
+
+            zones = process_info.get('zones', {})
+
+            process_total = 0
+            process_opened = 0
+            zone_data = {}
+
+            for zone_name, zone_info in zones.items():
+                facilities = zone_info.get('facilities', [])
+
+                zone_total = len(facilities)
+                zone_opened = 0
+
+                for facility in facilities:
+                    # 해당 시설이 한 번이라도 운영했는지 확인
+                    time_blocks = facility.get('operating_schedule', {}).get('time_blocks', [])
+                    has_activated = any(block.get('activate', False) for block in time_blocks)
+
+                    if has_activated:
+                        zone_opened += 1
+
+                zone_data[zone_name] = {
+                    'total': zone_total,
+                    'opened': zone_opened
+                }
+
+                process_total += zone_total
+                process_opened += zone_opened
+
+            result[process_name] = {
+                'total': process_total,
+                'opened': process_opened,
+                'zones': zone_data
+            }
+
+        return result
+
     def _calculate_facility_metrics(self) -> Optional[List[Dict[str, Any]]]:
         """
         facility_metrics를 계산합니다.
@@ -511,47 +576,75 @@ class HomeAnalyzer:
                             "total_rate": round(total_rate, 2)
                         })
 
-            # 프로세스별로 집계
+            # 단일 패스로 모든 레벨 집계 (최적화)
             facility_metrics_aggregated = []
 
             if facility_metrics_list:
-                process_metrics = {}
-                for facility_metric in facility_metrics_list:
-                    process = facility_metric['process']
-                    if process not in process_metrics:
-                        process_metrics[process] = {
-                            'operating_rates': [],
-                            'utilization_rates': [],
-                            'total_rates': []
-                        }
-                    process_metrics[process]['operating_rates'].append(facility_metric['operating_rate'])
-                    process_metrics[process]['utilization_rates'].append(facility_metric['utilization_rate'])
-                    process_metrics[process]['total_rates'].append(facility_metric['total_rate'])
+                from collections import defaultdict
 
-                # 전체 평균 계산 (total)
-                all_operating_rates = []
-                all_utilization_rates = []
-                all_total_rates = []
-                for metrics in process_metrics.values():
-                    all_operating_rates.extend(metrics['operating_rates'])
-                    all_utilization_rates.extend(metrics['utilization_rates'])
-                    all_total_rates.extend(metrics['total_rates'])
+                # 집계용 딕셔너리
+                aggregator = {
+                    'total': {'op': [], 'util': [], 'tot': []},
+                    'by_process': defaultdict(lambda: {'op': [], 'util': [], 'tot': []}),
+                    'by_zone': defaultdict(lambda: {'op': [], 'util': [], 'tot': []})
+                }
 
-                if all_operating_rates:
+                # 단일 순회로 모든 레벨 동시 집계
+                for metric in facility_metrics_list:
+                    process = metric['process']
+                    zone = metric['zone']
+                    op_rate = metric['operating_rate']
+                    util_rate = metric['utilization_rate']
+                    tot_rate = metric['total_rate']
+
+                    # Total 레벨
+                    aggregator['total']['op'].append(op_rate)
+                    aggregator['total']['util'].append(util_rate)
+                    aggregator['total']['tot'].append(tot_rate)
+
+                    # Process 레벨
+                    aggregator['by_process'][process]['op'].append(op_rate)
+                    aggregator['by_process'][process]['util'].append(util_rate)
+                    aggregator['by_process'][process]['tot'].append(tot_rate)
+
+                    # Zone 레벨 (process:zone 키로 저장)
+                    zone_key = f"{process}:{zone}"
+                    aggregator['by_zone'][zone_key]['op'].append(op_rate)
+                    aggregator['by_zone'][zone_key]['util'].append(util_rate)
+                    aggregator['by_zone'][zone_key]['tot'].append(tot_rate)
+
+                # 평균 계산 헬퍼 함수
+                def calc_avg(lst):
+                    return round(sum(lst) / len(lst), 2) if lst else 0
+
+                # Total 집계
+                if aggregator['total']['op']:
                     facility_metrics_aggregated.append({
                         "process": "total",
-                        "operating_rate": round(sum(all_operating_rates) / len(all_operating_rates), 2),
-                        "utilization_rate": round(sum(all_utilization_rates) / len(all_utilization_rates), 2),
-                        "total_rate": round(sum(all_total_rates) / len(all_total_rates), 2)
+                        "operating_rate": calc_avg(aggregator['total']['op']),
+                        "utilization_rate": calc_avg(aggregator['total']['util']),
+                        "total_rate": calc_avg(aggregator['total']['tot'])
                     })
 
-                # 프로세스별 평균
-                for process, metrics in process_metrics.items():
+                # Process별 집계 (Zone 데이터 포함)
+                for process, metrics in aggregator['by_process'].items():
+                    # 해당 프로세스의 Zone별 데이터 구성
+                    zones = {}
+                    for zone_key, zone_metrics in aggregator['by_zone'].items():
+                        p, z = zone_key.split(':', 1)
+                        if p == process:
+                            zones[z] = {
+                                "operating_rate": calc_avg(zone_metrics['op']),
+                                "utilization_rate": calc_avg(zone_metrics['util']),
+                                "total_rate": calc_avg(zone_metrics['tot'])
+                            }
+
                     facility_metrics_aggregated.append({
                         "process": process,
-                        "operating_rate": round(sum(metrics['operating_rates']) / len(metrics['operating_rates']), 2),
-                        "utilization_rate": round(sum(metrics['utilization_rates']) / len(metrics['utilization_rates']), 2),
-                        "total_rate": round(sum(metrics['total_rates']) / len(metrics['total_rates']), 2)
+                        "operating_rate": calc_avg(metrics['op']),
+                        "utilization_rate": calc_avg(metrics['util']),
+                        "total_rate": calc_avg(metrics['tot']),
+                        "zones": zones  # Zone별 세부 데이터 추가
                     })
 
             return facility_metrics_aggregated if facility_metrics_aggregated else None
@@ -1139,6 +1232,28 @@ class HomeAnalyzer:
     def get_facility_details(self):
         """시설 세부 정보 생성"""
 
+        # facility_metrics 계산 (ai_ratio, pa_ratio 정보를 위해)
+        facility_metrics_list = self._calculate_facility_metrics()
+
+        # process별, zone별 metrics 매핑 생성
+        process_metrics_map = {}
+        if facility_metrics_list:
+            for metric in facility_metrics_list:
+                process_name = metric.get('process')
+                if process_name == 'total':
+                    continue
+
+                # 프로세스 레벨 메트릭 저장
+                if process_name not in process_metrics_map:
+                    process_metrics_map[process_name] = {
+                        'operating_rate': metric.get('operating_rate', 0),
+                        'utilization_rate': metric.get('utilization_rate', 0),
+                        'zones': metric.get('zones', {})
+                    }
+
+        # opened 정보 계산
+        opened_counts_map = self._calculate_opened_counts()
+
         data = []
         for process in self.process_list:
             # 해당 프로세스에서 completed 상태인 승객만 사용
@@ -1157,6 +1272,14 @@ class HomeAnalyzer:
             # Overview 계산
             waiting_time = self._calculate_waiting_time(process_df, process)
 
+            # 프로세스 레벨 metrics 가져오기
+            process_metrics = process_metrics_map.get(process, {})
+
+            # 프로세스 레벨 opened 정보 가져오기
+            process_opened_info = opened_counts_map.get(process, {})
+            process_opened = process_opened_info.get('opened', 0)
+            process_total = process_opened_info.get('total', 0)
+
             overview = {
                 "throughput": len(process_df),
                 "queuePax": int(
@@ -1169,13 +1292,27 @@ class HomeAnalyzer:
                     if self.percentile is not None
                     else waiting_time.mean()
                 ),
+                "ai_ratio": process_metrics.get('operating_rate', 0) * 100,  # A/I Ratio = Facility Effi.
+                "pa_ratio": process_metrics.get('utilization_rate', 0) * 100,  # P/A Ratio = Workforce Effi.
+                "opened": [process_opened, process_total],  # [운영한 시설 수, 전체 시설 수]
             }
 
             # Components 계산
             components = []
+            zone_metrics_map = process_metrics.get('zones', {})
+            zone_opened_map = process_opened_info.get('zones', {})
+
             for facility in sorted(process_df[f"{process}_zone"].unique()):
                 facility_df = process_df[process_df[f"{process}_zone"] == facility]
                 waiting_time = self._calculate_waiting_time(facility_df, process)
+
+                # 존 레벨 metrics 가져오기
+                zone_metrics = zone_metrics_map.get(facility, {})
+
+                # 존 레벨 opened 정보 가져오기
+                zone_opened_info = zone_opened_map.get(facility, {})
+                zone_opened = zone_opened_info.get('opened', 0)
+                zone_total = zone_opened_info.get('total', 0)
 
                 components.append(
                     {
@@ -1193,6 +1330,9 @@ class HomeAnalyzer:
                             if self.percentile is not None
                             else waiting_time.mean()
                         ),
+                        "ai_ratio": zone_metrics.get('operating_rate', 0) * 100,  # A/I Ratio
+                        "pa_ratio": zone_metrics.get('utilization_rate', 0) * 100,  # P/A Ratio
+                        "opened": [zone_opened, zone_total],  # [운영한 시설 수, 전체 시설 수]
                     }
                 )
 
