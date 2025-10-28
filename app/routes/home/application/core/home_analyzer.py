@@ -1338,28 +1338,10 @@ class HomeAnalyzer:
 
             target_columns.append("operating_carrier_name")
 
-        # zone 기반으로 승객 플로우 생성 (시간 순서로 정렬)
-        zone_cols = [
-            col for col in all_pax_df.columns
-            if col.endswith("_zone")
-        ]
-
-        # {process}_on_pred 기준으로 시간 순서 정렬 (실제 프로세스 진행 순서)
-        timed_facilities = []
-        for col in zone_cols:
-            process_name = col.replace("_zone", "")
-            on_pred_col = f"{process_name}_on_pred"
-            if on_pred_col in all_pax_df.columns:
-                # 평균 도착 예정 시간으로 정렬 (실제 프로세스 순서)
-                avg_time = all_pax_df[on_pred_col].mean()
-                timed_facilities.append((avg_time, col))
-
-        # 시간 순서대로 정렬 (Travel Tax → Check In → Passport → Security 순서)
-        timed_facilities.sort(key=lambda x: x[0])
-        zone_target_columns = [col for _, col in timed_facilities]
-        # 시간 정보가 없는 경우 원래 방식 사용
-        if not zone_target_columns:
-            zone_target_columns = zone_cols
+        # zone 기반으로 승객 플로우 생성 (process_list 순서 사용)
+        # process_list 순서대로 zone 컬럼 정렬
+        zone_target_columns = [f"{process}_zone" for process in self.process_list
+                               if f"{process}_zone" in all_pax_df.columns]
 
         # target_columns에 zone 컬럼들 추가
         target_columns.extend(zone_target_columns)
