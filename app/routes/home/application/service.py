@@ -87,7 +87,6 @@ class HomeService:
         )
 
         return {
-            "alert_issues": calculator.get_alert_issues(),
             "flow_chart": calculator.get_flow_chart_data(),
             "histogram": calculator.get_histogram_data(),
             "sankey_diagram": calculator.get_sankey_diagram_data(),

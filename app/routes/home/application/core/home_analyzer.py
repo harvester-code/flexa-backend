@@ -798,40 +798,6 @@ class HomeAnalyzer:
 
         return data
 
-    def get_alert_issues(self, top_n: int = 8, alert_interval_minutes: int = 30):
-        """알림 및 이슈 데이터 생성"""
-        time_interval = f"{alert_interval_minutes}min"
-        result_df = pd.concat(
-            [
-                self._create_process_dataframe(process, time_interval)
-                for process in self.process_list
-            ],
-            ignore_index=True,
-        )
-
-        # 데이터 정렬 및 중복 제거
-        result_df = (
-            result_df.sort_values("waiting_time", ascending=False)
-            .drop_duplicates(subset=["datetime", "process_name"])
-            .reset_index(drop=True)
-        )
-
-        # 전체 시설 데이터
-        data = {
-            "all_facilities": [
-                self._to_alert_format(row)
-                for _, row in result_df.head(top_n).iterrows()
-            ]
-        }
-
-        # 각 프로세스별 데이터 추가
-        for process_name in self.process_list:
-            filtered_data = result_df[result_df["process"] == process_name].head(top_n)
-            data[process_name] = [
-                self._to_alert_format(row) for _, row in filtered_data.iterrows()
-            ]
-        return data
-
     def get_flow_chart_data(self, interval_minutes: int = None):
         """플로우 차트 데이터 생성 - 계층 구조로 변경"""
         interval_minutes = interval_minutes or self.interval_minutes
@@ -1409,9 +1375,16 @@ class HomeAnalyzer:
                 display_name = process_name.replace("_", " ").title()
 
             facilities = sorted(flow_df[col].unique())
+
+            # Failed와 Skipped를 제외한 승객 수 계산
+            pax_count = flow_df[
+                ~flow_df[col].isin(["Failed", "Skipped"])
+            ]["count"].sum()
+
             process_info[process_name] = {
                 "process_name": display_name,
-                "facilities": facilities
+                "facilities": facilities,
+                "pax_count": int(pax_count)
             }
 
         return {
@@ -1582,28 +1555,6 @@ class HomeAnalyzer:
                 result_dict[col] = int(result_row[col])
 
         return result_dict
-
-    def _create_process_dataframe(self, process, time_interval):
-        """각 프로세스별 데이터프레임 생성 (completed 상태만)"""
-        process_df = self._filter_by_status(self.pax_df, process)
-        return pd.DataFrame(
-            {
-                "process": process,
-                "datetime": process_df[f"{process}_on_pred"].dt.floor(time_interval),
-                "waiting_time": self._get_waiting_time(process_df, process),
-                "queue_length": process_df[f"{process}_queue_length"],
-                "process_name": process_df[f"{process}_zone"],
-            }
-        )
-
-    def _to_alert_format(self, row):
-        """행을 알림 형식으로 변환"""
-        return {
-            "time": row["datetime"].strftime("%H:%M:%S"),
-            "waiting_time": self._format_waiting_time(row["waiting_time"]),
-            "queue_length": row["queue_length"],
-            "node": row["process_name"],
-        }
 
     def _create_time_df_index(self, interval_minutes: int):
         """실제 데이터 기반 동적 시간 범위 생성"""
