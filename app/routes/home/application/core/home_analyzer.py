@@ -1303,50 +1303,58 @@ class HomeAnalyzer:
         return data
 
     def get_sankey_diagram_data(self):
-        """산키 다이어그램 데이터 생성 - Completed만 표시 (모든 프로세스 완료한 승객)"""
-        # 모든 프로세스를 completed한 승객만 대상
-        all_completed_df = self.pax_df.copy()
+        """산키 다이어그램 데이터 생성 - Completed, Skipped, Failed 모두 표시"""
+        # 모든 승객 포함 (completed, skipped, failed)
+        all_pax_df = self.pax_df.copy()
+
+        # 각 프로세스별로 zone이 None인 경우 status 값을 zone으로 매핑
         for process in self.process_list:
+            zone_col = f"{process}_zone"
             status_col = f"{process}_status"
-            if status_col in all_completed_df.columns:
-                all_completed_df = all_completed_df[all_completed_df[status_col] == "completed"]
+
+            if zone_col in all_pax_df.columns and status_col in all_pax_df.columns:
+                # zone이 None이고 status가 있는 경우
+                mask = all_pax_df[zone_col].isna() & all_pax_df[status_col].notna()
+
+                # status 값을 첫 글자 대문자로 변환하여 zone에 할당
+                all_pax_df.loc[mask, zone_col] = all_pax_df.loc[mask, status_col].str.capitalize()
 
         # operating_carrier_name 컬럼을 첫 번째 레이어로 추가
         target_columns = []
 
         # 첫 번째 레이어: Airline (operating_carrier_name)
-        if "operating_carrier_name" in all_completed_df.columns:
+        if "operating_carrier_name" in all_pax_df.columns:
             # operating_carrier_name이 있는 데이터만 필터링
-            all_completed_df = all_completed_df[all_completed_df["operating_carrier_name"].notna()].copy()
+            all_pax_df = all_pax_df[all_pax_df["operating_carrier_name"].notna()].copy()
 
             # 항공사별 승객 수 카운트
-            airline_counts = all_completed_df["operating_carrier_name"].value_counts()
+            airline_counts = all_pax_df["operating_carrier_name"].value_counts()
 
             # 상위 10개 항공사 추출
             top_10_airlines = airline_counts.head(10).index.tolist()
 
             # 11번째부터는 "ETC"로 변경
-            all_completed_df.loc[~all_completed_df["operating_carrier_name"].isin(top_10_airlines), "operating_carrier_name"] = "ETC"
+            all_pax_df.loc[~all_pax_df["operating_carrier_name"].isin(top_10_airlines), "operating_carrier_name"] = "ETC"
 
             target_columns.append("operating_carrier_name")
 
         # zone 기반으로 승객 플로우 생성 (시간 순서로 정렬)
         zone_cols = [
-            col for col in all_completed_df.columns
+            col for col in all_pax_df.columns
             if col.endswith("_zone")
         ]
 
-        # {process}_done_time 기준으로 시간 순서 정렬
+        # {process}_on_pred 기준으로 시간 순서 정렬 (실제 프로세스 진행 순서)
         timed_facilities = []
         for col in zone_cols:
             process_name = col.replace("_zone", "")
-            done_time_col = f"{process_name}_done_time"
-            if done_time_col in all_completed_df.columns:
-                # 평균 완료 시간으로 정렬
-                avg_time = all_completed_df[done_time_col].mean()
+            on_pred_col = f"{process_name}_on_pred"
+            if on_pred_col in all_pax_df.columns:
+                # 평균 도착 예정 시간으로 정렬 (실제 프로세스 순서)
+                avg_time = all_pax_df[on_pred_col].mean()
                 timed_facilities.append((avg_time, col))
 
-        # 시간 순서대로 정렬 (체크인 → 게이트 순서)
+        # 시간 순서대로 정렬 (Travel Tax → Check In → Passport → Security 순서)
         timed_facilities.sort(key=lambda x: x[0])
         zone_target_columns = [col for _, col in timed_facilities]
         # 시간 정보가 없는 경우 원래 방식 사용
@@ -1363,8 +1371,9 @@ class HomeAnalyzer:
                 "link": {"source": [], "target": [], "value": []},
             }
 
-        # 전체 데이터에서 groupby (zone이 notna인 경우만)
-        flow_df = all_completed_df.groupby(target_columns, dropna=True).size().reset_index(name="count")
+        # 전체 데이터에서 groupby (이제 Skipped, Failed도 포함되므로 dropna=False 사용하지 않음)
+        # zone 값이 모두 매핑되었으므로 dropna=True 유지
+        flow_df = all_pax_df.groupby(target_columns, dropna=True).size().reset_index(name="count")
 
         # 동일한 결과를 보장하기 위해 각 컬럼의 고유값을 정렬
         unique_values = {}
