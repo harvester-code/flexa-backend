@@ -11,7 +11,6 @@ from app.libs.monitor_memory import setup_memory_monitor
 from app.routes.auth.interface.controller import auth_router
 
 from app.routes.home.interface.controller import home_router
-from app.routes.new_home.interface.controller import new_home_router
 from app.routes.simulation.interface.controller import (
     private_simulation_router,
     public_simulation_router,
@@ -59,5 +58,3 @@ app.include_router(auth_router, prefix=API_PREFIX, tags=["Authentication"])
 app.include_router(private_simulation_router, prefix=API_PREFIX, tags=["Simulations"])
 app.include_router(public_simulation_router, prefix=API_PREFIX, tags=["Simulations"])
 app.include_router(home_router, prefix=API_PREFIX, tags=["Homes"])
-app.include_router(new_home_router, prefix=API_PREFIX, tags=["New Homes"])
-
