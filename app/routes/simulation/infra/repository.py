@@ -90,10 +90,10 @@ class SimulationRepository(ISimulationRepository):
                         has_simulation_data = True
                         file_last_modified = file_metadata.get('last_modified')
                 
-                # 🆕 자동 완료 시간 업데이트 로직 (S3 파일 저장 시간 사용)
-                simulation_end_at = scenario_info.simulation_end_at
+                # 🆕 자동 시뮬레이션 시작 시간 업데이트 로직 (S3 파일 저장 시간 사용)
+                simulation_start_at = scenario_info.simulation_start_at
                 if (has_simulation_data and 
-                    scenario_info.simulation_end_at is None and 
+                    scenario_info.simulation_start_at is None and 
                     str(scenario_info.user_id) == user_id):  # 본인 시나리오만
                     
                     # S3 파일 시간 또는 현재 시간 사용
@@ -102,10 +102,10 @@ class SimulationRepository(ISimulationRepository):
                     # DB에서 자동으로 초 단위로 truncate하므로 Python에서 처리 불필요
                     scenarios_to_update.append({
                         'scenario_id': scenario_info.scenario_id,
-                        'simulation_end_at': file_time
+                        'simulation_start_at': file_time
                     })
                     # 응답에는 파일 시간 사용 (DB 저장 시 자동으로 초 단위가 됨)
-                    simulation_end_at = file_time
+                    simulation_start_at = file_time
 
                 scenario_dict = {
                     # ScenarioInformation 필드들
@@ -119,8 +119,7 @@ class SimulationRepository(ISimulationRepository):
                     "memo": scenario_info.memo,
                     "target_flight_schedule_date": scenario_info.target_flight_schedule_date,
                     "is_active": scenario_info.is_active,
-                    "simulation_start_at": scenario_info.simulation_start_at,
-                    "simulation_end_at": simulation_end_at,  # 업데이트된 시간 사용
+                    "simulation_start_at": simulation_start_at,
                     "created_at": scenario_info.created_at,
                     "updated_at": scenario_info.updated_at,
                     "metadata_updated_at": scenario_info.metadata_updated_at,
@@ -139,13 +138,13 @@ class SimulationRepository(ISimulationRepository):
                     # 각 시나리오별로 개별 업데이트 (서로 다른 시간 저장)
                     for scenario_update in scenarios_to_update:
                         scenario_id = scenario_update['scenario_id']
-                        end_time = scenario_update['simulation_end_at']
+                        start_time = scenario_update['simulation_start_at']
                         
                         update_stmt = (
                             update(ScenarioInformation)
                             .where(ScenarioInformation.scenario_id == scenario_id)
                             .values(
-                                simulation_end_at=end_time,
+                                simulation_start_at=start_time,
                                 updated_at=func.timezone('utc', func.now())  # DB 기본값으로 자동 truncate
                             )
                         )
@@ -155,12 +154,12 @@ class SimulationRepository(ISimulationRepository):
                     
                     # 성공 로그
                     scenario_ids = [s['scenario_id'] for s in scenarios_to_update]
-                    print(f"✅ Updated simulation_end_at for {len(scenario_ids)} scenarios using S3 file timestamps")
+                    print(f"✅ Updated simulation_start_at for {len(scenario_ids)} scenarios using S3 file timestamps")
                     
                 except Exception as e:
                     # DB 업데이트 실패해도 목록 조회는 계속 진행
                     scenario_ids = [s['scenario_id'] for s in scenarios_to_update]
-                    print(f"⚠️ Warning: Failed to update simulation_end_at for scenarios {scenario_ids}: {e}")
+                    print(f"⚠️ Warning: Failed to update simulation_start_at for scenarios {scenario_ids}: {e}")
                     await db.rollback()
 
             return scenarios
@@ -386,8 +385,6 @@ class SimulationRepository(ISimulationRepository):
     # 4. 시뮬레이션 상태 및 권한 관리
     # =====================================
 
-    # 기존 update_simulation_start_end_at 메서드는 사용되지 않아 삭제됨
-    # 현재는 개별 메서드들(update_simulation_start_at 등)을 사용
 
     async def check_user_scenario_permission(
         self, db: AsyncSession, user_id: str, scenario_id: str

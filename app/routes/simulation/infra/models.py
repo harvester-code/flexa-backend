@@ -28,9 +28,6 @@ class ScenarioInformation(Base):
     simulation_start_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    simulation_end_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
