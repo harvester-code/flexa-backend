@@ -112,5 +112,3 @@ async def verify_scenario_ownership(
         )
 
 
-# 타입 힌트용 별칭 - 더 간단하게 사용 가능
-VerifiedScenarioId = Annotated[str, Depends(verify_scenario_ownership)]
