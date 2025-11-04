@@ -37,6 +37,15 @@ class ScenarioInformation(Base):
     metadata_updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    simulation_status: Mapped[str] = mapped_column(
+        String(20), nullable=True, default='pending'
+    )
+    simulation_error: Mapped[str] = mapped_column(
+        Text, nullable=True
+    )
+    simulation_end_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 
