@@ -244,7 +244,7 @@ class SimulationRepository(ISimulationRepository):
         db: AsyncSession,
         scenario_id: str,
     ):
-        """시뮬레이션 시작 시각 갱신"""
+        """시뮬레이션 시작 시각 및 상태 갱신"""
         from datetime import datetime
         from loguru import logger
         
@@ -256,11 +256,18 @@ class SimulationRepository(ISimulationRepository):
             result = await db.execute(
                 update(ScenarioInformation)
                 .where(ScenarioInformation.scenario_id == scenario_id)
-                .values(simulation_start_at=current_time)
+                .values(
+                    simulation_start_at=current_time,
+                    simulation_status="processing",  # 🔴 즉시 processing 상태로 변경
+                    simulation_error=None,  # 🔴 이전 에러 메시지 리셋
+                    simulation_end_at=None  # 🔴 이전 종료 시각 리셋
+                )
             )
             
             rows_affected = result.rowcount
             logger.info(f"📝 Update query executed, rows affected: {rows_affected}")
+            logger.info(f"🚀 simulation_status set to 'processing' for scenario: {scenario_id}")
+            logger.info(f"🧹 Previous error and end_at cleared for fresh start")
             
             if rows_affected == 0:
                 logger.warning(f"⚠️ No rows updated for scenario_id: {scenario_id}")
