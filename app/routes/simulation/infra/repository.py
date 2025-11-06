@@ -123,6 +123,8 @@ class SimulationRepository(ISimulationRepository):
                     "created_at": scenario_info.created_at,
                     "updated_at": scenario_info.updated_at,
                     "metadata_updated_at": scenario_info.metadata_updated_at,
+                    "simulation_status": scenario_info.simulation_status,  # 🔴 시뮬레이션 상태
+                    "simulation_end_at": scenario_info.simulation_end_at,  # 🔴 시뮬레이션 종료 시각
                     # UserInformation 필드들
                     "first_name": row[1],
                     "last_name": row[2],
