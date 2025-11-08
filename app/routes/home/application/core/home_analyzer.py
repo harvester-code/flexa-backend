@@ -1232,7 +1232,7 @@ class HomeAnalyzer:
     def get_facility_details(self):
         """시설 세부 정보 생성"""
 
-        # facility_metrics 계산 (ai_ratio, pa_ratio 정보를 위해)
+        # facility_metrics 계산 (facility_effi, workforce_effi 정보를 위해)
         facility_metrics_list = self._calculate_facility_metrics()
 
         # process별, zone별 metrics 매핑 생성
@@ -1292,8 +1292,8 @@ class HomeAnalyzer:
                     if self.percentile is not None
                     else waiting_time.mean()
                 ),
-                "ai_ratio": process_metrics.get('operating_rate', 0) * 100,  # A/I Ratio = Facility Effi.
-                "pa_ratio": process_metrics.get('utilization_rate', 0) * 100,  # P/A Ratio = Workforce Effi.
+                "facility_effi": process_metrics.get('operating_rate', 0) * 100,  # Facility Effi. = Facility Effi.
+                "workforce_effi": process_metrics.get('utilization_rate', 0) * 100,  # Workforce Effi. = Workforce Effi.
                 "opened": [process_opened, process_total],  # [운영한 시설 수, 전체 시설 수]
             }
 
@@ -1330,8 +1330,8 @@ class HomeAnalyzer:
                             if self.percentile is not None
                             else waiting_time.mean()
                         ),
-                        "ai_ratio": zone_metrics.get('operating_rate', 0) * 100,  # A/I Ratio
-                        "pa_ratio": zone_metrics.get('utilization_rate', 0) * 100,  # P/A Ratio
+                        "facility_effi": zone_metrics.get('operating_rate', 0) * 100,  # Facility Effi.
+                        "workforce_effi": zone_metrics.get('utilization_rate', 0) * 100,  # Workforce Effi.
                         "opened": [zone_opened, zone_total],  # [운영한 시설 수, 전체 시설 수]
                     }
                 )
