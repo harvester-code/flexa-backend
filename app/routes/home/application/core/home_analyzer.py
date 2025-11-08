@@ -891,6 +891,57 @@ class HomeAnalyzer:
 
         return data
 
+    def _normalize_facility_names(self, facility_names: list) -> dict:
+        """시설 이름 목록을 분석하여 필요시 zero-padding을 적용한 매핑을 반환
+
+        이미 zero-padding이 되어있는 이름은 그대로 유지하고,
+        자릿수가 불일치하는 경우에만 패딩을 추가합니다.
+
+        Args:
+            facility_names: 원본 시설 이름 목록 (예: ['A_1', 'A_10', 'A_2'])
+
+        Returns:
+            dict: 원본 이름 -> 패딩된 이름 매핑 (예: {'A_1': 'A_01', 'A_10': 'A_10', 'A_2': 'A_02'})
+        """
+        import re
+
+        # 패턴별로 그룹화: prefix -> [(number, number_str_length, original_name)]
+        pattern_groups = {}
+        for name in facility_names:
+            match = re.match(r'^(.+)_(\d+)$', str(name))
+            if match:
+                prefix = match.group(1)
+                number_str = match.group(2)
+                number = int(number_str)
+                number_str_length = len(number_str)
+                if prefix not in pattern_groups:
+                    pattern_groups[prefix] = []
+                pattern_groups[prefix].append((number, number_str_length, name))
+
+        # 각 그룹별로 패딩 필요 여부 판단 및 매핑 생성
+        name_mapping = {}
+        for prefix, number_list in pattern_groups.items():
+            max_number = max(num for num, _, _ in number_list)
+            max_number_digits = len(str(max_number))
+
+            # 현재 최대 자릿수 (이미 패딩된 경우 고려)
+            current_max_digits = max(num_str_len for _, num_str_len, _ in number_list)
+
+            # 필요한 자릿수는 둘 중 큰 값
+            required_digits = max(max_number_digits, current_max_digits)
+
+            for number, _, original_name in number_list:
+                # 필요한 경우에만 패딩 적용
+                padded_name = f"{prefix}_{str(number).zfill(required_digits)}"
+                name_mapping[original_name] = padded_name
+
+        # 패턴에 맞지 않는 이름은 그대로 유지
+        for name in facility_names:
+            if name not in name_mapping:
+                name_mapping[name] = name
+
+        return name_mapping
+
     def get_flow_chart_data(self, interval_minutes: int = None):
         """플로우 차트 데이터 생성 - 계층 구조로 변경"""
         interval_minutes = interval_minutes or self.interval_minutes
@@ -906,7 +957,14 @@ class HomeAnalyzer:
             has_zone = all_process_data[zone_col].notna()
             no_zone = all_process_data[zone_col].isna()
 
-            facilities = sorted(all_process_data[zone_col].dropna().unique())
+            # 원본 시설 목록
+            original_facilities = list(all_process_data[zone_col].dropna().unique())
+            # zero-padding 매핑 생성 (원본 -> 패딩)
+            facility_name_mapping = self._normalize_facility_names(original_facilities)
+            # 역매핑 생성 (패딩 -> 원본)
+            facility_name_reverse_mapping = {v: k for k, v in facility_name_mapping.items()}
+            # 패딩된 이름으로 정렬
+            facilities = sorted([facility_name_mapping[f] for f in original_facilities])
 
             # 계층 구조를 위한 프로세스 정보 생성
             process_info = {
@@ -1007,11 +1065,13 @@ class HomeAnalyzer:
                     )
 
                 for facility_name in facilities:
-                    # 원래 facility 이름 보존
+                    # facility_name은 패딩된 이름, 원본 이름으로 데이터 조회
+                    original_facility_name = facility_name_reverse_mapping.get(facility_name, facility_name)
+                    # 프론트로 보낼 이름은 패딩된 이름
                     node_name = facility_name
 
                     facility_data = {
-                        k: pivoted[k].get(facility_name, pd.Series(0, index=time_df.index))
+                        k: pivoted[k].get(original_facility_name, pd.Series(0, index=time_df.index))
                         for k in metrics.keys()
                     }
 
@@ -1037,12 +1097,12 @@ class HomeAnalyzer:
                     # 항공사별 데이터 추가
                     if pivoted_by_airline:
                         airlines_data = {}
-                        # 해당 zone의 모든 항공사 데이터 추출
+                        # 해당 zone의 모든 항공사 데이터 추출 (원본 이름 사용)
                         for metric_key, metric_df in pivoted_by_airline.items():
                             # metric_df.columns는 MultiIndex: (zone, airline)
                             if metric_df.columns.nlevels == 2:
-                                # 해당 zone의 항공사들
-                                zone_airlines = [col for col in metric_df.columns if col[0] == facility_name]
+                                # 해당 zone의 항공사들 (원본 이름으로 조회)
+                                zone_airlines = [col for col in metric_df.columns if col[0] == original_facility_name]
                                 for zone_name, airline_code in zone_airlines:
                                     if airline_code not in airlines_data:
                                         airlines_data[airline_code] = {}
@@ -1056,21 +1116,27 @@ class HomeAnalyzer:
                         if airlines_data:
                             process_facility_data[node_name]["airlines"] = airlines_data
 
-                    if node_name in zone_capacity_map:
+                    # capacity는 원본 이름으로 조회
+                    if original_facility_name in zone_capacity_map:
                         process_facility_data[node_name]["capacity"] = [
-                            int(round(value)) for value in zone_capacity_map[node_name]
+                            int(round(value)) for value in zone_capacity_map[original_facility_name]
                         ]
 
                     # ===== 개별 facility 레벨 데이터 추가 =====
                     # 해당 zone에 속한 개별 facility 데이터 계산
                     facility_col = f"{process}_facility"
                     if facility_col in process_data.columns:
-                        # 해당 zone의 데이터만 필터링
-                        zone_process_data = process_data[process_data[f"{process}_zone"] == facility_name].copy()
+                        # 해당 zone의 데이터만 필터링 (원본 이름 사용)
+                        zone_process_data = process_data[process_data[f"{process}_zone"] == original_facility_name].copy()
 
                         if not zone_process_data.empty:
-                            # 개별 facility 목록
-                            individual_facilities = sorted(zone_process_data[facility_col].dropna().unique())
+                            # 개별 facility 목록 (원본)
+                            original_individual_facilities = list(zone_process_data[facility_col].dropna().unique())
+                            # individual facility에도 zero-padding 적용
+                            individual_facility_name_mapping = self._normalize_facility_names(original_individual_facilities)
+                            individual_facility_reverse_mapping = {v: k for k, v in individual_facility_name_mapping.items()}
+                            # 패딩된 이름으로 정렬
+                            individual_facilities = sorted([individual_facility_name_mapping[f] for f in original_individual_facilities])
 
                             if individual_facilities:
                                 # 개별 facility별 메트릭 계산
@@ -1121,12 +1187,12 @@ class HomeAnalyzer:
                                         unstacked = metric_series.unstack(level=[1, 2], fill_value=0)
                                         facility_pivoted_by_airline[metric_key] = unstacked.reindex(time_df.index, fill_value=0)
 
-                                # 개별 facility capacity 계산
+                                # 개별 facility capacity 계산 (원본 zone 이름 사용)
                                 facility_capacity_map: Dict[str, List[float]] = {}
                                 if step_config and interval_minutes > 0:
                                     facility_capacity_map = self._calculate_step_capacity_series_by_facility(
                                         step_config,
-                                        facility_name,
+                                        original_facility_name,
                                         time_df.index,
                                         interval_minutes,
                                     )
@@ -1134,11 +1200,15 @@ class HomeAnalyzer:
                                 # 개별 facility 데이터 구성
                                 sub_facility_data = {}
                                 for individual_facility in individual_facilities:
+                                    # individual_facility는 패딩된 이름, 원본 이름으로 데이터 조회
+                                    original_individual_facility = individual_facility_reverse_mapping.get(individual_facility, individual_facility)
+
                                     ind_fac_data = {
-                                        k: facility_pivoted[k].get(individual_facility, pd.Series(0, index=time_df.index))
+                                        k: facility_pivoted[k].get(original_individual_facility, pd.Series(0, index=time_df.index))
                                         for k in facility_metrics.keys()
                                     }
 
+                                    # 프론트로 보낼 키는 패딩된 이름
                                     sub_facility_data[individual_facility] = {
                                         k: (
                                             ind_fac_data[k].round()
@@ -1150,15 +1220,15 @@ class HomeAnalyzer:
                                         for k in ind_fac_data.keys()
                                     }
 
-                                    # 항공사별 데이터 추가
+                                    # 항공사별 데이터 추가 (원본 이름으로 조회)
                                     if facility_pivoted_by_airline:
                                         airlines_data = {}
                                         # 해당 facility의 모든 항공사 데이터 추출
                                         for metric_key, metric_df in facility_pivoted_by_airline.items():
                                             # metric_df.columns는 MultiIndex: (facility, airline)
                                             if metric_df.columns.nlevels == 2:
-                                                # 해당 facility의 항공사들
-                                                facility_airlines = [col for col in metric_df.columns if col[0] == individual_facility]
+                                                # 해당 facility의 항공사들 (원본 이름으로 조회)
+                                                facility_airlines = [col for col in metric_df.columns if col[0] == original_individual_facility]
                                                 for facility_name_col, airline_code in facility_airlines:
                                                     if airline_code not in airlines_data:
                                                         airlines_data[airline_code] = {}
@@ -1172,10 +1242,10 @@ class HomeAnalyzer:
                                         if airlines_data:
                                             sub_facility_data[individual_facility]["airlines"] = airlines_data
 
-                                    # capacity 추가
-                                    if individual_facility in facility_capacity_map:
+                                    # capacity 추가 (원본 이름으로 조회)
+                                    if original_individual_facility in facility_capacity_map:
                                         sub_facility_data[individual_facility]["capacity"] = [
-                                            int(round(value)) for value in facility_capacity_map[individual_facility]
+                                            int(round(value)) for value in facility_capacity_map[original_individual_facility]
                                         ]
 
                                 # zone 데이터에 추가
