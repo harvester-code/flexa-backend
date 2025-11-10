@@ -30,7 +30,7 @@ home_router = APIRouter(
 async def fetch_static_data(
     scenario_id: str,
     home_service: HomeService = Depends(Provide[Container.home_service]),
-    interval_minutes: int = 15,
+    interval_minutes: int = 60,
 ):
     result = await home_service.fetch_static_data(scenario_id, interval_minutes)
     return SuccessResponse(status_code=status.HTTP_200_OK, data=result)

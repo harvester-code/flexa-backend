@@ -4,6 +4,7 @@ import urllib.request
 
 import numpy as np
 import pandas as pd
+import re
 
 
 class HomeAnalyzer:
@@ -1624,22 +1625,59 @@ class HomeAnalyzer:
         return df.copy()
 
     def _extract_block_period(self, block: dict) -> Optional[tuple[pd.Timestamp, pd.Timestamp]]:
-        """운영 스케줄 블록의 시작/종료 시간 추출"""
+        """운영 스케줄 블록의 시작/종료 시간 추출
+        
+        다양한 period 형식을 지원:
+        - "YYYY-MM-DD HH:MM:SS - YYYY-MM-DD HH:MM:SS" (공백-대시-공백)
+        - "YYYY-MM-DD HH:MM:SS-YYYY-MM-DD HH:MM:SS" (공백 없이)
+        - "2025-12-20 00:00:00-2025-12-21 00:00:00" (다음날 포함)
+        """
         period = block.get("period", "")
         if not period:
             return None
 
-        if len(period) > 19 and period[19] == "-":
-            start_str = period[:19]
-            end_str = period[20:]
-        else:
-            parts = period.split(" - ")
-            if len(parts) != 2:
+        # 정규표현식으로 날짜-시간 형식 찾기: YYYY-MM-DD HH:MM:SS
+        datetime_pattern = r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}'
+        matches = re.findall(datetime_pattern, period)
+        
+        if len(matches) >= 2:
+            # 두 개의 날짜-시간을 찾았으면 첫 번째와 마지막을 사용
+            start_str = matches[0]
+            end_str = matches[-1]
+        elif len(matches) == 1:
+            # 하나만 찾았으면 "-" 또는 " - "로 분리 시도
+            if " - " in period:
+                parts = period.split(" - ", 1)
+                if len(parts) == 2:
+                    start_str = parts[0].strip()
+                    end_str = parts[1].strip()
+                else:
+                    return None
+            elif "-" in period:
+                # 첫 번째 날짜-시간 이후의 "-"를 찾기
+                first_datetime_end = period.find(matches[0]) + len(matches[0])
+                dash_pos = period.find("-", first_datetime_end)
+                if dash_pos > 0:
+                    start_str = period[:dash_pos].strip()
+                    end_str = period[dash_pos + 1:].strip()
+                else:
+                    return None
+            else:
                 return None
-            start_str, end_str = parts
+        else:
+            # 날짜-시간 형식을 찾지 못했으면 기존 방식으로 fallback
+            if " - " in period:
+                parts = period.split(" - ", 1)
+                if len(parts) == 2:
+                    start_str = parts[0].strip()
+                    end_str = parts[1].strip()
+                else:
+                    return None
+            else:
+                return None
 
-        block_start = pd.to_datetime(start_str.strip(), errors="coerce")
-        block_end = pd.to_datetime(end_str.strip(), errors="coerce")
+        block_start = pd.to_datetime(start_str, errors="coerce")
+        block_end = pd.to_datetime(end_str, errors="coerce")
         if pd.isna(block_start) or pd.isna(block_end):
             return None
         return block_start, block_end
