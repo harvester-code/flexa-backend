@@ -4,7 +4,6 @@ from fastapi import APIRouter, Depends, status
 from app.libs.containers import Container
 from packages.supabase.dependencies import verify_token
 from app.routes.home.application.service import HomeService
-from app.libs.response import SuccessResponse
 
 """
 status 코드 정리
@@ -33,7 +32,7 @@ async def fetch_static_data(
     interval_minutes: int = 60,
 ):
     result = await home_service.fetch_static_data(scenario_id, interval_minutes)
-    return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
+    return result
 
 
 @home_router.get(
@@ -51,4 +50,4 @@ async def fetch_metrics_data(
     result = await home_service.fetch_metrics_data(
         scenario_id, percentile
     )
-    return SuccessResponse(status_code=status.HTTP_200_OK, data=result)
+    return result

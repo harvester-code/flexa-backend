@@ -2,20 +2,28 @@ from fastapi import FastAPI, HTTPException, Request, status
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.responses import JSONResponse
 
-from app.libs.response import ErrorResponse
+DEFAULT_ERROR_MESSAGE = "Response Error!"
 
+
+def _build_error_content(status_code: int, detail: str | None = None) -> dict:
+    content = {
+        "status_code": status_code,
+        "message": DEFAULT_ERROR_MESSAGE,
+    }
+    if detail is not None:
+        content["data"] = detail
+    return content
 
 # ==================================================
 # NOTE: DB 오류 처리
 async def db_exception_handler(request: Request, exc: SQLAlchemyError):
-    response = ErrorResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    # NOTE: 개발 환경에서만 사용할 것
-    response.data = str(exc)
+    response_content = _build_error_content(
+        status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
+    )
 
     return JSONResponse(
-        status_code=response.status_code,
-        content=response.model_dump(),
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content=response_content,
     )
 
 
@@ -32,26 +40,24 @@ class BadRequestException(HTTPException):
 
 
 async def bad_request_exception_handler(request: Request, exc: BadRequestException):
-    response = ErrorResponse(status_code=exc.status_code)
-
-    # NOTE: 개발 환경에서만 사용할 것
-    response.data = str(exc)
+    response_content = _build_error_content(exc.status_code, detail=str(exc))
 
     return JSONResponse(
-        status_code=response.status_code,
-        content=response.model_dump(),
+        status_code=exc.status_code,
+        content=response_content,
     )
 
 
 # ==================================================
 # NOTE: 500 Internal Server Error 전역 핸들러
 async def internal_server_error_handler(request: Request, exc: Exception):
-    response = ErrorResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    response_content = _build_error_content(
+        status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
+    )
 
-    # NOTE: 개발 환경에서만 사용할 것
-    response.data = str(exc)
-
-    return JSONResponse(status_code=response.status_code, content=response.model_dump())
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=response_content
+    )
 
 
 # ==================================================

@@ -6,6 +6,7 @@
 - FlightScheduleResponse: 프론트엔드용 JSON 응답 생성 (차트 데이터 포함)
 """
 
+import asyncio
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -107,37 +108,34 @@ class FlightScheduleStorage:
                 # 오늘/미래 데이터: schedule 테이블
                 query = SELECT_AIRPORT_SCHEDULE
 
-            # redshift-connector를 직접 사용하여 경고 방지
             cursor = db.cursor()
+            try:
+                # flight_type에 따라 쿼리 파라미터 조정
+                if flight_type == "departure":
+                    modified_query = query.replace(
+                        "AND (fe.departure_airport_iata = %s OR fe.arrival_airport_iata = %s)",
+                        "AND fe.departure_airport_iata = %s",
+                    ).replace(
+                        "AND (s.departure_station_code_iata = %s OR s.arrival_station_code_iata = %s)",
+                        "AND s.departure_station_code_iata = %s",
+                    )
+                    await asyncio.to_thread(cursor.execute, modified_query, (date, airport))
+                elif flight_type == "arrival":
+                    modified_query = query.replace(
+                        "AND (fe.departure_airport_iata = %s OR fe.arrival_airport_iata = %s)",
+                        "AND fe.arrival_airport_iata = %s",
+                    ).replace(
+                        "AND (s.departure_station_code_iata = %s OR s.arrival_station_code_iata = %s)",
+                        "AND s.arrival_station_code_iata = %s",
+                    )
+                    await asyncio.to_thread(cursor.execute, modified_query, (date, airport))
+                else:
+                    await asyncio.to_thread(cursor.execute, query, (date, airport, airport))
 
-            # flight_type에 따라 쿼리 파라미터 조정
-            if flight_type == "departure":
-                # departure 전용 쿼리로 수정
-                modified_query = query.replace(
-                    "AND (fe.departure_airport_iata = %s OR fe.arrival_airport_iata = %s)",
-                    "AND fe.departure_airport_iata = %s",
-                ).replace(
-                    "AND (s.departure_station_code_iata = %s OR s.arrival_station_code_iata = %s)",
-                    "AND s.departure_station_code_iata = %s",
-                )
-                cursor.execute(modified_query, (date, airport))
-            elif flight_type == "arrival":
-                # arrival 전용 쿼리로 수정
-                modified_query = query.replace(
-                    "AND (fe.departure_airport_iata = %s OR fe.arrival_airport_iata = %s)",
-                    "AND fe.arrival_airport_iata = %s",
-                ).replace(
-                    "AND (s.departure_station_code_iata = %s OR s.arrival_station_code_iata = %s)",
-                    "AND s.arrival_station_code_iata = %s",
-                )
-                cursor.execute(modified_query, (date, airport))
-            else:
-                # 기본값: 기존 OR 조건 유지
-                cursor.execute(query, (date, airport, airport))
-
-            columns = [desc[0] for desc in cursor.description]
-            rows = cursor.fetchall()
-            cursor.close()
+                columns = [desc[0] for desc in cursor.description]
+                rows = await asyncio.to_thread(cursor.fetchall)
+            finally:
+                cursor.close()
 
             # DataFrame으로 변환
             flight_schedule_df = pd.DataFrame(rows, columns=columns)

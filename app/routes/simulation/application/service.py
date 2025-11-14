@@ -12,7 +12,6 @@
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
-import awswrangler as wr
 from fastapi import HTTPException, status
 from loguru import logger
 from sqlalchemy import Connection
@@ -38,9 +37,9 @@ from packages.aws.s3.s3_manager import S3Manager
 
 
 class SimulationService:
-    def __init__(self, simulation_repo):
+    def __init__(self, simulation_repo, s3_manager: S3Manager):
         self.simulation_repo = simulation_repo
-        self.s3_manager = S3Manager()
+        self.s3_manager = s3_manager
 
         # Storage layer instances
         self.flight_storage = FlightScheduleStorage()

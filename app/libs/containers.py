@@ -13,17 +13,16 @@ class Container(containers.DeclarativeContainer):
         packages=[
             "app.routes.home",
             "app.routes.simulation",
-            "packages.supabase",  # 🔧 Supabase 패키지 추가
+            "packages.supabase",
         ]
     )
 
-    # 통합 S3Manager를 싱글톤으로 관리
     s3_manager = providers.Singleton(S3Manager)
 
     simulation_repo = providers.Factory(SimulationRepository)
     simulation_service = providers.Factory(
-        SimulationService, simulation_repo=simulation_repo
+        SimulationService, simulation_repo=simulation_repo, s3_manager=s3_manager
     )
 
     home_repo = providers.Factory(HomeRepository, s3_manager=s3_manager)
-    home_service = providers.Factory(HomeService, home_repo=home_repo, s3_manager=s3_manager)
+    home_service = providers.Factory(HomeService, home_repo=home_repo)
