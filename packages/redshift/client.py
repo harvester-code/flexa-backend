@@ -34,14 +34,14 @@ def reset_pool_recycle():
     logger.info(f"🔄 POOL_RECYCLE reset to default {_DEFAULT_POOL_RECYCLE}s")
 
 POOL_RECYCLE = get_pool_recycle_time()  # 동적으로 계산됨
-POOL_SIZE_MAP = {"development": 3, "production": 10, "dev": 3, "prod": 10, "local": 2}
+POOL_SIZE_MAP = {"development": 3, "production": 10, "dev": 3, "stg": 5, "prod": 10}
 TIMEOUT = 20  # 연결 대기시간 더 단축
 MAX_RETRIES = 3  # 연결 실패 시 재시도 횟수
 
 
 def get_environment_pool_size():
     """환경별 Pool Size를 안전하게 감지"""
-    env = get_secret("ENVIRONMENT")
+    env = get_secret("DOPPLER_ENVIRONMENT")
     logger.info(f"🔍 Detected environment: '{env}'")
     
     if env in POOL_SIZE_MAP:
@@ -259,7 +259,6 @@ def get_pool_status() -> dict:
             "checked_out": redshift_pool.checkedout(), 
             "overflow": redshift_pool.overflow(),
             "pool_recycle_seconds": POOL_RECYCLE,
-            "test_mode": TEST_MODE if 'TEST_MODE' in globals() else False,
             "total_connections": redshift_pool.size() + redshift_pool.overflow()
         }
         
@@ -300,6 +299,3 @@ def initialize_redshift_pool():
     
     # 초기 풀 상태 로깅
     log_pool_metrics()
-    
-    if 'TEST_MODE' in globals() and TEST_MODE:
-        logger.info("🧪 Running in TEST MODE - pool recycle can be overridden")

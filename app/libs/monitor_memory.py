@@ -29,8 +29,8 @@ def setup_memory_monitor():
     메모리 모니터링을 설정합니다. 이 함수는 모니터링 스레드를 시작합니다.
     """
 
-    if get_secret("ENVIRONMENT") == "local":
+    if get_secret("DOPPLER_ENVIRONMENT") == "dev":
         threading.Thread(target=monitor_memory, daemon=True).start()
         logger.info("Memory monitoring started.")
     else:
-        logger.info("Memory monitoring is disabled in non-local environments.")
+        logger.info("Memory monitoring is disabled in non-dev environments.")

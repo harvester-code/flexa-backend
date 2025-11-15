@@ -6,7 +6,6 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from packages.aws.lambda_service.auth import decode_jwt
 from packages.supabase.auth import decode_supabase_token
 
 # API 상수
@@ -16,12 +15,6 @@ PROTECTED_PATHS = [
     f"{API_PREFIX}/simulations",
     f"{API_PREFIX}/homes",
     f"{API_PREFIX}/facilities",
-]
-
-# HACK: 현재는 PROTECTED_PATHS와 SYSTEM_PATHS가 동일한 경로를 포함하고 있습니다.
-SYSTEM_PATHS = [
-    f"{API_PREFIX}/simulations/end-simulation",
-    f"{API_PREFIX}/simulations/error-simulation",
 ]
 
 
@@ -70,26 +63,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if request.method == "OPTIONS":
             return await call_next(request)
 
-        is_system_path = any(
-            path.startswith(system_path) for system_path in SYSTEM_PATHS
-        )
         is_protected_path = any(
             path.startswith(protected_path) for protected_path in PROTECTED_PATHS
         )
 
-        # HACK: 현재는 PROTECTED_PATHS와 SYSTEM_PATHS가 동일한 경로를 포함하고 있습니다.
-        if is_system_path:
-            try:
-                token = self._extract_token_from_header(request)
-            except ValueError:
-                return self._handle_auth_error()
-
-            # NOTE: 시스템(ex. Lambda) 환경에서는 다른 jwt 인증을 사용합니다.
-            payload = decode_jwt(token=token)
-
-            request.state.user_id = payload.get("sub")
-
-        elif is_protected_path:
+        if is_protected_path:
             try:
                 token = self._extract_token_from_header(request)
             except ValueError:

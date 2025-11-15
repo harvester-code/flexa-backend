@@ -43,7 +43,7 @@ app.container.wire()  # 🔧 의존성 주입 활성화!
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOW_ORIGINS_MAP.get(get_secret("ENVIRONMENT")),
+    allow_origins=ALLOW_ORIGINS_MAP.get(get_secret("DOPPLER_ENVIRONMENT")),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
