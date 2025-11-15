@@ -1,5 +1,4 @@
 import logging
-import os
 from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -25,7 +24,7 @@ SUPABASE_PORT = get_secret("SUPABASE_PORT")
 SUPABASE_DBNAME = get_secret("SUPABASE_DBNAME")
 
 # 환경 감지 (개발 환경 여부 확인)
-ENVIRONMENT = os.getenv("DOPPLER_ENVIRONMENT")
+ENVIRONMENT = get_secret("DOPPLER_ENVIRONMENT")
 IS_DEV = ENVIRONMENT == "dev"
 
 # 환경별 연결 풀 설정
