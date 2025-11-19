@@ -77,19 +77,43 @@ class HomeService:
     async def fetch_static_data(
         self, scenario_id: str, interval_minutes: int = 60
     ) -> Dict[str, Any]:
-        """KPI와 무관한 정적 데이터 반환"""
-
+        """KPI와 무관한 정적 데이터 반환 (S3 캐싱 지원)
+        
+        로직:
+        1. S3에서 캐시된 응답 파일 확인
+        2. 캐시가 있고 유효하면 (parquet보다 최신) → 캐시 반환
+        3. 캐시가 없거나 오래되었으면 → 새로 계산 + S3에 저장
+        """
+        cache_filename = "home-static-response.json"
+        
+        # 1. 캐시가 유효한지 확인 (parquet 수정일 비교)
+        is_valid = await self.home_repo.is_cache_valid(scenario_id, cache_filename)
+        
+        if is_valid:
+            # 2. 유효한 캐시가 있으면 바로 반환
+            cached_data = await self.home_repo.load_cached_response(scenario_id, cache_filename)
+            if cached_data:
+                logger.info(f"🚀 Returning cached static data for {scenario_id}")
+                return cached_data
+        
+        # 3. 캐시가 없거나 오래됨 → 새로 계산
+        logger.info(f"⚙️ Computing static data for {scenario_id}")
         pax_df = await self._get_pax_dataframe(scenario_id)
         process_flow = await self._load_process_flow(scenario_id)
         calculator = self._create_calculator(
             pax_df, process_flow=process_flow, interval_minutes=interval_minutes
         )
 
-        return {
+        result = {
             "flow_chart": calculator.get_flow_chart_data(),
             "histogram": calculator.get_histogram_data(),
             "sankey_diagram": calculator.get_sankey_diagram_data(),
         }
+        
+        # 4. 계산된 결과를 S3에 캐시로 저장
+        await self.home_repo.save_cached_response(scenario_id, cache_filename, result)
+        
+        return result
 
     async def fetch_metrics_data(
         self, scenario_id: str, percentile: Optional[int] = None
