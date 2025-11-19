@@ -43,6 +43,11 @@ class SimulationRepository(ISimulationRepository):
         user_id: str,
     ):
         """시나리오 목록 조회 (현재 사용자의 모든 시나리오)"""
+        from loguru import logger
+        
+        # 디버깅: user_id 확인
+        logger.info(f"🔍 fetch_scenario_information called with user_id: {user_id}")
+        
         async with db.begin():
             # ORM을 사용한 JOIN 쿼리
             stmt = (
@@ -72,7 +77,11 @@ class SimulationRepository(ISimulationRepository):
             scenarios = []
             scenarios_to_update = []  # 업데이트가 필요한 시나리오들
             
-            for row in result:
+            # 디버깅: 조회된 시나리오 수 확인
+            rows = result.all()
+            logger.info(f"🔍 Found {len(rows)} scenarios for user_id: {user_id}")
+            
+            for row in rows:
                 scenario_info = row[0]  # ScenarioInformation 객체
 
                 # S3Manager를 사용하여 simulation-pax.parquet 파일 존재 여부 및 메타데이터 확인
