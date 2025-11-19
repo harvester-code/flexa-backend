@@ -84,34 +84,56 @@ class HomeService:
         2. 캐시가 있고 유효하면 (parquet보다 최신) → 캐시 반환
         3. 캐시가 없거나 오래되었으면 → 새로 계산 + S3에 저장
         """
+        logger.info(f"=" * 80)
+        logger.info(f"🔍 [CACHE CHECK START] scenario_id={scenario_id}")
         cache_filename = "home-static-response.json"
         
         # 1. 캐시가 유효한지 확인 (parquet 수정일 비교)
+        logger.info(f"📋 Checking cache validity for: {cache_filename}")
         is_valid = await self.home_repo.is_cache_valid(scenario_id, cache_filename)
+        logger.info(f"📊 Cache validation result: is_valid={is_valid}")
         
         if is_valid:
             # 2. 유효한 캐시가 있으면 바로 반환
+            logger.info(f"✅ Cache is valid! Attempting to load cached data...")
             cached_data = await self.home_repo.load_cached_response(scenario_id, cache_filename)
             if cached_data:
-                logger.info(f"🚀 Returning cached static data for {scenario_id}")
+                logger.info(f"🚀 [CACHE HIT] Returning cached static data (NO COMPUTATION)")
+                logger.info(f"=" * 80)
                 return cached_data
+            else:
+                logger.warning(f"⚠️ Cache was valid but failed to load data")
         
         # 3. 캐시가 없거나 오래됨 → 새로 계산
-        logger.info(f"⚙️ Computing static data for {scenario_id}")
+        logger.info(f"❌ [CACHE MISS] Cache invalid or not found")
+        logger.info(f"⚙️ [COMPUTING] Starting heavy computation (parquet + analysis)...")
         pax_df = await self._get_pax_dataframe(scenario_id)
+        logger.info(f"📦 Loaded parquet data: {len(pax_df)} rows")
+        
         process_flow = await self._load_process_flow(scenario_id)
+        logger.info(f"🔄 Creating calculator and computing charts...")
         calculator = self._create_calculator(
             pax_df, process_flow=process_flow, interval_minutes=interval_minutes
         )
 
+        logger.info(f"📊 Computing flow_chart...")
+        flow_chart = calculator.get_flow_chart_data()
+        logger.info(f"📊 Computing histogram...")
+        histogram = calculator.get_histogram_data()
+        logger.info(f"📊 Computing sankey_diagram...")
+        sankey = calculator.get_sankey_diagram_data()
+        
         result = {
-            "flow_chart": calculator.get_flow_chart_data(),
-            "histogram": calculator.get_histogram_data(),
-            "sankey_diagram": calculator.get_sankey_diagram_data(),
+            "flow_chart": flow_chart,
+            "histogram": histogram,
+            "sankey_diagram": sankey,
         }
         
+        logger.info(f"✅ Computation complete! Saving to cache...")
         # 4. 계산된 결과를 S3에 캐시로 저장
-        await self.home_repo.save_cached_response(scenario_id, cache_filename, result)
+        save_success = await self.home_repo.save_cached_response(scenario_id, cache_filename, result)
+        logger.info(f"💾 Cache save result: success={save_success}")
+        logger.info(f"=" * 80)
         
         return result
 
