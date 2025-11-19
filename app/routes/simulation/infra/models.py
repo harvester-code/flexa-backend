@@ -66,6 +66,7 @@ class UserInformation(Base):
     introduction: Mapped[str] = mapped_column(Text, nullable=True)  # bio → introduction
     timezone: Mapped[str] = mapped_column(String, nullable=False)     # 데이터베이스에 존재함
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    role: Mapped[str] = mapped_column(String(20), nullable=False, default='operator')
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
