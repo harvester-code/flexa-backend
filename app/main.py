@@ -26,9 +26,10 @@ ALLOW_ORIGINS_MAP = {
         "https://flexa.kr",
         "http://localhost:3000",
     ],
-    "prod": [
+    "prd": [
         "https://flexa.kr",
-        "http://localhost:3000",
+        # "http://localhost:3000",
+        "https://www.flexa-cloud.com/",
     ],
 }
 

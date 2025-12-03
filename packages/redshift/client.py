@@ -55,11 +55,13 @@ def get_environment_pool_size():
         env_lower = str(env).lower() if env else "unknown"
         if any(keyword in env_lower for keyword in ["dev", "development"]):
             size = 5
-        elif any(keyword in env_lower for keyword in ["prod", "production"]):
+        elif any(keyword in env_lower for keyword in ["prd", "prod", "production"]):
             size = 20
         else:
             size = 3  # 안전한 기본값
-        logger.warning(f"Unknown environment '{env}', using default pool size: {size}")
+            logger.warning(
+                f"Unknown environment '{env}', using default pool size: {size}"
+            )
 
     logger.info(f"✅ Pool size set to: {size}")
     return size
