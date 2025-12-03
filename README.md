@@ -1,4 +1,4 @@
-# Flexa Waitfree API
+# Flexa Simmula API
 
 ## 환경별 배포방법
 
