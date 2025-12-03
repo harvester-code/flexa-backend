@@ -39,11 +39,11 @@ class PassengerScheduleBody(BaseModel):
     ⚠️ 모든 필드는 필수입니다. 기본값 제공하지 않습니다.
     """
 
-    settings: Dict[
-        str, Any
-    ]  # 동적 설정 (date, airport, min_arrival_minutes)
+    settings: Dict[str, Any]  # 동적 설정 (date, airport, min_arrival_minutes)
     pax_generation: Dict[str, Any]  # 탑승률 설정 (항공편 레벨)
-    pax_demographics: Dict[str, Any]  # nationality, profile 등 인구통계 설정 (승객 레벨)
+    pax_demographics: Dict[
+        str, Any
+    ]  # nationality, profile 등 인구통계 설정 (승객 레벨)
     pax_arrival_patterns: Dict[str, Any]  # rules, default 도착 패턴 (승객 레벨)
 
 
@@ -68,11 +68,13 @@ class ScenarioDeactivateBody(BaseModel):
 
 class ScenarioCopyRequest(BaseModel):
     """시나리오 복사 요청 스키마"""
+
     name: Optional[str] = None  # 새 시나리오 이름 (선택사항)
 
 
 class ScenarioCopyResponse(BaseModel):
     """시나리오 복사 응답 스키마"""
+
     scenario_id: str  # 새로 생성된 시나리오 ID
     name: str
     terminal: str | None
@@ -131,9 +133,9 @@ class FlightFiltersResponse(BaseModel):
 
     # Flight data summary
     total_flights: int
-    
+
     # Filter options (먼저 나와야 함)
     filters: Dict[str, Any]  # {"departure": {...}, "arrival": {...}}
-    
+
     # Airlines mapping (나중에 나와야 함)
     airlines: Dict[str, str]  # Airlines mapping: {"KE": "Korean Air", "7C": "Jeju Air"}

@@ -24,7 +24,9 @@ class HomeService:
             )
         pax_df = await self.home_repo.load_simulation_parquet(scenario_id)
         if pax_df is None:
-            logger.warning(f"Simulation parquet not found for scenario_id={scenario_id}")
+            logger.warning(
+                f"Simulation parquet not found for scenario_id={scenario_id}"
+            )
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Simulation data not found for the requested scenario.",

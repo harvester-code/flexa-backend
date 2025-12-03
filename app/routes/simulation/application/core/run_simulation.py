@@ -22,7 +22,10 @@ class RunSimulationStorage:
         self._sqs_client = None  # Lazy initialization
 
     async def execute_simulation(
-        self, scenario_id: str, setting: Dict[str, Any], process_flow: List[Dict[str, Any]]
+        self,
+        scenario_id: str,
+        setting: Dict[str, Any],
+        process_flow: List[Dict[str, Any]],
     ) -> Dict[str, str]:
         """
         시뮬레이션 실행 요청 - SQS 메시지 전송
@@ -59,6 +62,7 @@ class RunSimulationStorage:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to queue simulation: {str(e)}",
             )
+
 
 class RunSimulationResponse:
     """시뮬레이션 결과 프론트엔드 응답 생성 전담 클래스"""

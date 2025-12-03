@@ -94,7 +94,7 @@ class ShowUpPassengerStorage:
             "pax_demographics": config.get("pax_demographics", {}),
             "pax_arrival_patterns": config.get("pax_arrival_patterns", {}),
             # settings도 포함 (date, airport, min_arrival_minutes가 포함되어 있음)
-            "settings": config.get("settings", {})
+            "settings": config.get("settings", {}),
         }
 
         # Dictionary를 JSON string으로 변환 (정렬된 키로 일관성 보장)
@@ -127,33 +127,37 @@ class ShowUpPassengerStorage:
     def _validate_demographic_distributions(self, config: dict):
         """pax_demographics 내 nationality와 profile 분포 검증"""
         pax_demographics = config.get("pax_demographics", {})
-        
+
         for distribution_type in ["nationality", "profile"]:
             if distribution_type not in pax_demographics:
                 continue
-                
+
             distribution_config = pax_demographics[distribution_type]
-            
+
             # rules 검증
             rules = distribution_config.get("rules", [])
             for rule in rules:
                 value = rule.get("value", {})
-                self._validate_percentage_values(value, f"pax_demographics.{distribution_type}.rules")
-            
+                self._validate_percentage_values(
+                    value, f"pax_demographics.{distribution_type}.rules"
+                )
+
             # default 검증
             default = distribution_config.get("default", {})
-            self._validate_percentage_values(default, f"pax_demographics.{distribution_type}.default")
-    
+            self._validate_percentage_values(
+                default, f"pax_demographics.{distribution_type}.default"
+            )
+
     def _validate_percentage_values(self, distribution: dict, field_path: str):
         """확률 분포값 검증 - 정수값이고 합이 100인지 확인"""
         if not distribution:
             return
-            
+
         # flightCount 제외
         filtered_dist = {k: v for k, v in distribution.items() if k != "flightCount"}
         if not filtered_dist:
             return
-            
+
         # 모든 값이 숫자인지 확인
         for key, value in filtered_dist.items():
             if not isinstance(value, (int, float)):
@@ -166,7 +170,7 @@ class ShowUpPassengerStorage:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"{field_path}.{key} must be non-negative, got {value}",
                 )
-        
+
         # 합이 100인지 확인 (정수 기준)
         total = sum(filtered_dist.values())
         if abs(total - 100) > 0.001:  # 부동소수점 오차 허용
@@ -181,8 +185,7 @@ class ShowUpPassengerStorage:
         """S3에서 항공편 데이터 로드"""
         try:
             object_exists = await self.s3_manager.check_exists_async(
-                scenario_id=scenario_id,
-                filename="flight-schedule.parquet"
+                scenario_id=scenario_id, filename="flight-schedule.parquet"
             )
 
             if not object_exists:
@@ -190,8 +193,7 @@ class ShowUpPassengerStorage:
 
             # S3Manager를 사용하여 parquet 파일 읽기
             df = await self.s3_manager.get_parquet_async(
-                scenario_id=scenario_id,
-                filename="flight-schedule.parquet"
+                scenario_id=scenario_id, filename="flight-schedule.parquet"
             )
 
             logger.info(f"원본 데이터: {len(df):,}개")
@@ -290,7 +292,7 @@ class ShowUpPassengerStorage:
     ):
         """
         개별 승객의 인구통계 값 할당
-        
+
         Returns:
             str: 할당된 인구통계 값
             None: distribution이 설정되지 않은 경우 (pandas에서 NaN으로 처리됨)
@@ -307,15 +309,17 @@ class ShowUpPassengerStorage:
                 distribution = rule.get("value", {})
                 if distribution:
                     # flightCount 키를 제외하고 확률 계산
-                    filtered_distribution = {k: v for k, v in distribution.items() if k != "flightCount"}
+                    filtered_distribution = {
+                        k: v for k, v in distribution.items() if k != "flightCount"
+                    }
                     if filtered_distribution:
                         values = list(filtered_distribution.keys())
                         probs = list(filtered_distribution.values())
-                        
+
                         # nationality와 profile의 경우 100으로 나눠서 확률로 변환
                         if should_divide_by_100:
                             probs = [p / 100.0 for p in probs]
-                        
+
                         return np.random.choice(values, p=probs)
 
         # 기본값 처리
@@ -326,15 +330,17 @@ class ShowUpPassengerStorage:
             if filtered_default:
                 values = list(filtered_default.keys())
                 probs = list(filtered_default.values())
-                
+
                 # nationality와 profile의 경우 100으로 나눠서 확률로 변환
                 if should_divide_by_100:
                     probs = [p / 100.0 for p in probs]
-                
+
                 return np.random.choice(values, p=probs)
 
         # distribution이 설정되지 않은 경우 None 반환 (pandas에서 NaN으로 처리)
-        logger.debug(f"No distribution found for {distribution_type}, returning None (will be NaN in pandas)")
+        logger.debug(
+            f"No distribution found for {distribution_type}, returning None (will be NaN in pandas)"
+        )
         return None
 
     async def _assign_show_up_times(
@@ -342,7 +348,11 @@ class ShowUpPassengerStorage:
     ) -> pd.DataFrame:
         """승객별 공항 도착시간 할당"""
         # 처음 몇 개 항공편의 출발 시간 확인 (디버깅용)
-        sample_flights = pax_df[['flight_number', 'scheduled_departure_local']].drop_duplicates().head(5)
+        sample_flights = (
+            pax_df[["flight_number", "scheduled_departure_local"]]
+            .drop_duplicates()
+            .head(5)
+        )
         logger.info(f"Sample flight departure times:\n{sample_flights}")
 
         pax_df["show_up_time"] = pax_df.apply(
@@ -350,13 +360,17 @@ class ShowUpPassengerStorage:
         )
 
         # 디버깅: show_up_time 분포 확인
-        logger.info(f"Show-up time range: {pax_df['show_up_time'].min()} ~ {pax_df['show_up_time'].max()}")
+        logger.info(
+            f"Show-up time range: {pax_df['show_up_time'].min()} ~ {pax_df['show_up_time'].max()}"
+        )
         logger.info(f"Unique show-up times: {pax_df['show_up_time'].nunique()}")
 
         # 시간대별 승객 수 확인
         pax_df_temp = pax_df.copy()
-        pax_df_temp['show_up_hour'] = pax_df_temp['show_up_time'].dt.strftime('%Y-%m-%d %H:00')
-        hourly_counts = pax_df_temp.groupby('show_up_hour').size().sort_index()
+        pax_df_temp["show_up_hour"] = pax_df_temp["show_up_time"].dt.strftime(
+            "%Y-%m-%d %H:00"
+        )
+        hourly_counts = pax_df_temp.groupby("show_up_hour").size().sort_index()
         logger.info(f"Hourly passenger counts (top 10):\n{hourly_counts.head(10)}")
 
         return pax_df
@@ -395,9 +409,7 @@ class ShowUpPassengerStorage:
         try:
             # S3Manager를 사용하여 parquet 저장
             await self.s3_manager.save_parquet_async(
-                scenario_id=scenario_id,
-                filename="show-up-passenger.parquet",
-                df=pax_df
+                scenario_id=scenario_id, filename="show-up-passenger.parquet", df=pax_df
             )
             logger.info(f"Saved {len(pax_df):,} passenger records to S3")
         except Exception as e:
@@ -423,7 +435,9 @@ class ShowUpPassengerStorage:
                 if rule_value is not None:
                     # 프론트엔드에서 정수(85)로 오므로 100으로 나눔
                     return rule_value / 100 if rule_value > 1 else rule_value
-                raise ValueError(f"load_factor value not found in rule: {rule}")  # 설정 오류 명시
+                raise ValueError(
+                    f"load_factor value not found in rule: {rule}"
+                )  # 설정 오류 명시
 
         # 기본값 반환
         default_value = load_factor_config.get("default", {}).get("load_factor")
@@ -552,7 +566,7 @@ class ShowUpPassengerResponse:
 
         # 응답 구조: 다른 API들과 일관성 맞춤 - 컨텍스트 정보 먼저
         response = {}
-        
+
         # 요청 컨텍스트 정보 (처음 3개 키)
         if airport:
             response["airport"] = airport
@@ -560,14 +574,16 @@ class ShowUpPassengerResponse:
             response["date"] = date
         if scenario_id:
             response["scenario_id"] = scenario_id
-            
+
         # 기본 응답 데이터
-        response.update({
-            "total": len(pax_df),
-            "summary": summary,
-            "chart_x_data": chart_x_data,
-            "chart_y_data": chart_result,
-        })
+        response.update(
+            {
+                "total": len(pax_df),
+                "summary": summary,
+                "chart_x_data": chart_x_data,
+                "chart_y_data": chart_result,
+            }
+        )
 
         return response
 
@@ -576,13 +592,22 @@ class ShowUpPassengerResponse:
         if len(pax_df) > 0:
             # 항공편의 고유성은 carrier + flight_number + date로 결정
             # total_seats는 중복 제거 기준에서 제외
-            unique_flights = pax_df[['operating_carrier_iata', 'flight_number', 'flight_date']].drop_duplicates()
+            unique_flights = pax_df[
+                ["operating_carrier_iata", "flight_number", "flight_date"]
+            ].drop_duplicates()
             total_flights = len(unique_flights)
 
             # 평균 좌석 수는 각 항공편의 첫 번째 좌석 수 사용
-            unique_flights_with_seats = pax_df[['operating_carrier_iata', 'flight_number', 'flight_date', 'total_seats']].drop_duplicates(
-                subset=['operating_carrier_iata', 'flight_number', 'flight_date'],
-                keep='first'
+            unique_flights_with_seats = pax_df[
+                [
+                    "operating_carrier_iata",
+                    "flight_number",
+                    "flight_date",
+                    "total_seats",
+                ]
+            ].drop_duplicates(
+                subset=["operating_carrier_iata", "flight_number", "flight_date"],
+                keep="first",
             )
             average_seats = unique_flights_with_seats["total_seats"].mean()
         else:
@@ -596,13 +621,17 @@ class ShowUpPassengerResponse:
             avg_load_factor = 0.0  # 설정이 없으면 0으로 표시
 
         # 프론트엔드에서 정수로 오는 경우 그대로 표시, 소수로 오는 경우 100 곱함
-        display_load_factor = int(avg_load_factor) if avg_load_factor > 1 else int(avg_load_factor * 100)
+        display_load_factor = (
+            int(avg_load_factor) if avg_load_factor > 1 else int(avg_load_factor * 100)
+        )
 
         return {
             "flights": total_flights,
             "avg_seats": round(average_seats, 2),
             "load_factor": display_load_factor,  # 정수 퍼센트로 표시
-            "min_arrival_minutes": config.get("settings", {}).get("min_arrival_minutes"),
+            "min_arrival_minutes": config.get("settings", {}).get(
+                "min_arrival_minutes"
+            ),
         }
 
     async def _create_show_up_summary(self, pax_df: pd.DataFrame, group_column: str):
@@ -662,4 +691,3 @@ class ShowUpPassengerResponse:
         ]
 
         return {"traces": traces, "default_x": default_x}
-

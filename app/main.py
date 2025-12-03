@@ -7,9 +7,7 @@ from app.libs.exceptions import add_exception_handlers
 from app.libs.logging_config import setup_logging
 from app.libs.middleware import AuthMiddleware
 from app.libs.monitor_memory import setup_memory_monitor
-
 from app.routes.auth.interface.controller import auth_router
-
 from app.routes.home.interface.controller import home_router
 from app.routes.simulation.interface.controller import (
     private_simulation_router,

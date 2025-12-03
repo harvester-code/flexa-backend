@@ -1,10 +1,10 @@
-from typing import Any, Dict, Optional, List
 import json
+import re
 import urllib.request
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-import re
 
 
 class HomeAnalyzer:
@@ -35,11 +35,13 @@ class HomeAnalyzer:
     def _get_airport_gdp(self) -> Optional[Dict[str, Any]]:
         """공항 코드로 GDP 정보 가져오기 (캐싱 지원)"""
         if not self.metadata or not self.country_to_airports_path:
-            print(f"GDP 조회 실패: metadata={self.metadata is not None}, country_path={self.country_to_airports_path}")
+            print(
+                f"GDP 조회 실패: metadata={self.metadata is not None}, country_path={self.country_to_airports_path}"
+            )
             return None
 
         # 1. metadata에서 airport 코드 가져오기
-        airport_code = self.metadata.get('context', {}).get('airport')
+        airport_code = self.metadata.get("context", {}).get("airport")
         if not airport_code:
             print(f"GDP 조회 실패: airport_code가 metadata.context에 없음")
             return None
@@ -53,19 +55,21 @@ class HomeAnalyzer:
 
         try:
             # 2. country_to_airports.json에서 국가 코드 찾기
-            with open(self.country_to_airports_path, 'r', encoding='utf-8') as f:
+            with open(self.country_to_airports_path, "r", encoding="utf-8") as f:
                 country_data = json.load(f)
 
             country_code = None
             country_name = None
             for code, info in country_data.items():
-                if airport_code in info.get('airports', []):
+                if airport_code in info.get("airports", []):
                     country_code = code
-                    country_name = info.get('name')
+                    country_name = info.get("name")
                     break
 
             if not country_code:
-                print(f"GDP 조회 실패: {airport_code}가 country_to_airports.json에 없음")
+                print(
+                    f"GDP 조회 실패: {airport_code}가 country_to_airports.json에 없음"
+                )
                 return None
 
             print(f"국가 찾음: {country_name} ({country_code})")
@@ -89,13 +93,13 @@ class HomeAnalyzer:
                     data = json.loads(response.read().decode())
                     if len(data) > 1 and data[1] and len(data[1]) > 0:
                         latest = data[1][0]
-                        if latest.get('value'):
+                        if latest.get("value"):
                             result["gdp"] = {
-                                "year": latest['date'],
-                                "value": latest['value'],
-                                "value_billions": round(latest['value'] / 1e9, 2),
+                                "year": latest["date"],
+                                "value": latest["value"],
+                                "value_billions": round(latest["value"] / 1e9, 2),
                                 "formatted": f"${latest['value'] / 1e9:.2f}B",
-                                "indicator": "GDP (current US$)"
+                                "indicator": "GDP (current US$)",
                             }
             except Exception as e:
                 print(f"GDP 조회 실패: {e}")
@@ -107,13 +111,13 @@ class HomeAnalyzer:
                     data = json.loads(response.read().decode())
                     if len(data) > 1 and data[1] and len(data[1]) > 0:
                         latest = data[1][0]
-                        if latest.get('value'):
+                        if latest.get("value"):
                             result["gdp_ppp"] = {
-                                "year": latest['date'],
-                                "value": latest['value'],
-                                "value_billions": round(latest['value'] / 1e9, 2),
+                                "year": latest["date"],
+                                "value": latest["value"],
+                                "value_billions": round(latest["value"] / 1e9, 2),
                                 "formatted": f"${latest['value'] / 1e9:.2f}B",
-                                "indicator": "GDP, PPP (current international $)"
+                                "indicator": "GDP, PPP (current international $)",
                             }
             except Exception as e:
                 print(f"GDP PPP 조회 실패: {e}")
@@ -125,12 +129,12 @@ class HomeAnalyzer:
                     data = json.loads(response.read().decode())
                     if len(data) > 1 and data[1] and len(data[1]) > 0:
                         latest = data[1][0]
-                        if latest.get('value'):
+                        if latest.get("value"):
                             result["population"] = {
-                                "year": latest['date'],
-                                "value": latest['value'],
+                                "year": latest["date"],
+                                "value": latest["value"],
                                 "formatted": f"{latest['value']:,.0f}",
-                                "indicator": "Population, total"
+                                "indicator": "Population, total",
                             }
             except Exception as e:
                 print(f"인구 조회 실패: {e}")
@@ -141,7 +145,9 @@ class HomeAnalyzer:
                 result["gdp_per_capita"] = round(gdp_per_capita, 2)
 
             if result["gdp_ppp"] and result["population"]:
-                gdp_ppp_per_capita = result["gdp_ppp"]["value"] / result["population"]["value"]
+                gdp_ppp_per_capita = (
+                    result["gdp_ppp"]["value"] / result["population"]["value"]
+                )
                 result["gdp_ppp_per_capita"] = round(gdp_ppp_per_capita, 2)
 
             # 최소 하나라도 데이터가 있으면 반환
@@ -165,26 +171,27 @@ class HomeAnalyzer:
         1. 모든 프로세스에서 failed가 없음 (skipped는 괜찮음)
         2. 마지막 프로세스 완료 시간이 출발 시간보다 빠름
         """
+
         def calculate_boarded(row):
             # 조건 1: failed가 없는가?
             for process in self.process_list:
-                status = row.get(f'{process}_status')
-                if status == 'failed':
+                status = row.get(f"{process}_status")
+                if status == "failed":
                     return False
 
             # 조건 2: 마지막 completed 프로세스 찾기
             last_completed_process = None
             for process in reversed(self.process_list):
-                status = row.get(f'{process}_status')
-                if status == 'completed':
+                status = row.get(f"{process}_status")
+                if status == "completed":
                     last_completed_process = process
                     break
 
             if last_completed_process is None:
                 return False
 
-            done_time = row.get(f'{last_completed_process}_done_time')
-            scheduled_departure = row.get('scheduled_departure_local')
+            done_time = row.get(f"{last_completed_process}_done_time")
+            scheduled_departure = row.get("scheduled_departure_local")
 
             if pd.notna(done_time) and pd.notna(scheduled_departure):
                 return done_time < scheduled_departure
@@ -192,7 +199,7 @@ class HomeAnalyzer:
             return False
 
         df_copy = working_df.copy()
-        df_copy['is_boarded'] = df_copy.apply(calculate_boarded, axis=1)
+        df_copy["is_boarded"] = df_copy.apply(calculate_boarded, axis=1)
         return df_copy
 
     def _calculate_time_metrics_and_dwell_times(self) -> Optional[Dict[str, Any]]:
@@ -210,9 +217,15 @@ class HomeAnalyzer:
 
             if self.percentile is not None:
                 # Percentile 모드: 각 승객의 completed 프로세스 합산 후 상위 N% 승객 찾기
-                total_open_wait_per_pax = pd.Series([pd.Timedelta(0)] * len(working_df), index=working_df.index)
-                total_queue_wait_per_pax = pd.Series([pd.Timedelta(0)] * len(working_df), index=working_df.index)
-                total_process_time_per_pax = pd.Series([pd.Timedelta(0)] * len(working_df), index=working_df.index)
+                total_open_wait_per_pax = pd.Series(
+                    [pd.Timedelta(0)] * len(working_df), index=working_df.index
+                )
+                total_queue_wait_per_pax = pd.Series(
+                    [pd.Timedelta(0)] * len(working_df), index=working_df.index
+                )
+                total_process_time_per_pax = pd.Series(
+                    [pd.Timedelta(0)] * len(working_df), index=working_df.index
+                )
 
                 for process in self.process_list:
                     status_col = f"{process}_status"
@@ -223,26 +236,58 @@ class HomeAnalyzer:
 
                     # 해당 프로세스를 completed한 승객만 시간 합산
                     if status_col in working_df.columns:
-                        completed_mask = working_df[status_col] == 'completed'
+                        completed_mask = working_df[status_col] == "completed"
 
                         # open_wait_time 합산
                         if open_wait_col in working_df.columns:
-                            open_wait_values = pd.to_timedelta(working_df[open_wait_col], errors='coerce').fillna(pd.Timedelta(0))
-                            total_open_wait_per_pax = total_open_wait_per_pax + open_wait_values.where(completed_mask, pd.Timedelta(0))
+                            open_wait_values = pd.to_timedelta(
+                                working_df[open_wait_col], errors="coerce"
+                            ).fillna(pd.Timedelta(0))
+                            total_open_wait_per_pax = (
+                                total_open_wait_per_pax
+                                + open_wait_values.where(
+                                    completed_mask, pd.Timedelta(0)
+                                )
+                            )
 
                         # queue_wait_time 합산
                         if queue_wait_col in working_df.columns:
-                            queue_wait_values = pd.to_timedelta(working_df[queue_wait_col], errors='coerce').fillna(pd.Timedelta(0))
-                            total_queue_wait_per_pax = total_queue_wait_per_pax + queue_wait_values.where(completed_mask, pd.Timedelta(0))
+                            queue_wait_values = pd.to_timedelta(
+                                working_df[queue_wait_col], errors="coerce"
+                            ).fillna(pd.Timedelta(0))
+                            total_queue_wait_per_pax = (
+                                total_queue_wait_per_pax
+                                + queue_wait_values.where(
+                                    completed_mask, pd.Timedelta(0)
+                                )
+                            )
 
                         # process_time 합산: done_time - start_time
-                        if start_time_col in working_df.columns and done_time_col in working_df.columns:
-                            start_times = pd.to_datetime(working_df[start_time_col], errors='coerce')
-                            done_times = pd.to_datetime(working_df[done_time_col], errors='coerce')
-                            process_duration = (done_times - start_times).fillna(pd.Timedelta(0))
+                        if (
+                            start_time_col in working_df.columns
+                            and done_time_col in working_df.columns
+                        ):
+                            start_times = pd.to_datetime(
+                                working_df[start_time_col], errors="coerce"
+                            )
+                            done_times = pd.to_datetime(
+                                working_df[done_time_col], errors="coerce"
+                            )
+                            process_duration = (done_times - start_times).fillna(
+                                pd.Timedelta(0)
+                            )
                             # 음수는 0으로
-                            process_duration = process_duration.apply(lambda x: x if x.total_seconds() >= 0 else pd.Timedelta(0))
-                            total_process_time_per_pax = total_process_time_per_pax + process_duration.where(completed_mask, pd.Timedelta(0))
+                            process_duration = process_duration.apply(
+                                lambda x: (
+                                    x if x.total_seconds() >= 0 else pd.Timedelta(0)
+                                )
+                            )
+                            total_process_time_per_pax = (
+                                total_process_time_per_pax
+                                + process_duration.where(
+                                    completed_mask, pd.Timedelta(0)
+                                )
+                            )
 
                 # 각 승객의 전체 대기시간 계산 (open + queue)
                 total_wait_per_pax = total_open_wait_per_pax + total_queue_wait_per_pax
@@ -254,27 +299,47 @@ class HomeAnalyzer:
                 target_pax_idx = diff.idxmin()
 
                 # 그 승객의 모든 시간 메트릭 사용
-                total_open_wait_seconds = total_open_wait_per_pax.loc[target_pax_idx].total_seconds()
-                total_queue_wait_seconds = total_queue_wait_per_pax.loc[target_pax_idx].total_seconds()
-                total_wait_seconds = total_wait_per_pax.loc[target_pax_idx].total_seconds()
-                total_process_time_seconds = total_process_time_per_pax.loc[target_pax_idx].total_seconds()
+                total_open_wait_seconds = total_open_wait_per_pax.loc[
+                    target_pax_idx
+                ].total_seconds()
+                total_queue_wait_seconds = total_queue_wait_per_pax.loc[
+                    target_pax_idx
+                ].total_seconds()
+                total_wait_seconds = total_wait_per_pax.loc[
+                    target_pax_idx
+                ].total_seconds()
+                total_process_time_seconds = total_process_time_per_pax.loc[
+                    target_pax_idx
+                ].total_seconds()
 
                 # 그 승객의 commercial_dwell_time 계산
                 target_pax = working_df.loc[target_pax_idx]
                 last_completed_process = None
                 for process in reversed(self.process_list):
                     status_col = f"{process}_status"
-                    if status_col in working_df.columns and target_pax[status_col] == 'completed':
+                    if (
+                        status_col in working_df.columns
+                        and target_pax[status_col] == "completed"
+                    ):
                         last_completed_process = process
                         break
 
-                if last_completed_process and 'scheduled_departure_local' in working_df.columns:
+                if (
+                    last_completed_process
+                    and "scheduled_departure_local" in working_df.columns
+                ):
                     last_done_col = f"{last_completed_process}_done_time"
                     if last_done_col in working_df.columns:
-                        done_t = pd.to_datetime(target_pax[last_done_col], errors='coerce')
-                        depart_t = pd.to_datetime(target_pax['scheduled_departure_local'], errors='coerce')
+                        done_t = pd.to_datetime(
+                            target_pax[last_done_col], errors="coerce"
+                        )
+                        depart_t = pd.to_datetime(
+                            target_pax["scheduled_departure_local"], errors="coerce"
+                        )
                         if pd.notna(done_t) and pd.notna(depart_t):
-                            commercial_dwell_value = max(0, (depart_t - done_t).total_seconds())
+                            commercial_dwell_value = max(
+                                0, (depart_t - done_t).total_seconds()
+                            )
                         else:
                             commercial_dwell_value = 0
                     else:
@@ -283,7 +348,11 @@ class HomeAnalyzer:
                     commercial_dwell_value = 0
 
                 # airport_dwell_time = total_wait + process_time + commercial_dwell
-                airport_dwell_value = total_wait_seconds + total_process_time_seconds + commercial_dwell_value
+                airport_dwell_value = (
+                    total_wait_seconds
+                    + total_process_time_seconds
+                    + commercial_dwell_value
+                )
 
             else:
                 # Mean 모드: 각 프로세스별로 completed한 승객들의 평균 시간을 구하고 합산
@@ -302,36 +371,57 @@ class HomeAnalyzer:
                         continue
 
                     # 해당 프로세스에서 completed된 승객만 필터링
-                    completed_df = working_df[working_df[status_col] == 'completed']
+                    completed_df = working_df[working_df[status_col] == "completed"]
 
                     if len(completed_df) == 0:
                         continue
 
                     # open_wait_time 평균
                     if open_wait_col in completed_df.columns:
-                        open_wait_values = pd.to_timedelta(completed_df[open_wait_col], errors='coerce').dropna()
+                        open_wait_values = pd.to_timedelta(
+                            completed_df[open_wait_col], errors="coerce"
+                        ).dropna()
                         if len(open_wait_values) > 0:
-                            total_open_wait_seconds += open_wait_values.dt.total_seconds().mean()
+                            total_open_wait_seconds += (
+                                open_wait_values.dt.total_seconds().mean()
+                            )
 
                     # queue_wait_time 평균
                     if queue_wait_col in completed_df.columns:
-                        queue_wait_values = pd.to_timedelta(completed_df[queue_wait_col], errors='coerce').dropna()
+                        queue_wait_values = pd.to_timedelta(
+                            completed_df[queue_wait_col], errors="coerce"
+                        ).dropna()
                         if len(queue_wait_values) > 0:
-                            total_queue_wait_seconds += queue_wait_values.dt.total_seconds().mean()
+                            total_queue_wait_seconds += (
+                                queue_wait_values.dt.total_seconds().mean()
+                            )
 
                     # process_time 평균
-                    if start_time_col in completed_df.columns and done_time_col in completed_df.columns:
-                        start_times = pd.to_datetime(completed_df[start_time_col], errors='coerce')
-                        done_times = pd.to_datetime(completed_df[done_time_col], errors='coerce')
+                    if (
+                        start_time_col in completed_df.columns
+                        and done_time_col in completed_df.columns
+                    ):
+                        start_times = pd.to_datetime(
+                            completed_df[start_time_col], errors="coerce"
+                        )
+                        done_times = pd.to_datetime(
+                            completed_df[done_time_col], errors="coerce"
+                        )
 
                         # 둘 다 valid한 경우만
                         valid_mask = start_times.notna() & done_times.notna()
                         if valid_mask.sum() > 0:
-                            process_duration = (done_times[valid_mask] - start_times[valid_mask])
+                            process_duration = (
+                                done_times[valid_mask] - start_times[valid_mask]
+                            )
                             # 음수 제거
-                            process_duration = process_duration[process_duration.dt.total_seconds() >= 0]
+                            process_duration = process_duration[
+                                process_duration.dt.total_seconds() >= 0
+                            ]
                             if len(process_duration) > 0:
-                                total_process_time_seconds += process_duration.dt.total_seconds().mean()
+                                total_process_time_seconds += (
+                                    process_duration.dt.total_seconds().mean()
+                                )
 
                 # 전체 대기시간
                 total_wait_seconds = total_open_wait_seconds + total_queue_wait_seconds
@@ -339,19 +429,29 @@ class HomeAnalyzer:
                 # dwell_times 계산 (평균)
                 commercial_dwell_per_pax = []
                 for idx, row in working_df.iterrows():
-                    if row['is_boarded']:
+                    if row["is_boarded"]:
                         last_completed_process = None
                         for process in reversed(self.process_list):
                             status_col = f"{process}_status"
-                            if status_col in working_df.columns and row[status_col] == 'completed':
+                            if (
+                                status_col in working_df.columns
+                                and row[status_col] == "completed"
+                            ):
                                 last_completed_process = process
                                 break
 
-                        if last_completed_process and 'scheduled_departure_local' in working_df.columns:
+                        if (
+                            last_completed_process
+                            and "scheduled_departure_local" in working_df.columns
+                        ):
                             last_done_col = f"{last_completed_process}_done_time"
                             if last_done_col in working_df.columns:
-                                done_t = pd.to_datetime(row[last_done_col], errors='coerce')
-                                depart_t = pd.to_datetime(row['scheduled_departure_local'], errors='coerce')
+                                done_t = pd.to_datetime(
+                                    row[last_done_col], errors="coerce"
+                                )
+                                depart_t = pd.to_datetime(
+                                    row["scheduled_departure_local"], errors="coerce"
+                                )
                                 if pd.notna(done_t) and pd.notna(depart_t):
                                     dwell = (depart_t - done_t).total_seconds()
                                     commercial_dwell_per_pax.append(max(0, dwell))
@@ -364,10 +464,18 @@ class HomeAnalyzer:
                     else:
                         commercial_dwell_per_pax.append(0)
 
-                commercial_dwell_value = sum(commercial_dwell_per_pax) / len(commercial_dwell_per_pax) if commercial_dwell_per_pax else 0
+                commercial_dwell_value = (
+                    sum(commercial_dwell_per_pax) / len(commercial_dwell_per_pax)
+                    if commercial_dwell_per_pax
+                    else 0
+                )
 
                 # airport_dwell_time: total_wait + total_process_time + commercial_dwell
-                airport_dwell_value = total_wait_seconds + total_process_time_seconds + commercial_dwell_value
+                airport_dwell_value = (
+                    total_wait_seconds
+                    + total_process_time_seconds
+                    + commercial_dwell_value
+                )
 
             # HMS 변환
             open_wait = self._format_waiting_time(total_open_wait_seconds)
@@ -388,7 +496,7 @@ class HomeAnalyzer:
                 "dwellTimes": {
                     "commercial_dwell_time": commercial_dwell_time,
                     "airport_dwell_time": airport_dwell_time,
-                }
+                },
             }
         except Exception as e:
             print(f"Time metrics 계산 중 오류 발생: {e}")
@@ -413,48 +521,49 @@ class HomeAnalyzer:
         """
         result = {}
 
-        if not self.metadata or 'process_flow' not in self.metadata:
+        if not self.metadata or "process_flow" not in self.metadata:
             return result
 
-        process_flow = self.metadata['process_flow']
+        process_flow = self.metadata["process_flow"]
 
         for process_info in process_flow:
-            process_name = process_info.get('name')
+            process_name = process_info.get("name")
             if not process_name:
                 continue
 
-            zones = process_info.get('zones', {})
+            zones = process_info.get("zones", {})
 
             process_total = 0
             process_opened = 0
             zone_data = {}
 
             for zone_name, zone_info in zones.items():
-                facilities = zone_info.get('facilities', [])
+                facilities = zone_info.get("facilities", [])
 
                 zone_total = len(facilities)
                 zone_opened = 0
 
                 for facility in facilities:
                     # 해당 시설이 한 번이라도 운영했는지 확인
-                    time_blocks = facility.get('operating_schedule', {}).get('time_blocks', [])
-                    has_activated = any(block.get('activate', False) for block in time_blocks)
+                    time_blocks = facility.get("operating_schedule", {}).get(
+                        "time_blocks", []
+                    )
+                    has_activated = any(
+                        block.get("activate", False) for block in time_blocks
+                    )
 
                     if has_activated:
                         zone_opened += 1
 
-                zone_data[zone_name] = {
-                    'total': zone_total,
-                    'opened': zone_opened
-                }
+                zone_data[zone_name] = {"total": zone_total, "opened": zone_opened}
 
                 process_total += zone_total
                 process_opened += zone_opened
 
             result[process_name] = {
-                'total': process_total,
-                'opened': process_opened,
-                'zones': zone_data
+                "total": process_total,
+                "opened": process_opened,
+                "zones": zone_data,
             }
 
         return result
@@ -465,11 +574,11 @@ class HomeAnalyzer:
         v2.py의 로직을 따릅니다.
         """
         try:
-            if not self.metadata or 'process_flow' not in self.metadata:
+            if not self.metadata or "process_flow" not in self.metadata:
                 return None
 
             facility_metrics_list = []
-            process_flow = self.metadata['process_flow']
+            process_flow = self.metadata["process_flow"]
 
             # 시뮬레이션 기간 계산
             simulation_hours = 24.0
@@ -478,87 +587,110 @@ class HomeAnalyzer:
 
             try:
                 for process_info in process_flow:
-                    zones = process_info.get('zones', {})
+                    zones = process_info.get("zones", {})
                     for zone_name, zone_data in zones.items():
-                        facilities = zone_data.get('facilities', [])
+                        facilities = zone_data.get("facilities", [])
                         for facility in facilities:
-                            time_blocks = facility.get('operating_schedule', {}).get('time_blocks', [])
+                            time_blocks = facility.get("operating_schedule", {}).get(
+                                "time_blocks", []
+                            )
                             for block in time_blocks:
-                                if block.get('activate', False):
-                                    period = block.get('period', '')
-                                    parts = period.split('-')
+                                if block.get("activate", False):
+                                    period = block.get("period", "")
+                                    parts = period.split("-")
                                     if len(parts) >= 6:
                                         start_str = f"{parts[0]}-{parts[1]}-{parts[2]}"
                                         end_str = f"{parts[3]}-{parts[4]}-{parts[5]}"
                                         start = pd.to_datetime(start_str.strip())
                                         end = pd.to_datetime(end_str.strip())
 
-                                        if simulation_start is None or start < simulation_start:
+                                        if (
+                                            simulation_start is None
+                                            or start < simulation_start
+                                        ):
                                             simulation_start = start
-                                        if simulation_end is None or end > simulation_end:
+                                        if (
+                                            simulation_end is None
+                                            or end > simulation_end
+                                        ):
                                             simulation_end = end
 
                 if simulation_start and simulation_end:
-                    simulation_hours = (simulation_end - simulation_start).total_seconds() / 3600
+                    simulation_hours = (
+                        simulation_end - simulation_start
+                    ).total_seconds() / 3600
             except:
                 pass
 
             # 각 프로세스 순회
             for process_info in process_flow:
-                process_name = process_info.get('name')
+                process_name = process_info.get("name")
                 if not process_name:
                     continue
 
-                zones = process_info.get('zones', {})
+                zones = process_info.get("zones", {})
 
                 for zone_name, zone_data in zones.items():
-                    facilities = zone_data.get('facilities', [])
+                    facilities = zone_data.get("facilities", [])
 
                     for facility in facilities:
-                        facility_id = facility.get('id')
+                        facility_id = facility.get("id")
                         if not facility_id:
                             continue
 
                         # 1. operating_rate 계산
                         operating_hours = 0
-                        operating_schedule = facility.get('operating_schedule', {})
-                        time_blocks = operating_schedule.get('time_blocks', [])
+                        operating_schedule = facility.get("operating_schedule", {})
+                        time_blocks = operating_schedule.get("time_blocks", [])
                         process_time_seconds = None
 
                         for block in time_blocks:
-                            if block.get('activate', False):
+                            if block.get("activate", False):
                                 if process_time_seconds is None:
-                                    process_time_seconds = block.get('process_time_seconds', 30)
+                                    process_time_seconds = block.get(
+                                        "process_time_seconds", 30
+                                    )
 
-                                period = block.get('period', '')
-                                parts = period.split('-')
+                                period = block.get("period", "")
+                                parts = period.split("-")
                                 if len(parts) >= 6:
                                     try:
                                         start_str = f"{parts[0]}-{parts[1]}-{parts[2]}"
                                         end_str = f"{parts[3]}-{parts[4]}-{parts[5]}"
                                         start_time = pd.to_datetime(start_str.strip())
                                         end_time = pd.to_datetime(end_str.strip())
-                                        duration = (end_time - start_time).total_seconds() / 3600
+                                        duration = (
+                                            end_time - start_time
+                                        ).total_seconds() / 3600
                                         operating_hours += duration
                                     except:
                                         pass
 
-                        operating_rate = operating_hours / simulation_hours if operating_hours > 0 and simulation_hours > 0 else 0
+                        operating_rate = (
+                            operating_hours / simulation_hours
+                            if operating_hours > 0 and simulation_hours > 0
+                            else 0
+                        )
 
                         # 2. utilization_rate 계산
                         facility_col = f"{process_name}_facility"
                         status_col = f"{process_name}_status"
 
-                        if facility_col in self.pax_df.columns and status_col in self.pax_df.columns:
+                        if (
+                            facility_col in self.pax_df.columns
+                            and status_col in self.pax_df.columns
+                        ):
                             facility_pax = self.pax_df[
-                                (self.pax_df[facility_col] == facility_id) &
-                                (self.pax_df[status_col] == 'completed')
+                                (self.pax_df[facility_col] == facility_id)
+                                & (self.pax_df[status_col] == "completed")
                             ]
 
                             actual_count = len(facility_pax)
 
                             if operating_hours > 0 and process_time_seconds:
-                                max_capacity = (operating_hours * 3600) / process_time_seconds
+                                max_capacity = (
+                                    operating_hours * 3600
+                                ) / process_time_seconds
                                 utilization_rate = actual_count / max_capacity
                             else:
                                 utilization_rate = 0.0
@@ -568,14 +700,16 @@ class HomeAnalyzer:
                         # 3. total_rate 계산
                         total_rate = operating_rate * utilization_rate
 
-                        facility_metrics_list.append({
-                            "facility_id": facility_id,
-                            "process": process_name,
-                            "zone": zone_name,
-                            "operating_rate": round(operating_rate, 2),
-                            "utilization_rate": round(utilization_rate, 2),
-                            "total_rate": round(total_rate, 2)
-                        })
+                        facility_metrics_list.append(
+                            {
+                                "facility_id": facility_id,
+                                "process": process_name,
+                                "zone": zone_name,
+                                "operating_rate": round(operating_rate, 2),
+                                "utilization_rate": round(utilization_rate, 2),
+                                "total_rate": round(total_rate, 2),
+                            }
+                        )
 
             # 단일 패스로 모든 레벨 집계 (최적화)
             facility_metrics_aggregated = []
@@ -585,68 +719,74 @@ class HomeAnalyzer:
 
                 # 집계용 딕셔너리
                 aggregator = {
-                    'total': {'op': [], 'util': [], 'tot': []},
-                    'by_process': defaultdict(lambda: {'op': [], 'util': [], 'tot': []}),
-                    'by_zone': defaultdict(lambda: {'op': [], 'util': [], 'tot': []})
+                    "total": {"op": [], "util": [], "tot": []},
+                    "by_process": defaultdict(
+                        lambda: {"op": [], "util": [], "tot": []}
+                    ),
+                    "by_zone": defaultdict(lambda: {"op": [], "util": [], "tot": []}),
                 }
 
                 # 단일 순회로 모든 레벨 동시 집계
                 for metric in facility_metrics_list:
-                    process = metric['process']
-                    zone = metric['zone']
-                    op_rate = metric['operating_rate']
-                    util_rate = metric['utilization_rate']
-                    tot_rate = metric['total_rate']
+                    process = metric["process"]
+                    zone = metric["zone"]
+                    op_rate = metric["operating_rate"]
+                    util_rate = metric["utilization_rate"]
+                    tot_rate = metric["total_rate"]
 
                     # Total 레벨
-                    aggregator['total']['op'].append(op_rate)
-                    aggregator['total']['util'].append(util_rate)
-                    aggregator['total']['tot'].append(tot_rate)
+                    aggregator["total"]["op"].append(op_rate)
+                    aggregator["total"]["util"].append(util_rate)
+                    aggregator["total"]["tot"].append(tot_rate)
 
                     # Process 레벨
-                    aggregator['by_process'][process]['op'].append(op_rate)
-                    aggregator['by_process'][process]['util'].append(util_rate)
-                    aggregator['by_process'][process]['tot'].append(tot_rate)
+                    aggregator["by_process"][process]["op"].append(op_rate)
+                    aggregator["by_process"][process]["util"].append(util_rate)
+                    aggregator["by_process"][process]["tot"].append(tot_rate)
 
                     # Zone 레벨 (process:zone 키로 저장)
                     zone_key = f"{process}:{zone}"
-                    aggregator['by_zone'][zone_key]['op'].append(op_rate)
-                    aggregator['by_zone'][zone_key]['util'].append(util_rate)
-                    aggregator['by_zone'][zone_key]['tot'].append(tot_rate)
+                    aggregator["by_zone"][zone_key]["op"].append(op_rate)
+                    aggregator["by_zone"][zone_key]["util"].append(util_rate)
+                    aggregator["by_zone"][zone_key]["tot"].append(tot_rate)
 
                 # 평균 계산 헬퍼 함수
                 def calc_avg(lst):
                     return round(sum(lst) / len(lst), 2) if lst else 0
 
                 # Total 집계
-                if aggregator['total']['op']:
-                    facility_metrics_aggregated.append({
-                        "process": "total",
-                        "operating_rate": calc_avg(aggregator['total']['op']),
-                        "utilization_rate": calc_avg(aggregator['total']['util']),
-                        "total_rate": calc_avg(aggregator['total']['tot'])
-                    })
+                if aggregator["total"]["op"]:
+                    facility_metrics_aggregated.append(
+                        {
+                            "process": "total",
+                            "operating_rate": calc_avg(aggregator["total"]["op"]),
+                            "utilization_rate": calc_avg(aggregator["total"]["util"]),
+                            "total_rate": calc_avg(aggregator["total"]["tot"]),
+                        }
+                    )
 
                 # Process별 집계 (Zone 데이터 포함)
-                for process, metrics in aggregator['by_process'].items():
+                for process, metrics in aggregator["by_process"].items():
                     # 해당 프로세스의 Zone별 데이터 구성
                     zones = {}
-                    for zone_key, zone_metrics in aggregator['by_zone'].items():
-                        p, z = zone_key.split(':', 1)
+                    for zone_key, zone_metrics in aggregator["by_zone"].items():
+                        p, z = zone_key.split(":", 1)
                         if p == process:
                             zones[z] = {
-                                "operating_rate": calc_avg(zone_metrics['op']),
-                                "utilization_rate": calc_avg(zone_metrics['util']),
-                                "total_rate": calc_avg(zone_metrics['tot'])
+                                "operating_rate": calc_avg(zone_metrics["op"]),
+                                "utilization_rate": calc_avg(zone_metrics["util"]),
+                                "total_rate": calc_avg(zone_metrics["tot"]),
                             }
 
-                    facility_metrics_aggregated.append({
-                        "process": process,
-                        "operating_rate": calc_avg(metrics['op']),
-                        "utilization_rate": calc_avg(metrics['util']),
-                        "total_rate": calc_avg(metrics['tot']),
-                        "zones": zones  # Zone별 세부 데이터 추가
-                    })
+                    facility_metrics_aggregated.append(
+                        {
+                            "process": process,
+                            "operating_rate": calc_avg(metrics["op"]),
+                            "utilization_rate": calc_avg(metrics["util"]),
+                            "total_rate": calc_avg(metrics["tot"]),
+                            "zones": zones,  # Zone별 세부 데이터 추가
+                        }
+                    )
 
             return facility_metrics_aggregated if facility_metrics_aggregated else None
         except Exception as e:
@@ -665,16 +805,18 @@ class HomeAnalyzer:
         total_passengers = len(working_df)
 
         # completed vs missed 구분 (is_boarded 기준)
-        completed_count = int(working_df['is_boarded'].sum())  # True 개수
-        missed_count = int((~working_df['is_boarded']).sum())  # False 개수
+        completed_count = int(working_df["is_boarded"].sum())  # True 개수
+        missed_count = int((~working_df["is_boarded"]).sum())  # False 개수
 
         return {
             "total": total_passengers,
             "completed": completed_count,
-            "missed": missed_count
+            "missed": missed_count,
         }
 
-    def _calculate_economic_impact(self, time_metrics_data: Optional[Dict[str, Any]], passenger_count: int) -> Optional[Dict[str, Any]]:
+    def _calculate_economic_impact(
+        self, time_metrics_data: Optional[Dict[str, Any]], passenger_count: int
+    ) -> Optional[Dict[str, Any]]:
         """
         시간 가치를 기반으로 경제적 영향을 계산합니다.
         - Total Wait Time: 음수 (손실)
@@ -691,7 +833,9 @@ class HomeAnalyzer:
                 return None
 
             # GDP PPP per capita 사용 (없으면 GDP per capita 사용)
-            gdp_per_capita = airport_gdp.get('gdp_ppp_per_capita') or airport_gdp.get('gdp_per_capita')
+            gdp_per_capita = airport_gdp.get("gdp_ppp_per_capita") or airport_gdp.get(
+                "gdp_per_capita"
+            )
 
             # GDP 정보가 없으면 계산 불가
             if not gdp_per_capita:
@@ -701,25 +845,37 @@ class HomeAnalyzer:
             hourly_value_per_person = gdp_per_capita / (365 * 24)
 
             # 시간 메트릭을 시간 단위로 변환
-            time_metrics = time_metrics_data.get('timeMetrics', {})
-            dwell_times = time_metrics_data.get('dwellTimes', {})
+            time_metrics = time_metrics_data.get("timeMetrics", {})
+            dwell_times = time_metrics_data.get("dwellTimes", {})
 
             def hms_to_hours(time_dict):
                 """HMS를 시간 단위로 변환"""
                 if not time_dict:
                     return 0.0
-                return time_dict.get('hour', 0) + time_dict.get('minute', 0) / 60 + time_dict.get('second', 0) / 3600
+                return (
+                    time_dict.get("hour", 0)
+                    + time_dict.get("minute", 0) / 60
+                    + time_dict.get("second", 0) / 3600
+                )
 
-            total_wait_hours = hms_to_hours(time_metrics.get('total_wait'))
-            process_time_hours = hms_to_hours(time_metrics.get('process_time'))
-            commercial_dwell_hours = hms_to_hours(dwell_times.get('commercial_dwell_time'))
+            total_wait_hours = hms_to_hours(time_metrics.get("total_wait"))
+            process_time_hours = hms_to_hours(time_metrics.get("process_time"))
+            commercial_dwell_hours = hms_to_hours(
+                dwell_times.get("commercial_dwell_time")
+            )
 
             # 경제적 가치 계산
             # 음수: 손실 (대기/처리 시간)
             # 양수: 이득 (상업 시간)
-            total_wait_value = -(hourly_value_per_person * total_wait_hours * passenger_count)
-            process_time_value = -(hourly_value_per_person * process_time_hours * passenger_count)
-            commercial_dwell_value = hourly_value_per_person * commercial_dwell_hours * passenger_count
+            total_wait_value = -(
+                hourly_value_per_person * total_wait_hours * passenger_count
+            )
+            process_time_value = -(
+                hourly_value_per_person * process_time_hours * passenger_count
+            )
+            commercial_dwell_value = (
+                hourly_value_per_person * commercial_dwell_hours * passenger_count
+            )
 
             return {
                 "hourly_value_per_person": round(hourly_value_per_person, 2),
@@ -727,7 +883,7 @@ class HomeAnalyzer:
                 "process_time_value": round(process_time_value, 2),
                 "commercial_dwell_value": round(commercial_dwell_value, 2),
                 "currency": "USD",
-                "airport_context": airport_gdp  # GDP 정보 포함
+                "airport_context": airport_gdp,  # GDP 정보 포함
             }
         except Exception as e:
             print(f"Economic impact 계산 중 오류 발생: {e}")
@@ -742,7 +898,9 @@ class HomeAnalyzer:
         if self.percentile is not None:
             # Percentile 모드: 모든 프로세스를 합산한 Total Wait Time 기준으로 상위 N% 승객 1명 찾기
             # 각 승객의 모든 프로세스의 total_wait 합산
-            total_wait_per_pax = pd.Series([pd.Timedelta(0)] * len(self.pax_df), index=self.pax_df.index)
+            total_wait_per_pax = pd.Series(
+                [pd.Timedelta(0)] * len(self.pax_df), index=self.pax_df.index
+            )
 
             for process in self.process_list:
                 status_col = f"{process}_status"
@@ -750,18 +908,30 @@ class HomeAnalyzer:
                 queue_wait_col = f"{process}_queue_wait_time"
 
                 if status_col in self.pax_df.columns:
-                    completed_mask = self.pax_df[status_col] == 'completed'
+                    completed_mask = self.pax_df[status_col] == "completed"
 
                     # 해당 프로세스를 completed한 승객의 total_wait (open + queue) 합산
-                    process_total_wait = pd.Series([pd.Timedelta(0)] * len(self.pax_df), index=self.pax_df.index)
+                    process_total_wait = pd.Series(
+                        [pd.Timedelta(0)] * len(self.pax_df), index=self.pax_df.index
+                    )
 
                     if open_wait_col in self.pax_df.columns:
-                        open_wait_values = pd.to_timedelta(self.pax_df[open_wait_col], errors='coerce').fillna(pd.Timedelta(0))
-                        process_total_wait = process_total_wait + open_wait_values.where(completed_mask, pd.Timedelta(0))
+                        open_wait_values = pd.to_timedelta(
+                            self.pax_df[open_wait_col], errors="coerce"
+                        ).fillna(pd.Timedelta(0))
+                        process_total_wait = (
+                            process_total_wait
+                            + open_wait_values.where(completed_mask, pd.Timedelta(0))
+                        )
 
                     if queue_wait_col in self.pax_df.columns:
-                        queue_wait_values = pd.to_timedelta(self.pax_df[queue_wait_col], errors='coerce').fillna(pd.Timedelta(0))
-                        process_total_wait = process_total_wait + queue_wait_values.where(completed_mask, pd.Timedelta(0))
+                        queue_wait_values = pd.to_timedelta(
+                            self.pax_df[queue_wait_col], errors="coerce"
+                        ).fillna(pd.Timedelta(0))
+                        process_total_wait = (
+                            process_total_wait
+                            + queue_wait_values.where(completed_mask, pd.Timedelta(0))
+                        )
 
                     total_wait_per_pax = total_wait_per_pax + process_total_wait
 
@@ -779,31 +949,52 @@ class HomeAnalyzer:
                 queue_col = f"{process}_queue_length"
 
                 # 해당 프로세스를 completed 했는지 확인
-                if status_col in self.pax_df.columns and self.pax_df.loc[target_pax_idx, status_col] == 'completed':
+                if (
+                    status_col in self.pax_df.columns
+                    and self.pax_df.loc[target_pax_idx, status_col] == "completed"
+                ):
                     # 그 승객의 open_wait, queue_wait 값
                     open_wait_value = 0
                     queue_wait_value = 0
 
                     if open_wait_col in self.pax_df.columns:
-                        open_wait_td = pd.to_timedelta(self.pax_df.loc[target_pax_idx, open_wait_col], errors='coerce')
-                        open_wait_value = open_wait_td.total_seconds() if pd.notna(open_wait_td) else 0
+                        open_wait_td = pd.to_timedelta(
+                            self.pax_df.loc[target_pax_idx, open_wait_col],
+                            errors="coerce",
+                        )
+                        open_wait_value = (
+                            open_wait_td.total_seconds()
+                            if pd.notna(open_wait_td)
+                            else 0
+                        )
 
                     if queue_wait_col in self.pax_df.columns:
-                        queue_wait_td = pd.to_timedelta(self.pax_df.loc[target_pax_idx, queue_wait_col], errors='coerce')
-                        queue_wait_value = queue_wait_td.total_seconds() if pd.notna(queue_wait_td) else 0
+                        queue_wait_td = pd.to_timedelta(
+                            self.pax_df.loc[target_pax_idx, queue_wait_col],
+                            errors="coerce",
+                        )
+                        queue_wait_value = (
+                            queue_wait_td.total_seconds()
+                            if pd.notna(queue_wait_td)
+                            else 0
+                        )
 
                     total_wait_value = open_wait_value + queue_wait_value
 
                     pax_experience_waiting[process] = {
                         "total": self._format_waiting_time(total_wait_value),
                         "open_wait": self._format_waiting_time(open_wait_value),
-                        "queue_wait": self._format_waiting_time(queue_wait_value)
+                        "queue_wait": self._format_waiting_time(queue_wait_value),
                     }
 
                     # 대기열도 같은 승객의 값 사용
                     if queue_col in self.pax_df.columns:
                         queue_length_value = self.pax_df.loc[target_pax_idx, queue_col]
-                        pax_experience_queue[process] = int(queue_length_value) if pd.notna(queue_length_value) else 0
+                        pax_experience_queue[process] = (
+                            int(queue_length_value)
+                            if pd.notna(queue_length_value)
+                            else 0
+                        )
                     else:
                         pax_experience_queue[process] = 0
                 else:
@@ -811,7 +1002,7 @@ class HomeAnalyzer:
                     pax_experience_waiting[process] = {
                         "total": {"hour": 0, "minute": 0, "second": 0},
                         "open_wait": {"hour": 0, "minute": 0, "second": 0},
-                        "queue_wait": {"hour": 0, "minute": 0, "second": 0}
+                        "queue_wait": {"hour": 0, "minute": 0, "second": 0},
                     }
                     pax_experience_queue[process] = 0
 
@@ -835,8 +1026,12 @@ class HomeAnalyzer:
                     # Mean 모드: 평균 계산
                     pax_experience_waiting[process] = {
                         "total": self._format_waiting_time(valid_total.mean()),
-                        "open_wait": self._format_waiting_time(valid_open.mean() if len(valid_open) > 0 else 0),
-                        "queue_wait": self._format_waiting_time(valid_queue.mean() if len(valid_queue) > 0 else 0)
+                        "open_wait": self._format_waiting_time(
+                            valid_open.mean() if len(valid_open) > 0 else 0
+                        ),
+                        "queue_wait": self._format_waiting_time(
+                            valid_queue.mean() if len(valid_queue) > 0 else 0
+                        ),
                     }
 
                     # 대기열 계산 (평균)
@@ -854,7 +1049,7 @@ class HomeAnalyzer:
                     pax_experience_waiting[process] = {
                         "total": {"hour": 0, "minute": 0, "second": 0},
                         "open_wait": {"hour": 0, "minute": 0, "second": 0},
-                        "queue_wait": {"hour": 0, "minute": 0, "second": 0}
+                        "queue_wait": {"hour": 0, "minute": 0, "second": 0},
                     }
                     pax_experience_queue[process] = 0
 
@@ -884,8 +1079,7 @@ class HomeAnalyzer:
         # economic_impact 추가 (time_metrics와 passenger_count 필요)
         if time_metrics_data and passenger_summary:
             economic_impact = self._calculate_economic_impact(
-                time_metrics_data,
-                passenger_summary['total']
+                time_metrics_data, passenger_summary["total"]
             )
             if economic_impact:
                 data["economic_impact"] = economic_impact
@@ -909,7 +1103,7 @@ class HomeAnalyzer:
         # 패턴별로 그룹화: prefix -> [(number, number_str_length, original_name)]
         pattern_groups = {}
         for name in facility_names:
-            match = re.match(r'^(.+)_(\d+)$', str(name))
+            match = re.match(r"^(.+)_(\d+)$", str(name))
             if match:
                 prefix = match.group(1)
                 number_str = match.group(2)
@@ -963,7 +1157,9 @@ class HomeAnalyzer:
             # zero-padding 매핑 생성 (원본 -> 패딩)
             facility_name_mapping = self._normalize_facility_names(original_facilities)
             # 역매핑 생성 (패딩 -> 원본)
-            facility_name_reverse_mapping = {v: k for k, v in facility_name_mapping.items()}
+            facility_name_reverse_mapping = {
+                v: k for k, v in facility_name_mapping.items()
+            }
             # 패딩된 이름으로 정렬
             facilities = sorted([facility_name_mapping[f] for f in original_facilities])
 
@@ -971,15 +1167,19 @@ class HomeAnalyzer:
             process_info = {
                 "process_name": process.replace("_", " ").title(),
                 "facilities": [],
-                "data": {}
+                "data": {},
             }
 
-            step_config = self.process_flow_map.get(process) if self.process_flow_map else None
+            step_config = (
+                self.process_flow_map.get(process) if self.process_flow_map else None
+            )
 
             if facilities:
                 process_data = all_process_data[has_zone].copy()
                 waiting_series = self._get_waiting_time(process_data, process)
-                process_data[f"{process}_waiting_seconds"] = waiting_series.dt.total_seconds()
+                process_data[f"{process}_waiting_seconds"] = (
+                    waiting_series.dt.total_seconds()
+                )
 
                 # 시간 플로어링을 복사본에서 계산
                 time_freq = f"{interval_minutes}min"
@@ -1015,11 +1215,15 @@ class HomeAnalyzer:
                 if airline_col in process_data.columns:
                     # 항공사 코드-이름 매핑 생성
                     if airline_name_col in process_data.columns:
-                        airline_mapping_df = process_data[[airline_col, airline_name_col]].drop_duplicates()
-                        airline_name_mapping = dict(zip(
-                            airline_mapping_df[airline_col],
-                            airline_mapping_df[airline_name_col]
-                        ))
+                        airline_mapping_df = process_data[
+                            [airline_col, airline_name_col]
+                        ].drop_duplicates()
+                        airline_name_mapping = dict(
+                            zip(
+                                airline_mapping_df[airline_col],
+                                airline_mapping_df[airline_name_col],
+                            )
+                        )
 
                     metrics_by_airline = {
                         "inflow": process_data.groupby(
@@ -1048,7 +1252,9 @@ class HomeAnalyzer:
                     for metric_key, metric_series in metrics_by_airline.items():
                         # MultiIndex: (time, zone, airline) -> DataFrame with MultiIndex columns (zone, airline)
                         unstacked = metric_series.unstack(level=[1, 2], fill_value=0)
-                        pivoted_by_airline[metric_key] = unstacked.reindex(time_df.index, fill_value=0)
+                        pivoted_by_airline[metric_key] = unstacked.reindex(
+                            time_df.index, fill_value=0
+                        )
 
                 # 결과 구성
                 process_facility_data = {}
@@ -1067,12 +1273,16 @@ class HomeAnalyzer:
 
                 for facility_name in facilities:
                     # facility_name은 패딩된 이름, 원본 이름으로 데이터 조회
-                    original_facility_name = facility_name_reverse_mapping.get(facility_name, facility_name)
+                    original_facility_name = facility_name_reverse_mapping.get(
+                        facility_name, facility_name
+                    )
                     # 프론트로 보낼 이름은 패딩된 이름
                     node_name = facility_name
 
                     facility_data = {
-                        k: pivoted[k].get(original_facility_name, pd.Series(0, index=time_df.index))
+                        k: pivoted[k].get(
+                            original_facility_name, pd.Series(0, index=time_df.index)
+                        )
                         for k in metrics.keys()
                     }
 
@@ -1103,14 +1313,19 @@ class HomeAnalyzer:
                             # metric_df.columns는 MultiIndex: (zone, airline)
                             if metric_df.columns.nlevels == 2:
                                 # 해당 zone의 항공사들 (원본 이름으로 조회)
-                                zone_airlines = [col for col in metric_df.columns if col[0] == original_facility_name]
+                                zone_airlines = [
+                                    col
+                                    for col in metric_df.columns
+                                    if col[0] == original_facility_name
+                                ]
                                 for zone_name, airline_code in zone_airlines:
                                     if airline_code not in airlines_data:
                                         airlines_data[airline_code] = {}
                                     series_data = metric_df[(zone_name, airline_code)]
                                     airlines_data[airline_code][metric_key] = (
                                         series_data.round().astype(int).tolist()
-                                        if metric_key in ["queue_length", "waiting_time"]
+                                        if metric_key
+                                        in ["queue_length", "waiting_time"]
                                         else series_data.astype(int).tolist()
                                     )
 
@@ -1120,7 +1335,8 @@ class HomeAnalyzer:
                     # capacity는 원본 이름으로 조회
                     if original_facility_name in zone_capacity_map:
                         process_facility_data[node_name]["capacity"] = [
-                            int(round(value)) for value in zone_capacity_map[original_facility_name]
+                            int(round(value))
+                            for value in zone_capacity_map[original_facility_name]
                         ]
 
                     # ===== 개별 facility 레벨 데이터 추가 =====
@@ -1128,16 +1344,32 @@ class HomeAnalyzer:
                     facility_col = f"{process}_facility"
                     if facility_col in process_data.columns:
                         # 해당 zone의 데이터만 필터링 (원본 이름 사용)
-                        zone_process_data = process_data[process_data[f"{process}_zone"] == original_facility_name].copy()
+                        zone_process_data = process_data[
+                            process_data[f"{process}_zone"] == original_facility_name
+                        ].copy()
 
                         if not zone_process_data.empty:
                             # 개별 facility 목록 (원본)
-                            original_individual_facilities = list(zone_process_data[facility_col].dropna().unique())
+                            original_individual_facilities = list(
+                                zone_process_data[facility_col].dropna().unique()
+                            )
                             # individual facility에도 zero-padding 적용
-                            individual_facility_name_mapping = self._normalize_facility_names(original_individual_facilities)
-                            individual_facility_reverse_mapping = {v: k for k, v in individual_facility_name_mapping.items()}
+                            individual_facility_name_mapping = (
+                                self._normalize_facility_names(
+                                    original_individual_facilities
+                                )
+                            )
+                            individual_facility_reverse_mapping = {
+                                v: k
+                                for k, v in individual_facility_name_mapping.items()
+                            }
                             # 패딩된 이름으로 정렬
-                            individual_facilities = sorted([individual_facility_name_mapping[f] for f in original_individual_facilities])
+                            individual_facilities = sorted(
+                                [
+                                    individual_facility_name_mapping[f]
+                                    for f in original_individual_facilities
+                                ]
+                            )
 
                             if individual_facilities:
                                 # 개별 facility별 메트릭 계산
@@ -1161,32 +1393,59 @@ class HomeAnalyzer:
                                 if airline_col in zone_process_data.columns:
                                     facility_metrics_by_airline = {
                                         "inflow": zone_process_data.groupby(
-                                            [f"{process}_on_floored", facility_col, airline_col]
+                                            [
+                                                f"{process}_on_floored",
+                                                facility_col,
+                                                airline_col,
+                                            ]
                                         ).size(),
                                         "outflow": zone_process_data.groupby(
-                                            [f"{process}_done_floored", facility_col, airline_col]
+                                            [
+                                                f"{process}_done_floored",
+                                                facility_col,
+                                                airline_col,
+                                            ]
                                         ).size(),
                                         "queue_length": zone_process_data.groupby(
-                                            [f"{process}_on_floored", facility_col, airline_col]
+                                            [
+                                                f"{process}_on_floored",
+                                                facility_col,
+                                                airline_col,
+                                            ]
                                         )[f"{process}_queue_length"].mean(),
                                         "waiting_time": zone_process_data.groupby(
-                                            [f"{process}_on_floored", facility_col, airline_col]
+                                            [
+                                                f"{process}_on_floored",
+                                                facility_col,
+                                                airline_col,
+                                            ]
                                         )[f"{process}_waiting_seconds"].mean(),
                                     }
 
                                 # unstack
                                 facility_pivoted = {
-                                    k: v.unstack(fill_value=0).reindex(time_df.index, fill_value=0)
+                                    k: v.unstack(fill_value=0).reindex(
+                                        time_df.index, fill_value=0
+                                    )
                                     for k, v in facility_metrics.items()
                                 }
 
                                 # 항공사별 데이터도 unstack
                                 facility_pivoted_by_airline = {}
                                 if facility_metrics_by_airline:
-                                    for metric_key, metric_series in facility_metrics_by_airline.items():
+                                    for (
+                                        metric_key,
+                                        metric_series,
+                                    ) in facility_metrics_by_airline.items():
                                         # MultiIndex: (time, facility, airline) -> DataFrame with MultiIndex columns (facility, airline)
-                                        unstacked = metric_series.unstack(level=[1, 2], fill_value=0)
-                                        facility_pivoted_by_airline[metric_key] = unstacked.reindex(time_df.index, fill_value=0)
+                                        unstacked = metric_series.unstack(
+                                            level=[1, 2], fill_value=0
+                                        )
+                                        facility_pivoted_by_airline[metric_key] = (
+                                            unstacked.reindex(
+                                                time_df.index, fill_value=0
+                                            )
+                                        )
 
                                 # 개별 facility capacity 계산 (원본 zone 이름 사용)
                                 facility_capacity_map: Dict[str, List[float]] = {}
@@ -1202,10 +1461,17 @@ class HomeAnalyzer:
                                 sub_facility_data = {}
                                 for individual_facility in individual_facilities:
                                     # individual_facility는 패딩된 이름, 원본 이름으로 데이터 조회
-                                    original_individual_facility = individual_facility_reverse_mapping.get(individual_facility, individual_facility)
+                                    original_individual_facility = (
+                                        individual_facility_reverse_mapping.get(
+                                            individual_facility, individual_facility
+                                        )
+                                    )
 
                                     ind_fac_data = {
-                                        k: facility_pivoted[k].get(original_individual_facility, pd.Series(0, index=time_df.index))
+                                        k: facility_pivoted[k].get(
+                                            original_individual_facility,
+                                            pd.Series(0, index=time_df.index),
+                                        )
                                         for k in facility_metrics.keys()
                                     }
 
@@ -1225,33 +1491,76 @@ class HomeAnalyzer:
                                     if facility_pivoted_by_airline:
                                         airlines_data = {}
                                         # 해당 facility의 모든 항공사 데이터 추출
-                                        for metric_key, metric_df in facility_pivoted_by_airline.items():
+                                        for (
+                                            metric_key,
+                                            metric_df,
+                                        ) in facility_pivoted_by_airline.items():
                                             # metric_df.columns는 MultiIndex: (facility, airline)
                                             if metric_df.columns.nlevels == 2:
                                                 # 해당 facility의 항공사들 (원본 이름으로 조회)
-                                                facility_airlines = [col for col in metric_df.columns if col[0] == original_individual_facility]
-                                                for facility_name_col, airline_code in facility_airlines:
-                                                    if airline_code not in airlines_data:
+                                                facility_airlines = [
+                                                    col
+                                                    for col in metric_df.columns
+                                                    if col[0]
+                                                    == original_individual_facility
+                                                ]
+                                                for (
+                                                    facility_name_col,
+                                                    airline_code,
+                                                ) in facility_airlines:
+                                                    if (
+                                                        airline_code
+                                                        not in airlines_data
+                                                    ):
                                                         airlines_data[airline_code] = {}
-                                                    series_data = metric_df[(facility_name_col, airline_code)]
-                                                    airlines_data[airline_code][metric_key] = (
-                                                        series_data.round().astype(int).tolist()
-                                                        if metric_key in ["queue_length", "waiting_time"]
-                                                        else series_data.astype(int).tolist()
+                                                    series_data = metric_df[
+                                                        (
+                                                            facility_name_col,
+                                                            airline_code,
+                                                        )
+                                                    ]
+                                                    airlines_data[airline_code][
+                                                        metric_key
+                                                    ] = (
+                                                        series_data.round()
+                                                        .astype(int)
+                                                        .tolist()
+                                                        if metric_key
+                                                        in [
+                                                            "queue_length",
+                                                            "waiting_time",
+                                                        ]
+                                                        else series_data.astype(
+                                                            int
+                                                        ).tolist()
                                                     )
 
                                         if airlines_data:
-                                            sub_facility_data[individual_facility]["airlines"] = airlines_data
+                                            sub_facility_data[individual_facility][
+                                                "airlines"
+                                            ] = airlines_data
 
                                     # capacity 추가 (원본 이름으로 조회)
-                                    if original_individual_facility in facility_capacity_map:
-                                        sub_facility_data[individual_facility]["capacity"] = [
-                                            int(round(value)) for value in facility_capacity_map[original_individual_facility]
+                                    if (
+                                        original_individual_facility
+                                        in facility_capacity_map
+                                    ):
+                                        sub_facility_data[individual_facility][
+                                            "capacity"
+                                        ] = [
+                                            int(round(value))
+                                            for value in facility_capacity_map[
+                                                original_individual_facility
+                                            ]
                                         ]
 
                                 # zone 데이터에 추가
-                                process_facility_data[node_name]["sub_facilities"] = individual_facilities
-                                process_facility_data[node_name]["facility_data"] = sub_facility_data
+                                process_facility_data[node_name][
+                                    "sub_facilities"
+                                ] = individual_facilities
+                                process_facility_data[node_name][
+                                    "facility_data"
+                                ] = sub_facility_data
 
                 # None/Skip 데이터 처리 - 프로세스를 건너뛴 승객
                 if no_zone.any():
@@ -1263,7 +1572,7 @@ class HomeAnalyzer:
                         "outflow": [0] * len(time_df),
                         "queue_length": [0] * len(time_df),
                         "waiting_time": [0] * len(time_df),
-                        "skip_count": skip_count  # 건너뛴 총 인원수 정보 추가
+                        "skip_count": skip_count,  # 건너뛴 총 인원수 정보 추가
                     }
 
                 # all_zones
@@ -1284,11 +1593,19 @@ class HomeAnalyzer:
                 if zone_capacity_map:
                     aggregate_capacity = [0.0] * len(time_df.index)
                     for capacity_list in zone_capacity_map.values():
-                        aggregate_capacity = [curr + add for curr, add in zip(aggregate_capacity, capacity_list)]
-                    all_zones_data["capacity"] = [int(round(value)) for value in aggregate_capacity]
+                        aggregate_capacity = [
+                            curr + add
+                            for curr, add in zip(aggregate_capacity, capacity_list)
+                        ]
+                    all_zones_data["capacity"] = [
+                        int(round(value)) for value in aggregate_capacity
+                    ]
 
                 # process_info에 데이터 추가
-                process_info["data"] = {"all_zones": all_zones_data, **process_facility_data}
+                process_info["data"] = {
+                    "all_zones": all_zones_data,
+                    **process_facility_data,
+                }
 
                 # 항공사 이름 매핑 추가
                 if airline_name_mapping:
@@ -1310,16 +1627,16 @@ class HomeAnalyzer:
         process_metrics_map = {}
         if facility_metrics_list:
             for metric in facility_metrics_list:
-                process_name = metric.get('process')
-                if process_name == 'total':
+                process_name = metric.get("process")
+                if process_name == "total":
                     continue
 
                 # 프로세스 레벨 메트릭 저장
                 if process_name not in process_metrics_map:
                     process_metrics_map[process_name] = {
-                        'operating_rate': metric.get('operating_rate', 0),
-                        'utilization_rate': metric.get('utilization_rate', 0),
-                        'zones': metric.get('zones', {})
+                        "operating_rate": metric.get("operating_rate", 0),
+                        "utilization_rate": metric.get("utilization_rate", 0),
+                        "zones": metric.get("zones", {}),
                     }
 
         # opened 정보 계산
@@ -1336,7 +1653,9 @@ class HomeAnalyzer:
                 for suffix in ["queue_wait_time"]
                 if f"{process}_{suffix}" in process_completed_df.columns
             ]
-            cols = [f"{process}_{field}" for field in base_fields] + [f"{process}_{field}" for field in wait_fields]
+            cols = [f"{process}_{field}" for field in base_fields] + [
+                f"{process}_{field}" for field in wait_fields
+            ]
             cols = [col for col in cols if col in process_completed_df.columns]
             process_df = process_completed_df[cols].copy()
 
@@ -1348,13 +1667,15 @@ class HomeAnalyzer:
 
             # 프로세스 레벨 opened 정보 가져오기
             process_opened_info = opened_counts_map.get(process, {})
-            process_opened = process_opened_info.get('opened', 0)
-            process_total = process_opened_info.get('total', 0)
+            process_opened = process_opened_info.get("opened", 0)
+            process_total = process_opened_info.get("total", 0)
 
             overview = {
                 "throughput": len(process_df),
                 "queuePax": int(
-                    process_df[f"{process}_queue_length"].quantile(1 - self.percentile / 100)
+                    process_df[f"{process}_queue_length"].quantile(
+                        1 - self.percentile / 100
+                    )
                     if self.percentile is not None
                     else process_df[f"{process}_queue_length"].mean()
                 ),
@@ -1363,15 +1684,20 @@ class HomeAnalyzer:
                     if self.percentile is not None
                     else waiting_time.mean()
                 ),
-                "facility_effi": process_metrics.get('operating_rate', 0) * 100,  # Facility Effi. = Facility Effi.
-                "workforce_effi": process_metrics.get('utilization_rate', 0) * 100,  # Workforce Effi. = Workforce Effi.
-                "opened": [process_opened, process_total],  # [운영한 시설 수, 전체 시설 수]
+                "facility_effi": process_metrics.get("operating_rate", 0)
+                * 100,  # Facility Effi. = Facility Effi.
+                "workforce_effi": process_metrics.get("utilization_rate", 0)
+                * 100,  # Workforce Effi. = Workforce Effi.
+                "opened": [
+                    process_opened,
+                    process_total,
+                ],  # [운영한 시설 수, 전체 시설 수]
             }
 
             # Components 계산
             components = []
-            zone_metrics_map = process_metrics.get('zones', {})
-            zone_opened_map = process_opened_info.get('zones', {})
+            zone_metrics_map = process_metrics.get("zones", {})
+            zone_opened_map = process_opened_info.get("zones", {})
 
             for facility in sorted(process_df[f"{process}_zone"].unique()):
                 facility_df = process_df[process_df[f"{process}_zone"] == facility]
@@ -1382,17 +1708,17 @@ class HomeAnalyzer:
 
                 # 존 레벨 opened 정보 가져오기
                 zone_opened_info = zone_opened_map.get(facility, {})
-                zone_opened = zone_opened_info.get('opened', 0)
-                zone_total = zone_opened_info.get('total', 0)
+                zone_opened = zone_opened_info.get("opened", 0)
+                zone_total = zone_opened_info.get("total", 0)
 
                 components.append(
                     {
                         "title": facility,
                         "throughput": len(facility_df),
                         "queuePax": int(
-                        facility_df[f"{process}_queue_length"].quantile(
-                            1 - self.percentile / 100
-                        )
+                            facility_df[f"{process}_queue_length"].quantile(
+                                1 - self.percentile / 100
+                            )
                             if self.percentile is not None
                             else facility_df[f"{process}_queue_length"].mean()
                         ),
@@ -1401,9 +1727,14 @@ class HomeAnalyzer:
                             if self.percentile is not None
                             else waiting_time.mean()
                         ),
-                        "facility_effi": zone_metrics.get('operating_rate', 0) * 100,  # Facility Effi.
-                        "workforce_effi": zone_metrics.get('utilization_rate', 0) * 100,  # Workforce Effi.
-                        "opened": [zone_opened, zone_total],  # [운영한 시설 수, 전체 시설 수]
+                        "facility_effi": zone_metrics.get("operating_rate", 0)
+                        * 100,  # Facility Effi.
+                        "workforce_effi": zone_metrics.get("utilization_rate", 0)
+                        * 100,  # Workforce Effi.
+                        "opened": [
+                            zone_opened,
+                            zone_total,
+                        ],  # [운영한 시설 수, 전체 시설 수]
                     }
                 )
 
@@ -1411,7 +1742,6 @@ class HomeAnalyzer:
                 {"category": process, "overview": overview, "components": components}
             )
         return data
-
 
     def get_histogram_data(self):
         """시설별, 그리고 그 안의 구역별 통계 데이터 생성 (all_zones 포함)"""
@@ -1433,12 +1763,16 @@ class HomeAnalyzer:
             # 해당 프로세스에서 completed 상태인 승객만 사용
             process_completed_df = self._filter_by_status(self.pax_df, process)
 
-            facilities = sorted(process_completed_df[f"{process}_zone"].dropna().unique())
+            facilities = sorted(
+                process_completed_df[f"{process}_zone"].dropna().unique()
+            )
             wt_collection, ql_collection = [], []
             facility_data = {}
 
             for facility in facilities:
-                df = process_completed_df[process_completed_df[f"{process}_zone"] == facility].copy()
+                df = process_completed_df[
+                    process_completed_df[f"{process}_zone"] == facility
+                ].copy()
 
                 # 대기시간 분포 (초를 분으로 변환)
                 wt_mins = self._get_waiting_time(df, process).dt.total_seconds() / 60
@@ -1446,7 +1780,10 @@ class HomeAnalyzer:
 
                 # 대기열 분포
                 ql_bins = []
-                if f"{process}_queue_length" in df.columns and not df[f"{process}_queue_length"].empty:
+                if (
+                    f"{process}_queue_length" in df.columns
+                    and not df[f"{process}_queue_length"].empty
+                ):
                     ql_bins = self._get_distribution(
                         df[f"{process}_queue_length"], QL_BINS, QL_LABELS
                     )
@@ -1494,7 +1831,9 @@ class HomeAnalyzer:
                 mask = all_pax_df[zone_col].isna() & all_pax_df[status_col].notna()
 
                 # status 값을 첫 글자 대문자로 변환하여 zone에 할당
-                all_pax_df.loc[mask, zone_col] = all_pax_df.loc[mask, status_col].str.capitalize()
+                all_pax_df.loc[mask, zone_col] = all_pax_df.loc[
+                    mask, status_col
+                ].str.capitalize()
 
         # operating_carrier_name 컬럼을 첫 번째 레이어로 추가
         target_columns = []
@@ -1511,14 +1850,20 @@ class HomeAnalyzer:
             top_10_airlines = airline_counts.head(10).index.tolist()
 
             # 11번째부터는 "ETC"로 변경
-            all_pax_df.loc[~all_pax_df["operating_carrier_name"].isin(top_10_airlines), "operating_carrier_name"] = "ETC"
+            all_pax_df.loc[
+                ~all_pax_df["operating_carrier_name"].isin(top_10_airlines),
+                "operating_carrier_name",
+            ] = "ETC"
 
             target_columns.append("operating_carrier_name")
 
         # zone 기반으로 승객 플로우 생성 (process_list 순서 사용)
         # process_list 순서대로 zone 컬럼 정렬
-        zone_target_columns = [f"{process}_zone" for process in self.process_list
-                               if f"{process}_zone" in all_pax_df.columns]
+        zone_target_columns = [
+            f"{process}_zone"
+            for process in self.process_list
+            if f"{process}_zone" in all_pax_df.columns
+        ]
 
         # target_columns에 zone 컬럼들 추가
         target_columns.extend(zone_target_columns)
@@ -1532,7 +1877,11 @@ class HomeAnalyzer:
 
         # 전체 데이터에서 groupby (이제 Skipped, Failed도 포함되므로 dropna=False 사용하지 않음)
         # zone 값이 모두 매핑되었으므로 dropna=True 유지
-        flow_df = all_pax_df.groupby(target_columns, dropna=True).size().reset_index(name="count")
+        flow_df = (
+            all_pax_df.groupby(target_columns, dropna=True)
+            .size()
+            .reset_index(name="count")
+        )
 
         # 동일한 결과를 보장하기 위해 각 컬럼의 고유값을 정렬
         unique_values = {}
@@ -1588,20 +1937,20 @@ class HomeAnalyzer:
             facilities = sorted(flow_df[col].unique())
 
             # Failed와 Skipped를 제외한 승객 수 계산
-            pax_count = flow_df[
-                ~flow_df[col].isin(["Failed", "Skipped"])
-            ]["count"].sum()
+            pax_count = flow_df[~flow_df[col].isin(["Failed", "Skipped"])][
+                "count"
+            ].sum()
 
             process_info[process_name] = {
                 "process_name": display_name,
                 "facilities": facilities,
-                "pax_count": int(pax_count)
+                "pax_count": int(pax_count),
             }
 
         return {
             "label": labels,
             "link": {"source": sources, "target": targets, "value": values},
-            "process_info": process_info  # 계층 구조 정보 추가
+            "process_info": process_info,  # 계층 구조 정보 추가
         }
 
     # ===============================
@@ -1624,9 +1973,11 @@ class HomeAnalyzer:
         # status 컬럼이 없는 경우 원본 반환 (하위 호환성)
         return df.copy()
 
-    def _extract_block_period(self, block: dict) -> Optional[tuple[pd.Timestamp, pd.Timestamp]]:
+    def _extract_block_period(
+        self, block: dict
+    ) -> Optional[tuple[pd.Timestamp, pd.Timestamp]]:
         """운영 스케줄 블록의 시작/종료 시간 추출
-        
+
         다양한 period 형식을 지원:
         - "YYYY-MM-DD HH:MM:SS - YYYY-MM-DD HH:MM:SS" (공백-대시-공백)
         - "YYYY-MM-DD HH:MM:SS-YYYY-MM-DD HH:MM:SS" (공백 없이)
@@ -1637,9 +1988,9 @@ class HomeAnalyzer:
             return None
 
         # 정규표현식으로 날짜-시간 형식 찾기: YYYY-MM-DD HH:MM:SS
-        datetime_pattern = r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}'
+        datetime_pattern = r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}"
         matches = re.findall(datetime_pattern, period)
-        
+
         if len(matches) >= 2:
             # 두 개의 날짜-시간을 찾았으면 첫 번째와 마지막을 사용
             start_str = matches[0]
@@ -1659,7 +2010,7 @@ class HomeAnalyzer:
                 dash_pos = period.find("-", first_datetime_end)
                 if dash_pos > 0:
                     start_str = period[:dash_pos].strip()
-                    end_str = period[dash_pos + 1:].strip()
+                    end_str = period[dash_pos + 1 :].strip()
                 else:
                     return None
             else:
@@ -1690,7 +2041,9 @@ class HomeAnalyzer:
     ) -> float:
         """특정 시간 슬롯에 대한 시설 용량 계산"""
         slot_capacity = 0.0
-        for block in facility_config.get("operating_schedule", {}).get("time_blocks", []):
+        for block in facility_config.get("operating_schedule", {}).get(
+            "time_blocks", []
+        ):
             if not block.get("activate", True):
                 continue
 
@@ -1704,7 +2057,9 @@ class HomeAnalyzer:
 
             overlap_start = max(start, block_start)
             overlap_end = min(end, block_end)
-            overlap_minutes = max((overlap_end - overlap_start).total_seconds() / 60.0, 0)
+            overlap_minutes = max(
+                (overlap_end - overlap_start).total_seconds() / 60.0, 0
+            )
             if overlap_minutes == 0:
                 continue
 
@@ -1736,7 +2091,9 @@ class HomeAnalyzer:
                     facility_capacity.append(
                         self._calculate_capacity_for_slot(facility, start, end)
                     )
-                total_capacity = [curr + add for curr, add in zip(total_capacity, facility_capacity)]
+                total_capacity = [
+                    curr + add for curr, add in zip(total_capacity, facility_capacity)
+                ]
             zone_capacity[zone_name] = total_capacity
         return zone_capacity
 
@@ -1810,10 +2167,10 @@ class HomeAnalyzer:
         all_timestamps = []
 
         for process in self.process_list:
-            for col_suffix in ['on_pred', 'start_time', 'done_time']:
+            for col_suffix in ["on_pred", "start_time", "done_time"]:
                 col = f"{process}_{col_suffix}"
                 if col in self.pax_df.columns:
-                    ts = pd.to_datetime(self.pax_df[col], errors='coerce').dropna()
+                    ts = pd.to_datetime(self.pax_df[col], errors="coerce").dropna()
                     if not ts.empty:
                         all_timestamps.append(ts)
 
@@ -1823,7 +2180,7 @@ class HomeAnalyzer:
             time_index = pd.date_range(
                 start=f"{last_date} 00:00:00",
                 end=f"{last_date} 23:59:59",
-                freq=f"{interval_minutes}min"
+                freq=f"{interval_minutes}min",
             )
             return pd.DataFrame(index=time_index)
 
@@ -1833,7 +2190,9 @@ class HomeAnalyzer:
         time_index = pd.date_range(min_ts, max_ts, freq=f"{interval_minutes}min")
         return pd.DataFrame(index=time_index)
 
-    def _build_process_flow_map(self, process_flow: Optional[List[dict]]) -> Dict[str, dict]:
+    def _build_process_flow_map(
+        self, process_flow: Optional[List[dict]]
+    ) -> Dict[str, dict]:
         if not process_flow:
             return {}
         mapping: Dict[str, dict] = {}
@@ -1869,16 +2228,9 @@ class HomeAnalyzer:
         queue_wait = self._get_waiting_time(df, process)
         return open_wait + queue_wait
 
-
     def _calculate_waiting_time(self, process_df, process):
         """대기 시간 계산"""
         return self._get_waiting_time(process_df, process)
-
-
-
-
-
-
 
     def _get_distribution(self, values, bins, labels):
         """값들의 분포를 백분율로 계산"""

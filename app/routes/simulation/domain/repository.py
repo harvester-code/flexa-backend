@@ -13,7 +13,6 @@ class ISimulationRepository(metaclass=ABCMeta):
     def fetch_scenario_information(self):
         raise NotImplementedError
 
-
     @abstractmethod
     def create_scenario_information(self):
         raise NotImplementedError
@@ -34,17 +33,12 @@ class ISimulationRepository(metaclass=ABCMeta):
     def deactivate_scenario_information(self):
         raise NotImplementedError
 
-
-
     # ===================================
     # NOTE: 시뮬레이션 프로세스
-
-
 
     @abstractmethod
     def update_scenario_target_flight_schedule_date(self):
         raise NotImplementedError
-
 
     @abstractmethod
     def check_user_scenario_permission(self):

@@ -1,6 +1,5 @@
 from dependency_injector import containers, providers
 
-
 from app.routes.home.application.service import HomeService
 from app.routes.home.infra.repository import HomeRepository
 from app.routes.simulation.application.service import SimulationService
