@@ -1,32 +1,18 @@
-# Flexa Waitfree API
+# Flexa Simmula API
 
-## 환경별 배포방법
-
-### Local
-
-#### 1. Supabase self-hosting
-
-참고: [Self-Hosting with Docker | Supabase Docs](https://supabase.com/docs/guides/self-hosting/docker)
-
-```bash
-cd supabase-project
-
-docker compose pull
-docker compose up -d
-
-docker compose down -v
-```
-
-///
+## 실행하기
 
 ### Development
 
-///
+```bash
+doppler run -- make dev
 
-### Staging
-
-///
+# 또는 도플러에서 특정 환경을 설정하고 싶을 때
+doppler run -- make ENV=local dev
+```
 
 ### Production
 
-///
+```bash
+doppler run -- make run
+```
