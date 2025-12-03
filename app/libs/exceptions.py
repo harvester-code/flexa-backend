@@ -14,6 +14,7 @@ def _build_error_content(status_code: int, detail: str | None = None) -> dict:
         content["data"] = detail
     return content
 
+
 # ==================================================
 # NOTE: DB 오류 처리
 async def db_exception_handler(request: Request, exc: SQLAlchemyError):

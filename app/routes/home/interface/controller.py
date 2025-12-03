@@ -2,8 +2,8 @@ from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, status
 
 from app.libs.containers import Container
-from packages.supabase.dependencies import verify_token
 from app.routes.home.application.service import HomeService
+from packages.supabase.dependencies import verify_token
 
 """
 status 코드 정리
@@ -47,7 +47,5 @@ async def fetch_metrics_data(
     home_service: HomeService = Depends(Provide[Container.home_service]),
     percentile: int | None = None,
 ):
-    result = await home_service.fetch_metrics_data(
-        scenario_id, percentile
-    )
+    result = await home_service.fetch_metrics_data(scenario_id, percentile)
     return result

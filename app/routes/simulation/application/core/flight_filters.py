@@ -5,9 +5,10 @@ This module handles flight filtering metadata generation:
 - FlightFiltersResponse: Generates filter options JSON for Departure/Arrival modes (based on real data)
 """
 
-from typing import Dict, Any, List
 from collections import defaultdict
 from datetime import datetime
+from typing import Any, Dict, List
+
 from loguru import logger
 from sqlalchemy import Connection
 
@@ -137,14 +138,16 @@ class FlightFiltersResponse:
                 key = (
                     flight.get("operating_carrier_iata"),
                     flight.get("flight_number"),
-                    flight.get("flight_date")
+                    flight.get("flight_date"),
                 )
                 if all(key) and key not in seen:
                     seen.add(key)
                     unique_flight_data.append(flight)
 
             if len(flight_data) != len(unique_flight_data):
-                logger.info(f"🔧 Departure duplicates removed: {len(flight_data)} → {len(unique_flight_data)} ({len(flight_data) - len(unique_flight_data)} duplicates)")
+                logger.info(
+                    f"🔧 Departure duplicates removed: {len(flight_data)} → {len(unique_flight_data)} ({len(flight_data) - len(unique_flight_data)} duplicates)"
+                )
 
             logger.info(f"✅ Found {len(unique_flight_data)} unique departure flights")
             return unique_flight_data
@@ -198,14 +201,16 @@ class FlightFiltersResponse:
                 key = (
                     flight.get("operating_carrier_iata"),
                     flight.get("flight_number"),
-                    flight.get("flight_date")
+                    flight.get("flight_date"),
                 )
                 if all(key) and key not in seen:
                     seen.add(key)
                     unique_flight_data.append(flight)
 
             if len(flight_data) != len(unique_flight_data):
-                logger.info(f"🔧 Arrival duplicates removed: {len(flight_data)} → {len(unique_flight_data)} ({len(flight_data) - len(unique_flight_data)} duplicates)")
+                logger.info(
+                    f"🔧 Arrival duplicates removed: {len(flight_data)} → {len(unique_flight_data)} ({len(flight_data) - len(unique_flight_data)} duplicates)"
+                )
 
             logger.info(f"✅ Found {len(unique_flight_data)} unique arrival flights")
             return unique_flight_data
@@ -272,7 +277,9 @@ class FlightFiltersResponse:
             departure_data, "flight_type", "Unknown"
         )
 
-        logger.info(f"📊 Generated departure filters: {list(filters.keys())}, total: {total_count}")
+        logger.info(
+            f"📊 Generated departure filters: {list(filters.keys())}, total: {total_count}"
+        )
         return filters
 
     def _generate_arrival_filters_from_data(
@@ -309,7 +316,9 @@ class FlightFiltersResponse:
             arrival_data, "flight_type", "Unknown"
         )
 
-        logger.info(f"📊 Generated arrival filters: {list(filters.keys())}, total: {total_count}")
+        logger.info(
+            f"📊 Generated arrival filters: {list(filters.keys())}, total: {total_count}"
+        )
         return filters
 
     def _group_by_field(
@@ -345,11 +354,21 @@ class FlightFiltersResponse:
             airline_stats = {}
             for airline_code, airline_flights in airlines.items():
                 # ✅ 중복 제거: carrier + flight_number + date 조합으로 유니크하게 처리
-                unique_flights = list(set([
-                    (flight.get("operating_carrier_iata"), flight.get("flight_number"), flight.get("flight_date"))
-                    for flight in airline_flights
-                    if flight.get("operating_carrier_iata") and flight.get("flight_number") and flight.get("flight_date")
-                ]))
+                unique_flights = list(
+                    set(
+                        [
+                            (
+                                flight.get("operating_carrier_iata"),
+                                flight.get("flight_number"),
+                                flight.get("flight_date"),
+                            )
+                            for flight in airline_flights
+                            if flight.get("operating_carrier_iata")
+                            and flight.get("flight_number")
+                            and flight.get("flight_date")
+                        ]
+                    )
+                )
 
                 # flight_numbers만 추출 (UI 표시용)
                 flight_numbers = sorted(list(set([fn for _, fn, _ in unique_flights])))
@@ -361,7 +380,7 @@ class FlightFiltersResponse:
 
             # ✅ total_flights를 개별 항공사의 중복 제거된 count 합계로 계산
             total_count = sum(stats["count"] for stats in airline_stats.values())
-            
+
             result[field_value] = {
                 "total_flights": total_count,
                 "airlines": dict(sorted(airline_stats.items())),
@@ -378,7 +397,7 @@ class FlightFiltersResponse:
     ) -> Dict[str, Any]:
         """
         Group flight data by region, with countries nested inside each region
-        
+
         Returns:
         {
             "Asia": {
@@ -399,16 +418,16 @@ class FlightFiltersResponse:
         """
         # Step 1: Group by region
         region_groups = defaultdict(list)
-        
+
         for flight in flight_data:
             region_value = flight.get(region_field, default_value)
             if region_value is None or region_value == "":
                 region_value = default_value
             region_groups[str(region_value)].append(flight)
-        
+
         # Step 2: For each region, create nested structure
         result = {}
-        
+
         for region_name, region_flights in region_groups.items():
             # Step 3: Group region flights by country
             country_groups = defaultdict(list)
@@ -417,7 +436,7 @@ class FlightFiltersResponse:
                 if country_value is None or country_value == "":
                     country_value = default_value
                 country_groups[str(country_value)].append(flight)
-            
+
             # Step 4: Generate country statistics
             countries = {}
             for country_name, country_flights in country_groups.items():
@@ -427,58 +446,82 @@ class FlightFiltersResponse:
                     airline_code = flight.get("operating_carrier_iata", "XX")
                     if airline_code:
                         country_airlines[airline_code].append(flight)
-                
+
                 # Generate country level airline stats
                 country_airline_stats = {}
                 for airline_code, airline_flights in country_airlines.items():
                     # ✅ 중복 제거: carrier + flight_number + date 조합으로 유니크하게 처리
-                    unique_flights = list(set([
-                        (flight.get("operating_carrier_iata"), flight.get("flight_number"), flight.get("flight_date"))
-                        for flight in airline_flights
-                        if flight.get("operating_carrier_iata") and flight.get("flight_number") and flight.get("flight_date")
-                    ]))
+                    unique_flights = list(
+                        set(
+                            [
+                                (
+                                    flight.get("operating_carrier_iata"),
+                                    flight.get("flight_number"),
+                                    flight.get("flight_date"),
+                                )
+                                for flight in airline_flights
+                                if flight.get("operating_carrier_iata")
+                                and flight.get("flight_number")
+                                and flight.get("flight_date")
+                            ]
+                        )
+                    )
 
                     # flight_numbers만 추출 (UI 표시용)
-                    flight_numbers = sorted(list(set([fn for _, fn, _ in unique_flights])))
+                    flight_numbers = sorted(
+                        list(set([fn for _, fn, _ in unique_flights]))
+                    )
 
                     country_airline_stats[airline_code] = {
                         "count": len(unique_flights),
                         "flight_numbers": flight_numbers,
                     }
-                
+
                 # ✅ total_flights를 개별 항공사의 중복 제거된 count 합계로 계산
-                country_total_count = sum(stats["count"] for stats in country_airline_stats.values())
-                
+                country_total_count = sum(
+                    stats["count"] for stats in country_airline_stats.values()
+                )
+
                 countries[country_name] = {
                     "total_flights": country_total_count,
                     "airlines": dict(sorted(country_airline_stats.items())),
                 }
-            
+
             # Step 5: Combine region and country data (sort countries by total_flights DESC)
-            sorted_countries = dict(sorted(
-                countries.items(), 
-                key=lambda x: x[1]["total_flights"], 
-                reverse=True  # 많은 순서부터 정렬
-            ))
-            
+            sorted_countries = dict(
+                sorted(
+                    countries.items(),
+                    key=lambda x: x[1]["total_flights"],
+                    reverse=True,  # 많은 순서부터 정렬
+                )
+            )
+
             # ✅ total_flights를 각 국가의 중복 제거된 count 합계로 계산
-            region_total_count = sum(country["total_flights"] for country in countries.values())
-            
+            region_total_count = sum(
+                country["total_flights"] for country in countries.values()
+            )
+
             result[region_name] = {
                 "total_flights": region_total_count,
                 "countries": sorted_countries,
             }
-        
+
         # Step 6: Sort regions by total_flights DESC
-        sorted_result = dict(sorted(
-            result.items(), 
-            key=lambda x: x[1]["total_flights"], 
-            reverse=True  # 많은 순서부터 정렬
-        ))
-        
-        logger.info(f"📊 Generated region-country hierarchy for {region_field}: {len(sorted_result)} regions")
+        sorted_result = dict(
+            sorted(
+                result.items(),
+                key=lambda x: x[1]["total_flights"],
+                reverse=True,  # 많은 순서부터 정렬
+            )
+        )
+
+        logger.info(
+            f"📊 Generated region-country hierarchy for {region_field}: {len(sorted_result)} regions"
+        )
         for region_name, region_data in sorted_result.items():
             countries_count = len(region_data["countries"])
-            logger.info(f"  - {region_name}: {region_data['total_flights']} flights, {countries_count} countries")
-        
+            logger.info(
+                f"  - {region_name}: {region_data['total_flights']} flights, {countries_count} countries"
+            )
+
         return sorted_result

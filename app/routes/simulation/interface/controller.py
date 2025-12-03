@@ -11,23 +11,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 # Application
 from app.libs.containers import Container
-from packages.supabase.dependencies import verify_token
 from app.libs.exceptions import BadRequestException
 from app.routes.simulation.application.service import SimulationService
 from app.routes.simulation.interface.schema import (
-    FlightScheduleBody,
     FlightFiltersResponse,
+    FlightScheduleBody,
     PassengerScheduleBody,
     RunSimulationBody,
-    ScenarioDeactivateBody,
     ScenarioCopyRequest,
     ScenarioCopyResponse,
+    ScenarioDeactivateBody,
     ScenarioUpdateBody,
     SimulationScenarioBody,
 )
-from packages.supabase.database import aget_supabase_session
-from packages.supabase.dependencies import verify_scenario_ownership
 from packages.redshift.client import get_redshift_connection
+from packages.supabase.database import aget_supabase_session
+from packages.supabase.dependencies import verify_scenario_ownership, verify_token
 
 private_simulation_router = APIRouter(
     prefix="/simulations", dependencies=[Depends(verify_token)]
@@ -169,7 +168,9 @@ async def copy_scenario(
             new_name=copy_request.name,  # 프론트엔드에서 전달한 이름 (선택사항)
         )
 
-        logger.info(f"✅ Successfully copied scenario {scenario_id} → {new_scenario['scenario_id']}")
+        logger.info(
+            f"✅ Successfully copied scenario {scenario_id} → {new_scenario['scenario_id']}"
+        )
 
         return ScenarioCopyResponse(
             scenario_id=new_scenario["scenario_id"],
@@ -470,5 +471,3 @@ async def delete_scenario_metadata(
 ):
     # ✅ 권한 검증은 의존성에서 이미 처리됨, 바로 비즈니스 로직 실행
     return await sim_service.delete_scenario_metadata(scenario_id)
-
-

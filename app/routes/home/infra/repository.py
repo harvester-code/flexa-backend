@@ -16,4 +16,6 @@ class HomeRepository(IHomeRepository):
         )
 
     async def load_metadata(self, scenario_id: str, filename: str) -> Optional[dict]:
-        return await self.s3_manager.get_json_async(scenario_id=scenario_id, filename=filename)
+        return await self.s3_manager.get_json_async(
+            scenario_id=scenario_id, filename=filename
+        )

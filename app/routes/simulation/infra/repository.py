@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import List
 
 # Third Party
-from sqlalchemy import bindparam, update, and_, func
+from sqlalchemy import and_, bindparam, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -71,39 +71,45 @@ class SimulationRepository(ISimulationRepository):
             # 결과를 리스트로 반환
             scenarios = []
             scenarios_to_update = []  # 업데이트가 필요한 시나리오들
-            
+
             for row in result:
                 scenario_info = row[0]  # ScenarioInformation 객체
 
                 # S3Manager를 사용하여 simulation-pax.parquet 파일 존재 여부 및 메타데이터 확인
                 has_simulation_data = False
                 file_last_modified = None
-                
+
                 if scenario_info.scenario_id:
                     # 파일 메타데이터 가져오기 (존재 여부 + 저장 시간)
                     file_metadata = await self.s3_manager.get_metadata_async(
                         scenario_id=scenario_info.scenario_id,
-                        filename="simulation-pax.parquet"
+                        filename="simulation-pax.parquet",
                     )
-                    
+
                     if file_metadata:
                         has_simulation_data = True
-                        file_last_modified = file_metadata.get('last_modified')
-                
+                        file_last_modified = file_metadata.get("last_modified")
+
                 # 🆕 자동 시뮬레이션 시작 시간 업데이트 로직 (S3 파일 저장 시간 사용)
                 simulation_start_at = scenario_info.simulation_start_at
-                if (has_simulation_data and 
-                    scenario_info.simulation_start_at is None and 
-                    str(scenario_info.user_id) == user_id):  # 본인 시나리오만
-                    
+                if (
+                    has_simulation_data
+                    and scenario_info.simulation_start_at is None
+                    and str(scenario_info.user_id) == user_id
+                ):  # 본인 시나리오만
+
                     # S3 파일 시간 또는 현재 시간 사용
-                    file_time = file_last_modified if file_last_modified else datetime.utcnow()
-                    
+                    file_time = (
+                        file_last_modified if file_last_modified else datetime.utcnow()
+                    )
+
                     # DB에서 자동으로 초 단위로 truncate하므로 Python에서 처리 불필요
-                    scenarios_to_update.append({
-                        'scenario_id': scenario_info.scenario_id,
-                        'simulation_start_at': file_time
-                    })
+                    scenarios_to_update.append(
+                        {
+                            "scenario_id": scenario_info.scenario_id,
+                            "simulation_start_at": file_time,
+                        }
+                    )
                     # 응답에는 파일 시간 사용 (DB 저장 시 자동으로 초 단위가 됨)
                     simulation_start_at = file_time
 
@@ -133,35 +139,41 @@ class SimulationRepository(ISimulationRepository):
                     "has_simulation_data": has_simulation_data,
                 }
                 scenarios.append(scenario_dict)
-            
+
             # 🆕 일괄 DB 업데이트 (변경이 있는 경우에만, S3 파일 저장 시간 사용)
             if scenarios_to_update:
                 try:
                     # 각 시나리오별로 개별 업데이트 (서로 다른 시간 저장)
                     for scenario_update in scenarios_to_update:
-                        scenario_id = scenario_update['scenario_id']
-                        start_time = scenario_update['simulation_start_at']
-                        
+                        scenario_id = scenario_update["scenario_id"]
+                        start_time = scenario_update["simulation_start_at"]
+
                         update_stmt = (
                             update(ScenarioInformation)
                             .where(ScenarioInformation.scenario_id == scenario_id)
                             .values(
                                 simulation_start_at=start_time,
-                                updated_at=func.timezone('utc', func.now())  # DB 기본값으로 자동 truncate
+                                updated_at=func.timezone(
+                                    "utc", func.now()
+                                ),  # DB 기본값으로 자동 truncate
                             )
                         )
                         await db.execute(update_stmt)
-                    
+
                     await db.commit()
-                    
+
                     # 성공 로그
-                    scenario_ids = [s['scenario_id'] for s in scenarios_to_update]
-                    print(f"✅ Updated simulation_start_at for {len(scenario_ids)} scenarios using S3 file timestamps")
-                    
+                    scenario_ids = [s["scenario_id"] for s in scenarios_to_update]
+                    print(
+                        f"✅ Updated simulation_start_at for {len(scenario_ids)} scenarios using S3 file timestamps"
+                    )
+
                 except Exception as e:
                     # DB 업데이트 실패해도 목록 조회는 계속 진행
-                    scenario_ids = [s['scenario_id'] for s in scenarios_to_update]
-                    print(f"⚠️ Warning: Failed to update simulation_start_at for scenarios {scenario_ids}: {e}")
+                    scenario_ids = [s["scenario_id"] for s in scenarios_to_update]
+                    print(
+                        f"⚠️ Warning: Failed to update simulation_start_at for scenarios {scenario_ids}: {e}"
+                    )
                     await db.rollback()
 
             return scenarios
@@ -233,11 +245,13 @@ class SimulationRepository(ISimulationRepository):
     ):
         """메타데이터 업데이트 시각 갱신"""
         from datetime import datetime, timezone
-        
+
         await db.execute(
             update(ScenarioInformation)
             .where(ScenarioInformation.scenario_id == scenario_id)
-            .values(metadata_updated_at=datetime.now(timezone.utc).replace(microsecond=0))
+            .values(
+                metadata_updated_at=datetime.now(timezone.utc).replace(microsecond=0)
+            )
         )
         await db.commit()
 
@@ -248,13 +262,17 @@ class SimulationRepository(ISimulationRepository):
     ):
         """시뮬레이션 시작 시각 및 상태 갱신"""
         from datetime import datetime
+
         from loguru import logger
-        
+
         try:
             from datetime import timezone
+
             current_time = datetime.now(timezone.utc).replace(microsecond=0)
-            logger.info(f"🕐 Setting simulation_start_at to: {current_time} for scenario: {scenario_id}")
-            
+            logger.info(
+                f"🕐 Setting simulation_start_at to: {current_time} for scenario: {scenario_id}"
+            )
+
             result = await db.execute(
                 update(ScenarioInformation)
                 .where(ScenarioInformation.scenario_id == scenario_id)
@@ -262,21 +280,23 @@ class SimulationRepository(ISimulationRepository):
                     simulation_start_at=current_time,
                     simulation_status="processing",  # 🔴 즉시 processing 상태로 변경
                     simulation_error=None,  # 🔴 이전 에러 메시지 리셋
-                    simulation_end_at=None  # 🔴 이전 종료 시각 리셋
+                    simulation_end_at=None,  # 🔴 이전 종료 시각 리셋
                 )
             )
-            
+
             rows_affected = result.rowcount
             logger.info(f"📝 Update query executed, rows affected: {rows_affected}")
-            logger.info(f"🚀 simulation_status set to 'processing' for scenario: {scenario_id}")
+            logger.info(
+                f"🚀 simulation_status set to 'processing' for scenario: {scenario_id}"
+            )
             logger.info(f"🧹 Previous error and end_at cleared for fresh start")
-            
+
             if rows_affected == 0:
                 logger.warning(f"⚠️ No rows updated for scenario_id: {scenario_id}")
-            
+
             await db.commit()
             logger.info(f"✅ Transaction committed for scenario: {scenario_id}")
-            
+
         except Exception as e:
             logger.error(f"❌ Error in update_simulation_start_at: {str(e)}")
             await db.rollback()
@@ -315,13 +335,10 @@ class SimulationRepository(ISimulationRepository):
         scenario_id: str,
     ):
         """시나리오 ID로 단일 시나리오 조회"""
-        stmt = (
-            select(ScenarioInformation)
-            .where(
-                and_(
-                    ScenarioInformation.scenario_id == scenario_id,
-                    ScenarioInformation.is_active == True,
-                )
+        stmt = select(ScenarioInformation).where(
+            and_(
+                ScenarioInformation.scenario_id == scenario_id,
+                ScenarioInformation.is_active == True,
             )
         )
 
@@ -341,15 +358,12 @@ class SimulationRepository(ISimulationRepository):
         베이스 이름과 정확히 일치하거나,
         베이스 이름 + " (숫자)" 패턴을 가진 시나리오들을 조회합니다.
         """
-        stmt = (
-            select(ScenarioInformation)
-            .where(
-                and_(
-                    ScenarioInformation.user_id == user_id,
-                    ScenarioInformation.is_active == True,
-                    # 베이스 이름으로 시작하는 모든 시나리오
-                    ScenarioInformation.name.like(f"{base_name}%")
-                )
+        stmt = select(ScenarioInformation).where(
+            and_(
+                ScenarioInformation.user_id == user_id,
+                ScenarioInformation.is_active == True,
+                # 베이스 이름으로 시작하는 모든 시나리오
+                ScenarioInformation.name.like(f"{base_name}%"),
             )
         )
 
@@ -358,7 +372,8 @@ class SimulationRepository(ISimulationRepository):
 
         # 정확한 베이스 이름이거나 "(숫자)" 패턴을 가진 것만 필터링
         import re
-        pattern = re.compile(rf'^{re.escape(base_name)}(?:\s*\(\d+\))?$')
+
+        pattern = re.compile(rf"^{re.escape(base_name)}(?:\s*\(\d+\))?$")
         filtered_scenarios = [s for s in scenarios if pattern.match(s.name)]
 
         return filtered_scenarios
@@ -393,7 +408,6 @@ class SimulationRepository(ISimulationRepository):
     # =====================================
     # 4. 시뮬레이션 상태 및 권한 관리
     # =====================================
-
 
     async def check_user_scenario_permission(
         self, db: AsyncSession, user_id: str, scenario_id: str

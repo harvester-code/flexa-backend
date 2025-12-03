@@ -15,11 +15,13 @@ from packages.doppler.client import get_secret
 _DEFAULT_POOL_RECYCLE = 60 * 15  # 15분으로 단축 (AWS Redshift idle timeout 대응)
 _TEST_POOL_RECYCLE = None  # 테스트용 오버라이드
 
+
 def get_pool_recycle_time():
     """현재 POOL_RECYCLE 시간을 반환 (테스트 모드 고려)"""
     if _TEST_POOL_RECYCLE is not None:
         return _TEST_POOL_RECYCLE
     return _DEFAULT_POOL_RECYCLE
+
 
 def set_test_pool_recycle(seconds):
     """테스트용 POOL_RECYCLE 시간 설정"""
@@ -27,11 +29,13 @@ def set_test_pool_recycle(seconds):
     _TEST_POOL_RECYCLE = seconds
     logger.info(f"🧪 TEST: POOL_RECYCLE set to {seconds}s ({seconds/60:.1f} minutes)")
 
+
 def reset_pool_recycle():
     """POOL_RECYCLE을 기본값으로 복원"""
     global _TEST_POOL_RECYCLE
     _TEST_POOL_RECYCLE = None
     logger.info(f"🔄 POOL_RECYCLE reset to default {_DEFAULT_POOL_RECYCLE}s")
+
 
 POOL_RECYCLE = get_pool_recycle_time()  # 동적으로 계산됨
 POOL_SIZE_MAP = {"development": 3, "production": 10, "dev": 3, "stg": 5, "prod": 10}
@@ -43,20 +47,22 @@ def get_environment_pool_size():
     """환경별 Pool Size를 안전하게 감지"""
     env = get_secret("DOPPLER_ENVIRONMENT")
     logger.info(f"🔍 Detected environment: '{env}'")
-    
+
     if env in POOL_SIZE_MAP:
         size = POOL_SIZE_MAP[env]
     else:
         # 기본값을 더 안전하게 설정
         env_lower = str(env).lower() if env else "unknown"
-        if any(keyword in env_lower for keyword in ['dev', 'development']):
+        if any(keyword in env_lower for keyword in ["dev", "development"]):
             size = 5
-        elif any(keyword in env_lower for keyword in ['prod', 'production']):
+        elif any(keyword in env_lower for keyword in ["prd", "prod", "production"]):
             size = 20
         else:
             size = 3  # 안전한 기본값
-        logger.warning(f"Unknown environment '{env}', using default pool size: {size}")
-    
+            logger.warning(
+                f"Unknown environment '{env}', using default pool size: {size}"
+            )
+
     logger.info(f"✅ Pool size set to: {size}")
     return size
 
@@ -82,7 +88,9 @@ def recycle_wrapper(conn):
     current_recycle_time = get_pool_recycle_time()
     age = time.time() - getattr(conn, "_created_at", 0)
     if age > current_recycle_time:
-        logger.warning(f"Connection exceeded POOL_RECYCLE ({age:.0f}s > {current_recycle_time}s). Closing individual connection.")
+        logger.warning(
+            f"Connection exceeded POOL_RECYCLE ({age:.0f}s > {current_recycle_time}s). Closing individual connection."
+        )
         try:
             conn.close()  # 개별 연결만 닫기 (풀은 유지)
         except Exception as e:
@@ -110,8 +118,8 @@ async def validate_redshift_connection(conn):
         # Quick timeout for validation to prevent hanging
         cursor = conn.cursor()
         await asyncio.wait_for(
-            asyncio.to_thread(cursor.execute, "SELECT 1"), 
-            timeout=5.0  # 5초 validation timeout
+            asyncio.to_thread(cursor.execute, "SELECT 1"),
+            timeout=5.0,  # 5초 validation timeout
         )
         result = await asyncio.to_thread(cursor.fetchone)
         return result is not None
@@ -138,12 +146,14 @@ async def create_fresh_connection(retries=MAX_RETRIES):
     """Create a new connection with retry logic for network issues."""
     for attempt in range(retries):
         try:
-            logger.info(f"🔗 Creating fresh connection (attempt {attempt + 1}/{retries})")
+            logger.info(
+                f"🔗 Creating fresh connection (attempt {attempt + 1}/{retries})"
+            )
             conn = await asyncio.wait_for(
                 asyncio.to_thread(redshift_connect),
-                timeout=10.0  # 10초 connection timeout
+                timeout=10.0,  # 10초 connection timeout
             )
-            
+
             # Validate the new connection
             if await validate_redshift_connection(conn):
                 logger.info("✅ Fresh connection created and validated")
@@ -151,18 +161,18 @@ async def create_fresh_connection(retries=MAX_RETRIES):
             else:
                 logger.warning("❌ New connection failed validation, closing")
                 conn.close()
-                
+
         except asyncio.TimeoutError:
             logger.warning(f"Connection timeout on attempt {attempt + 1}")
         except Exception as e:
             logger.error(f"Connection creation failed on attempt {attempt + 1}: {e}")
-        
+
         # Wait before retry (exponential backoff)
         if attempt < retries - 1:
-            wait_time = 2 ** attempt  # 1s, 2s, 4s
+            wait_time = 2**attempt  # 1s, 2s, 4s
             logger.info(f"⏳ Waiting {wait_time}s before retry...")
             await asyncio.sleep(wait_time)
-    
+
     raise Exception(f"Failed to create connection after {retries} attempts")
 
 
@@ -170,15 +180,14 @@ async def create_fresh_connection(retries=MAX_RETRIES):
 async def get_redshift_connection():
     conn = None
     fresh_connection_created = False
-    
+
     try:
         # Try to get connection from pool first
         try:
             conn = await asyncio.wait_for(
-                asyncio.to_thread(redshift_pool.connect), 
-                timeout=10.0
+                asyncio.to_thread(redshift_pool.connect), timeout=10.0
             )
-            
+
             # Check if connection needs recycling
             try:
                 recycle_wrapper(conn)
@@ -195,22 +204,24 @@ async def get_redshift_connection():
                     fresh_connection_created = True
                 else:
                     raise e
-            
+
             # Validate connection if not fresh (fresh connections are already validated)
             if not fresh_connection_created:
                 if not await validate_redshift_connection(conn):
-                    logger.warning("♻️ Pool connection failed validation, creating fresh one")
+                    logger.warning(
+                        "♻️ Pool connection failed validation, creating fresh one"
+                    )
                     conn.close()
                     conn = await create_fresh_connection()
                     fresh_connection_created = True
-                    
+
         except asyncio.TimeoutError:
             logger.warning("Pool connection timeout, creating fresh connection")
             conn = await create_fresh_connection()
             fresh_connection_created = True
-            
+
         yield conn
-        
+
     except Exception as e:
         logger.error(f"Error acquiring Redshift connection: {type(e).__name__}: {e}")
         if conn:
@@ -218,21 +229,23 @@ async def get_redshift_connection():
                 conn.close()
             except:
                 pass
-                
+
         # Determine appropriate HTTP status code
         if "timeout" in str(e).lower():
             raise HTTPException(status_code=504, detail="Database connection timeout")
         elif "network" in str(e).lower() or "socket" in str(e).lower():
-            raise HTTPException(status_code=503, detail="Database connection unavailable")
+            raise HTTPException(
+                status_code=503, detail="Database connection unavailable"
+            )
         else:
             raise HTTPException(status_code=500, detail="Database connection error")
-            
+
     finally:
         # Enhanced cleanup
         if conn:
             try:
                 # Clean up any cursors
-                if hasattr(conn, '_cursors') and conn._cursors:
+                if hasattr(conn, "_cursors") and conn._cursors:
                     for cursor in list(conn._cursors):
                         try:
                             cursor.close()
@@ -256,19 +269,25 @@ def get_pool_status() -> dict:
         status = {
             "pool_size": redshift_pool.size(),
             "checked_in": redshift_pool.checkedin(),
-            "checked_out": redshift_pool.checkedout(), 
+            "checked_out": redshift_pool.checkedout(),
             "overflow": redshift_pool.overflow(),
             "pool_recycle_seconds": POOL_RECYCLE,
-            "total_connections": redshift_pool.size() + redshift_pool.overflow()
+            "total_connections": redshift_pool.size() + redshift_pool.overflow(),
         }
-        
+
         # 연결 풀 건강 상태 평가
         total_capacity = status["pool_size"] + 5  # max_overflow
-        utilization = (status["checked_out"] + status["overflow"]) / total_capacity * 100
-        
+        utilization = (
+            (status["checked_out"] + status["overflow"]) / total_capacity * 100
+        )
+
         status["utilization_percent"] = round(utilization, 1)
-        status["health_status"] = "healthy" if utilization < 80 else "warning" if utilization < 95 else "critical"
-        
+        status["health_status"] = (
+            "healthy"
+            if utilization < 80
+            else "warning" if utilization < 95 else "critical"
+        )
+
         return status
     except Exception as e:
         logger.error(f"Error getting pool status: {e}")
@@ -279,13 +298,14 @@ def log_pool_metrics():
     """24/7 모니터링을 위한 풀 상태 로깅"""
     status = get_pool_status()
     if "error" not in status:
-        logger.info(f"📊 Pool Metrics: size={status['pool_size']}, "
-                   f"active={status['checked_out']}, idle={status['checked_in']}, "
-                   f"overflow={status['overflow']}, utilization={status['utilization_percent']}%, "
-                   f"health={status['health_status']}")
+        logger.info(
+            f"📊 Pool Metrics: size={status['pool_size']}, "
+            f"active={status['checked_out']}, idle={status['checked_in']}, "
+            f"overflow={status['overflow']}, utilization={status['utilization_percent']}%, "
+            f"health={status['health_status']}"
+        )
     else:
         logger.error(f"Failed to get pool metrics: {status['error']}")
-
 
 
 # Initialize Redshift connection pool
@@ -296,6 +316,6 @@ def initialize_redshift_pool():
     logger.info(f"Pool recycle: {POOL_RECYCLE}s ({POOL_RECYCLE/60:.1f} minutes)")
     logger.info(f"Max retries: {MAX_RETRIES}, Enhanced validation: True")
     logger.info("🛡️ Features: Connection aging, Retry logic, Timeout protection")
-    
+
     # 초기 풀 상태 로깅
     log_pool_metrics()

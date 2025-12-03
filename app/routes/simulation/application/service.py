@@ -20,13 +20,13 @@ from ulid import ULID
 
 # Application - Core Structure
 from app.routes.simulation.application.core import (
-    FlightScheduleStorage,
-    FlightScheduleResponse,
     FlightFiltersResponse,
-    ShowUpPassengerStorage,
-    ShowUpPassengerResponse,
-    RunSimulationStorage,
+    FlightScheduleResponse,
+    FlightScheduleStorage,
     RunSimulationResponse,
+    RunSimulationStorage,
+    ShowUpPassengerResponse,
+    ShowUpPassengerStorage,
 )
 from app.routes.simulation.domain.simulation import (
     ScenarioInformation,
@@ -161,7 +161,9 @@ class SimulationService:
                     await self.s3_manager.delete_scenario_data(scenario_id)
                     logger.info(f"✅ S3 data deleted for scenario {scenario_id}")
                 except Exception as s3_error:
-                    logger.warning(f"⚠️ Failed to delete S3 data for {scenario_id}: {str(s3_error)}")
+                    logger.warning(
+                        f"⚠️ Failed to delete S3 data for {scenario_id}: {str(s3_error)}"
+                    )
 
             # 💾 Supabase에서 영구 삭제
             await self.simulation_repo.delete_scenarios_permanently(db, scenario_ids)
@@ -172,14 +174,20 @@ class SimulationService:
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(f"Failed to permanently delete scenarios {scenario_ids}: {str(e)}")
+            logger.error(
+                f"Failed to permanently delete scenarios {scenario_ids}: {str(e)}"
+            )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to delete scenarios",
             )
 
     async def copy_scenario_information(
-        self, db: AsyncSession, source_scenario_id: str, user_id: str, new_name: str = None
+        self,
+        db: AsyncSession,
+        source_scenario_id: str,
+        user_id: str,
+        new_name: str = None,
     ):
         """
         시나리오 복사 - Supabase 데이터와 S3 데이터 모두 복사
@@ -217,16 +225,18 @@ class SimulationService:
 
                 # 기존 이름에서 (숫자) 패턴 제거하여 베이스 이름 추출
                 # 예: "시나리오A (3)" → "시나리오A"
-                base_name = re.sub(r'\s*\(\d+\)\s*$', '', source_scenario.name).strip()
+                base_name = re.sub(r"\s*\(\d+\)\s*$", "", source_scenario.name).strip()
 
                 # 같은 베이스 이름을 가진 시나리오들 조회
-                similar_scenarios = await self.simulation_repo.get_scenarios_by_name_pattern(
-                    db, user_id, base_name
+                similar_scenarios = (
+                    await self.simulation_repo.get_scenarios_by_name_pattern(
+                        db, user_id, base_name
+                    )
                 )
 
                 # 가장 큰 번호 찾기
                 max_number = 0
-                pattern = re.compile(rf'^{re.escape(base_name)}\s*\((\d+)\)\s*$')
+                pattern = re.compile(rf"^{re.escape(base_name)}\s*\((\d+)\)\s*$")
 
                 for scenario in similar_scenarios:
                     match = pattern.match(scenario.name)
@@ -263,10 +273,14 @@ class SimulationService:
                     source_scenario_id=source_scenario_id,
                     target_scenario_id=new_scenario_id,
                 )
-                logger.info(f"✅ S3 data copied: {source_scenario_id} → {new_scenario_id}")
+                logger.info(
+                    f"✅ S3 data copied: {source_scenario_id} → {new_scenario_id}"
+                )
             except Exception as s3_error:
                 # S3 복사 실패는 경고만 기록 (시나리오는 이미 생성됨)
-                logger.warning(f"⚠️ S3 data copy failed (scenario created): {str(s3_error)}")
+                logger.warning(
+                    f"⚠️ S3 data copy failed (scenario created): {str(s3_error)}"
+                )
 
             # 6. 생성된 시나리오 정보 반환
             return {
@@ -333,8 +347,8 @@ class SimulationService:
 
             # 2. 응답 생성 (Response Layer) - 컨텍스트 정보 포함
             return await self.flight_response.build_response(
-                flight_data, 
-                conditions, 
+                flight_data,
+                conditions,
                 flight_type,
                 airport=airport,
                 date=date,
@@ -365,7 +379,7 @@ class SimulationService:
             # 2. 응답 생성 (Response Layer) - 컨텍스트 정보 포함
             settings = config.get("settings", {})
             return await self.passenger_response.build_response(
-                passenger_data, 
+                passenger_data,
                 config,
                 airport=settings.get("airport"),
                 date=settings.get("date"),
@@ -399,7 +413,11 @@ class SimulationService:
     # =====================================
 
     async def run_simulation(
-        self, scenario_id: str, setting: Dict[str, Any], process_flow: List[Dict[str, Any]], db=None
+        self,
+        scenario_id: str,
+        setting: Dict[str, Any],
+        process_flow: List[Dict[str, Any]],
+        db=None,
     ) -> Dict[str, str]:
         """
         시뮬레이션 실행 요청 - SQS 메시지 전송
@@ -418,17 +436,26 @@ class SimulationService:
         """
         try:
             logger.info(f"🎯 Starting run_simulation for scenario: {scenario_id}")
-            
+
             # 0. 시뮬레이션 시작 시간 업데이트 (SQS 전송 전)
             if db is not None:
                 try:
-                    logger.info(f"🔄 Attempting to update simulation_start_at for scenario: {scenario_id}")
-                    await self.simulation_repo.update_simulation_start_at(db, scenario_id)
-                    logger.info(f"✅ Successfully updated simulation_start_at for scenario {scenario_id}")
+                    logger.info(
+                        f"🔄 Attempting to update simulation_start_at for scenario: {scenario_id}"
+                    )
+                    await self.simulation_repo.update_simulation_start_at(
+                        db, scenario_id
+                    )
+                    logger.info(
+                        f"✅ Successfully updated simulation_start_at for scenario {scenario_id}"
+                    )
                 except Exception as db_error:
-                    logger.error(f"❌ Failed to update simulation_start_at for scenario {scenario_id}: {str(db_error)}")
+                    logger.error(
+                        f"❌ Failed to update simulation_start_at for scenario {scenario_id}: {str(db_error)}"
+                    )
                     logger.error(f"❌ Exception type: {type(db_error)}")
                     import traceback
+
                     logger.error(f"❌ Traceback: {traceback.format_exc()}")
                     # DB 업데이트 실패해도 시뮬레이션은 계속 진행
             else:
@@ -481,14 +508,16 @@ class SimulationService:
             success = await self.s3_manager.save_json_async(
                 scenario_id=scenario_id,
                 filename="metadata-for-frontend.json",
-                data=metadata
+                data=metadata,
             )
 
             if success:
                 # S3 저장 성공 후 Supabase의 metadata_updated_at도 업데이트
                 if db is not None:
                     try:
-                        await self.simulation_repo.update_metadata_updated_at(db, scenario_id)
+                        await self.simulation_repo.update_metadata_updated_at(
+                            db, scenario_id
+                        )
                         logger.info(
                             f"Updated metadata_updated_at in Supabase for scenario {scenario_id}"
                         )
@@ -504,7 +533,9 @@ class SimulationService:
                 return {
                     "message": "Metadata saved successfully",
                     "scenario_id": scenario_id,
-                    "saved_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+                    "saved_at": datetime.now(timezone.utc)
+                    .replace(microsecond=0)
+                    .isoformat(),
                 }
             else:
                 raise Exception("Failed to save metadata to S3")
@@ -523,8 +554,7 @@ class SimulationService:
 
             # S3Manager를 사용하여 로드
             metadata = await self.s3_manager.get_json_async(
-                scenario_id=scenario_id,
-                filename="metadata-for-frontend.json"
+                scenario_id=scenario_id, filename="metadata-for-frontend.json"
             )
 
             if metadata is not None:
@@ -534,7 +564,9 @@ class SimulationService:
                 return {
                     "scenario_id": scenario_id,
                     "metadata": metadata,
-                    "loaded_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+                    "loaded_at": datetime.now(timezone.utc)
+                    .replace(microsecond=0)
+                    .isoformat(),
                 }
             else:
                 # 파일이 없는 경우 - 빈 메타데이터 반환 (정상적인 상황)
@@ -544,8 +576,10 @@ class SimulationService:
                 return {
                     "scenario_id": scenario_id,
                     "metadata": None,
-                    "loaded_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
-                    "is_new_scenario": True
+                    "loaded_at": datetime.now(timezone.utc)
+                    .replace(microsecond=0)
+                    .isoformat(),
+                    "is_new_scenario": True,
                 }
 
         except Exception as e:
@@ -569,8 +603,7 @@ class SimulationService:
 
             # S3Manager를 사용하여 삭제
             success = await self.s3_manager.delete_json_async(
-                scenario_id=scenario_id,
-                filename="metadata-for-frontend.json"
+                scenario_id=scenario_id, filename="metadata-for-frontend.json"
             )
 
             if success:
@@ -583,9 +616,15 @@ class SimulationService:
                 )
 
             return {
-                "message": "Metadata deleted successfully" if success else "Metadata was already deleted or does not exist",
+                "message": (
+                    "Metadata deleted successfully"
+                    if success
+                    else "Metadata was already deleted or does not exist"
+                ),
                 "scenario_id": scenario_id,
-                "deleted_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+                "deleted_at": datetime.now(timezone.utc)
+                .replace(microsecond=0)
+                .isoformat(),
             }
 
         except Exception as e:
