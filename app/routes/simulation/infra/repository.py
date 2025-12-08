@@ -1,4 +1,5 @@
 # Standard Library
+import asyncio
 from datetime import datetime
 from typing import List
 
@@ -43,6 +44,11 @@ class SimulationRepository(ISimulationRepository):
         user_id: str,
     ):
         """시나리오 목록 조회 (현재 사용자의 모든 시나리오)"""
+        from loguru import logger
+        
+        # 디버깅: user_id 확인
+        logger.info(f"🔍 fetch_scenario_information called with user_id: {user_id}")
+        
         async with db.begin():
             # ORM을 사용한 JOIN 쿼리
             stmt = (
@@ -71,25 +77,44 @@ class SimulationRepository(ISimulationRepository):
             # 결과를 리스트로 반환
             scenarios = []
             scenarios_to_update = []  # 업데이트가 필요한 시나리오들
-
-            for row in result:
+            
+            # 디버깅: 조회된 시나리오 수 확인
+            rows = result.all()
+            logger.info(f"🔍 Found {len(rows)} scenarios for user_id: {user_id}")
+            
+            # 🚀 병렬 처리: 모든 시나리오의 S3 메타데이터를 동시에 조회
+            logger.info(f"⚡ [PARALLEL] Fetching S3 metadata for {len(rows)} scenarios in parallel...")
+            
+            async def get_metadata_for_scenario(scenario_id: str):
+                """단일 시나리오의 S3 메타데이터 조회"""
+                if scenario_id:
+                    return await self.s3_manager.get_metadata_async(
+                        scenario_id=scenario_id,
+                        filename="simulation-pax.parquet"
+                    )
+                return None
+            
+            # 모든 메타데이터 요청을 병렬로 실행
+            metadata_tasks = [
+                get_metadata_for_scenario(row[0].scenario_id) 
+                for row in rows
+            ]
+            metadata_results = await asyncio.gather(*metadata_tasks)
+            logger.info(f"✅ [PARALLEL] Completed S3 metadata fetch in parallel")
+            
+            # 결과를 사용하여 시나리오 목록 구성
+            for idx, row in enumerate(rows):
                 scenario_info = row[0]  # ScenarioInformation 객체
+                file_metadata = metadata_results[idx]  # 병렬로 가져온 메타데이터
 
-                # S3Manager를 사용하여 simulation-pax.parquet 파일 존재 여부 및 메타데이터 확인
+                # S3 파일 존재 여부 및 메타데이터 확인
                 has_simulation_data = False
                 file_last_modified = None
-
-                if scenario_info.scenario_id:
-                    # 파일 메타데이터 가져오기 (존재 여부 + 저장 시간)
-                    file_metadata = await self.s3_manager.get_metadata_async(
-                        scenario_id=scenario_info.scenario_id,
-                        filename="simulation-pax.parquet",
-                    )
-
-                    if file_metadata:
-                        has_simulation_data = True
-                        file_last_modified = file_metadata.get("last_modified")
-
+                
+                if file_metadata:
+                    has_simulation_data = True
+                    file_last_modified = file_metadata.get('last_modified')
+                
                 # 🆕 자동 시뮬레이션 시작 시간 업데이트 로직 (S3 파일 저장 시간 사용)
                 simulation_start_at = scenario_info.simulation_start_at
                 if (
