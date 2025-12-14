@@ -24,10 +24,24 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      - name: Set AWS Account
+        id: set-account
+        run: |
+          if [[ ${{ github.ref_name }} == dev-* ]]; then
+            echo "account_id=850758625144" >> $GITHUB_OUTPUT
+            echo "role_name=flexa-simmula-dev-github-actions-oidc-role" >> $GITHUB_OUTPUT
+          elif [[ ${{ github.ref_name }} == stag-* ]]; then
+            echo "account_id=766626238817" >> $GITHUB_OUTPUT
+            echo "role_name=flexa-simmula-staging-github-actions-oidc-role" >> $GITHUB_OUTPUT
+          else
+            echo "account_id=766626238817" >> $GITHUB_OUTPUT
+            echo "role_name=flexa-simmula-prod-github-actions-oidc-role" >> $GITHUB_OUTPUT
+          fi
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v5
         with:
-          role-to-assume: arn:aws:iam::766626238817:role/flexa-simmula-prod-github-actions-oidc-role
+          role-to-assume: arn:aws:iam::${{ steps.set-account.outputs.account_id }}:role/${{ steps.set-account.outputs.role_name }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
