@@ -11,20 +11,33 @@ from datetime import datetime
 from loguru import logger
 from sqlalchemy import Connection
 
-from ..queries import SELECT_AIRPORT_FLIGHTS_EXTENDED, SELECT_AIRPORT_SCHEDULE
+# ========================================
+# DATABASE QUERY IMPORTS
+# ========================================
+# 🔵 PostgreSQL (Current - Active)
+from packages.postgresql.queries import SELECT_AIRPORT_FLIGHTS_BOTH
+
+# 🔴 Redshift (Legacy - Commented out for reference)
+# from ..queries import SELECT_AIRPORT_FLIGHTS_EXTENDED, SELECT_AIRPORT_SCHEDULE
 
 
 class FlightFiltersResponse:
     """Flight filters metadata response generation class (based on real data)"""
 
     async def generate_filters_metadata(
-        self, redshift_db: Connection, scenario_id: str, airport: str, date: str
+        self, 
+        postgresql_db: Connection,  # 🔵 PostgreSQL (Current)
+        # redshift_db: Connection,  # 🔴 Redshift (Legacy - for reference)
+        scenario_id: str, 
+        airport: str, 
+        date: str
     ) -> Dict[str, Any]:
         """
         Generate flight filters metadata based on real data
 
         Args:
-            redshift_db: Redshift database connection
+            postgresql_db: PostgreSQL database connection (Current)
+            # redshift_db: Redshift database connection (Legacy)
             scenario_id: Scenario ID
             airport: Airport IATA code (e.g. ICN, KPO) - case insensitive
             date: Target date (YYYY-MM-DD)
@@ -38,26 +51,57 @@ class FlightFiltersResponse:
         logger.info(f"🔍 Generating flight filters metadata for scenario {scenario_id}")
         logger.info(f"📍 Parameters: airport={airport}, date={date}")
 
-        # 1. Fetch real flight data
+        # ========================================
+        # 🔵 PostgreSQL: 단일 쿼리로 모든 데이터 조회 (현재 활성)
+        # ========================================
         try:
-            logger.info("🛫 Fetching departure data...")
-            departure_data = await self._fetch_departure_data(
-                redshift_db, airport, date, scenario_id
+            logger.info("✈️  Fetching ALL flight data (departure + arrival) in one query...")
+            all_flights = await self._fetch_both_flights(
+                postgresql_db, airport, date, scenario_id
             )
-            logger.info(f"✅ Departure data fetched: {len(departure_data)} flights")
+            logger.info(f"✅ All flight data fetched: {len(all_flights)} flights")
 
-            logger.info("🛬 Fetching arrival data...")
-            arrival_data = await self._fetch_arrival_data(
-                redshift_db, airport, date, scenario_id
-            )
-            logger.info(f"✅ Arrival data fetched: {len(arrival_data)} flights")
+            # 2. Separate departure and arrival flights in Python
+            departure_data = [
+                flight for flight in all_flights 
+                if flight.get("departure_airport_iata") == airport
+            ]
+            arrival_data = [
+                flight for flight in all_flights 
+                if flight.get("arrival_airport_iata") == airport
+            ]
+            
+            logger.info(f"📊 Separated: {len(departure_data)} departure, {len(arrival_data)} arrival")
 
         except Exception as e:
             logger.error(f"❌ Error during data fetching: {str(e)}")
             logger.error(f"❌ Error type: {type(e)}")
             raise
 
-        all_flight_data = departure_data + arrival_data
+        all_flight_data = all_flights
+
+        # ========================================
+        # 🔴 Redshift: 출발/도착 데이터 개별 조회 (레거시 - 참고용)
+        # ========================================
+        # try:
+        #     logger.info("🛫 Fetching departure data...")
+        #     departure_data = await self._fetch_departure_data(
+        #         redshift_db, airport, date, scenario_id
+        #     )
+        #     logger.info(f"✅ Departure data fetched: {len(departure_data)} flights")
+        # 
+        #     logger.info("🛬 Fetching arrival data...")
+        #     arrival_data = await self._fetch_arrival_data(
+        #         redshift_db, airport, date, scenario_id
+        #     )
+        #     logger.info(f"✅ Arrival data fetched: {len(arrival_data)} flights")
+        # 
+        # except Exception as e:
+        #     logger.error(f"❌ Error during data fetching: {str(e)}")
+        #     logger.error(f"❌ Error type: {type(e)}")
+        #     raise
+        # 
+        # all_flight_data = departure_data + arrival_data
 
         # 2. Extract airline mapping from flight data
         logger.info(f"🔍 Processing {len(all_flight_data)} flights for airline mapping")
@@ -92,127 +136,229 @@ class FlightFiltersResponse:
 
         return metadata
 
-    async def _fetch_departure_data(
-        self, redshift_db: Connection, airport: str, date: str, scenario_id: str
+    # ========================================
+    # 🔵 PostgreSQL: 단일 쿼리로 출발/도착 모두 조회 (현재 활성)
+    # ========================================
+    async def _fetch_both_flights(
+        self, 
+        postgresql_db: Connection, 
+        airport: str, 
+        date: str, 
+        scenario_id: str,
+        conditions: Dict[str, Any] = None
     ) -> List[Dict[str, Any]]:
-        """Fetch departure flight data from Redshift"""
-        logger.info(f"🛫 Fetching departure data for {airport} on {date}")
+        """
+        ✅ Fetch BOTH departure and arrival flight data in ONE query (optimized!)
+        
+        Args:
+            postgresql_db: Database connection
+            airport: Airport IATA code
+            date: Target date (YYYY-MM-DD)
+            scenario_id: Scenario ID
+            conditions: Optional filter conditions dict (e.g., {"carrier": "KE", "terminal": "T2"})
+        
+        Returns:
+            List of flight dictionaries
+        """
+        logger.info(f"✈️  Fetching ALL flights for {airport} on {date}")
+        if conditions:
+            logger.info(f"🔍 With conditions: {conditions}")
 
         try:
-            # Select appropriate query based on date
-            query_date = datetime.strptime(date, "%Y-%m-%d").date()
-            today = datetime.now().date()
+            # ✅ 인덱스 최적화된 UNION 쿼리 구조
+            query = SELECT_AIRPORT_FLIGHTS_BOTH
+            # 날짜 조건을 = 로 변경하여 정확히 해당 날짜만 조회
+            params = [date, airport, date, airport]
+            
+            # ✅ Add dynamic WHERE conditions if provided
+            # UNION ALL의 각 SELECT에 조건 추가 필요
+            if conditions:
+                extra_conditions = []
+                extra_params = []
+                
+                if "carrier" in conditions:
+                    extra_conditions.append('"Carrier Code" = %s')
+                    extra_params.append(conditions["carrier"])
+                
+                if "terminal" in conditions and conditions["terminal"]:
+                    # Terminal can be departure or arrival
+                    extra_conditions.append('("Dep Terminal" = %s OR "Arr Terminal" = %s)')
+                    extra_params.extend([conditions["terminal"], conditions["terminal"]])
+                
+                if "flight_type" in conditions:
+                    extra_conditions.append('"International/Domestic" = %s')
+                    extra_params.append(conditions["flight_type"])
+                
+                if "arrival_airport" in conditions:
+                    extra_conditions.append('"Arr Airport Code" = %s')
+                    extra_params.append(conditions["arrival_airport"])
+                
+                if "departure_airport" in conditions:
+                    extra_conditions.append('"Dep Airport Code" = %s')
+                    extra_params.append(conditions["departure_airport"])
+                
+                # Append extra conditions to both SELECT statements in UNION
+                if extra_conditions:
+                    conditions_sql = "\nAND " + "\nAND ".join(extra_conditions)
+                    # 첫 번째 SELECT (출발편)에 조건 추가
+                    query = query.replace(
+                        'AND "Seats (Total)" > 0\n\nUNION ALL',
+                        f'AND "Seats (Total)" > 0{conditions_sql}\n\nUNION ALL'
+                    )
+                    # 두 번째 SELECT (도착편)에 조건 추가
+                    query = query.replace(
+                        'AND "Seats (Total)" > 0\n\nORDER BY',
+                        f'AND "Seats (Total)" > 0{conditions_sql}\n\nORDER BY'
+                    )
+                    # 각 SELECT에 동일한 파라미터 추가
+                    params.extend(extra_params)  # 첫 번째 SELECT용
+                    params.extend(extra_params)  # 두 번째 SELECT용
+                    logger.info(f"📋 Added {len(extra_conditions)} filter conditions to both UNION parts")
+            
+            logger.info(f"📅 Using PostgreSQL query (Index-optimized UNION structure)")
 
-            if query_date < today:
-                # Historical data: flights_extended table
-                query = SELECT_AIRPORT_FLIGHTS_EXTENDED
-                logger.info(f"📅 Using flights_extended table for past date: {date}")
-            else:
-                # Current/future data: schedule table
-                query = SELECT_AIRPORT_SCHEDULE
-                logger.info(f"📅 Using schedule table for current/future date: {date}")
-
-            # Modify query for departure flights only (like flight_schedules.py)
-            modified_query = query.replace(
-                "AND (fe.departure_airport_iata = %s OR fe.arrival_airport_iata = %s)",
-                "AND fe.departure_airport_iata = %s",
-            ).replace(
-                "AND (s.departure_station_code_iata = %s OR s.arrival_station_code_iata = %s)",
-                "AND s.departure_station_code_iata = %s",
-            )
-
-            # Use cursor approach like flight_schedules.py with 2 parameters
-            cursor = redshift_db.cursor()
-            cursor.execute(modified_query, (date, airport))  # Only 2 parameters ✅
+            # Execute query
+            cursor = postgresql_db.cursor()
+            cursor.execute(query, tuple(params))
             columns = [desc[0] for desc in cursor.description]
             rows = cursor.fetchall()
             cursor.close()
 
             flight_data = [dict(zip(columns, row)) for row in rows]
 
-            # ✅ Remove duplicates based on carrier + flight_number + date
-            seen = set()
-            unique_flight_data = []
-            for flight in flight_data:
-                key = (
-                    flight.get("operating_carrier_iata"),
-                    flight.get("flight_number"),
-                    flight.get("flight_date")
-                )
-                if all(key) and key not in seen:
-                    seen.add(key)
-                    unique_flight_data.append(flight)
-
-            if len(flight_data) != len(unique_flight_data):
-                logger.info(f"🔧 Departure duplicates removed: {len(flight_data)} → {len(unique_flight_data)} ({len(flight_data) - len(unique_flight_data)} duplicates)")
-
-            logger.info(f"✅ Found {len(unique_flight_data)} unique departure flights")
-            return unique_flight_data
+            logger.info(f"✅ Found {len(flight_data)} total flights in ONE query (2x faster!)")
+            return flight_data
 
         except Exception as e:
-            logger.error(f"❌ Error fetching departure data: {str(e)}")
+            logger.error(f"❌ Error fetching both flights: {str(e)}")
+            logger.error(f"❌ Query: {query}")
+            logger.error(f"❌ Params: {params}")
             return []
 
-    async def _fetch_arrival_data(
-        self, redshift_db: Connection, airport: str, date: str, scenario_id: str
-    ) -> List[Dict[str, Any]]:
-        """Fetch arrival flight data from Redshift"""
-        logger.info(f"🛬 Fetching arrival data for {airport} on {date}")
-
-        try:
-            # Select appropriate query based on date
-            query_date = datetime.strptime(date, "%Y-%m-%d").date()
-            today = datetime.now().date()
-
-            if query_date < today:
-                # Historical data: flights_extended table
-                query = SELECT_AIRPORT_FLIGHTS_EXTENDED
-                logger.info(f"📅 Using flights_extended table for past date: {date}")
-            else:
-                # Current/future data: schedule table
-                query = SELECT_AIRPORT_SCHEDULE
-                logger.info(f"📅 Using schedule table for current/future date: {date}")
-
-            # Modify query for arrival flights only (like flight_schedules.py)
-            modified_query = query.replace(
-                "AND (fe.departure_airport_iata = %s OR fe.arrival_airport_iata = %s)",
-                "AND fe.arrival_airport_iata = %s",
-            ).replace(
-                "AND (s.departure_station_code_iata = %s OR s.arrival_station_code_iata = %s)",
-                "AND s.arrival_station_code_iata = %s",
-            )
-
-            # Use cursor approach like flight_schedules.py with 2 parameters
-            cursor = redshift_db.cursor()
-            cursor.execute(modified_query, (date, airport))  # Only 2 parameters ✅
-            columns = [desc[0] for desc in cursor.description]
-            rows = cursor.fetchall()
-            cursor.close()
-
-            flight_data = [dict(zip(columns, row)) for row in rows]
-
-            # ✅ Remove duplicates based on carrier + flight_number + date
-            seen = set()
-            unique_flight_data = []
-            for flight in flight_data:
-                key = (
-                    flight.get("operating_carrier_iata"),
-                    flight.get("flight_number"),
-                    flight.get("flight_date")
-                )
-                if all(key) and key not in seen:
-                    seen.add(key)
-                    unique_flight_data.append(flight)
-
-            if len(flight_data) != len(unique_flight_data):
-                logger.info(f"🔧 Arrival duplicates removed: {len(flight_data)} → {len(unique_flight_data)} ({len(flight_data) - len(unique_flight_data)} duplicates)")
-
-            logger.info(f"✅ Found {len(unique_flight_data)} unique arrival flights")
-            return unique_flight_data
-
-        except Exception as e:
-            logger.error(f"❌ Error fetching arrival data: {str(e)}")
-            return []
+    # ========================================
+    # 🔴 Redshift: 출발/도착 데이터 개별 조회 메서드 (레거시 - 참고용)
+    # ========================================
+    # async def _fetch_departure_data(
+    #     self, redshift_db: Connection, airport: str, date: str, scenario_id: str
+    # ) -> List[Dict[str, Any]]:
+    #     """Fetch departure flight data from Redshift"""
+    #     logger.info(f"🛫 Fetching departure data for {airport} on {date}")
+    # 
+    #     try:
+    #         # Select appropriate query based on date
+    #         query_date = datetime.strptime(date, "%Y-%m-%d").date()
+    #         today = datetime.now().date()
+    # 
+    #         if query_date < today:
+    #             # Historical data: flights_extended table
+    #             query = SELECT_AIRPORT_FLIGHTS_EXTENDED
+    #             logger.info(f"📅 Using flights_extended table for past date: {date}")
+    #         else:
+    #             # Current/future data: schedule table
+    #             query = SELECT_AIRPORT_SCHEDULE
+    #             logger.info(f"📅 Using schedule table for current/future date: {date}")
+    # 
+    #         # Modify query for departure flights only (like flight_schedules.py)
+    #         modified_query = query.replace(
+    #             "AND (fe.departure_airport_iata = %s OR fe.arrival_airport_iata = %s)",
+    #             "AND fe.departure_airport_iata = %s",
+    #         ).replace(
+    #             "AND (s.departure_station_code_iata = %s OR s.arrival_station_code_iata = %s)",
+    #             "AND s.departure_station_code_iata = %s",
+    #         )
+    # 
+    #         # Use cursor approach like flight_schedules.py with 2 parameters
+    #         cursor = redshift_db.cursor()
+    #         cursor.execute(modified_query, (date, airport))  # Only 2 parameters ✅
+    #         columns = [desc[0] for desc in cursor.description]
+    #         rows = cursor.fetchall()
+    #         cursor.close()
+    # 
+    #         flight_data = [dict(zip(columns, row)) for row in rows]
+    # 
+    #         # ✅ Remove duplicates based on carrier + flight_number + date
+    #         seen = set()
+    #         unique_flight_data = []
+    #         for flight in flight_data:
+    #             key = (
+    #                 flight.get("operating_carrier_iata"),
+    #                 flight.get("flight_number"),
+    #                 flight.get("flight_date")
+    #             )
+    #             if all(key) and key not in seen:
+    #                 seen.add(key)
+    #                 unique_flight_data.append(flight)
+    # 
+    #         if len(flight_data) != len(unique_flight_data):
+    #             logger.info(f"🔧 Departure duplicates removed: {len(flight_data)} → {len(unique_flight_data)} ({len(flight_data) - len(unique_flight_data)} duplicates)")
+    # 
+    #         logger.info(f"✅ Found {len(unique_flight_data)} unique departure flights")
+    #         return unique_flight_data
+    # 
+    #     except Exception as e:
+    #         logger.error(f"❌ Error fetching departure data: {str(e)}")
+    #         return []
+    # 
+    # async def _fetch_arrival_data(
+    #     self, redshift_db: Connection, airport: str, date: str, scenario_id: str
+    # ) -> List[Dict[str, Any]]:
+    #     """Fetch arrival flight data from Redshift"""
+    #     logger.info(f"🛬 Fetching arrival data for {airport} on {date}")
+    # 
+    #     try:
+    #         # Select appropriate query based on date
+    #         query_date = datetime.strptime(date, "%Y-%m-%d").date()
+    #         today = datetime.now().date()
+    # 
+    #         if query_date < today:
+    #             # Historical data: flights_extended table
+    #             query = SELECT_AIRPORT_FLIGHTS_EXTENDED
+    #             logger.info(f"📅 Using flights_extended table for past date: {date}")
+    #         else:
+    #             # Current/future data: schedule table
+    #             query = SELECT_AIRPORT_SCHEDULE
+    #             logger.info(f"📅 Using schedule table for current/future date: {date}")
+    # 
+    #         # Modify query for arrival flights only (like flight_schedules.py)
+    #         modified_query = query.replace(
+    #             "AND (fe.departure_airport_iata = %s OR fe.arrival_airport_iata = %s)",
+    #             "AND fe.arrival_airport_iata = %s",
+    #         ).replace(
+    #             "AND (s.departure_station_code_iata = %s OR s.arrival_station_code_iata = %s)",
+    #             "AND s.arrival_station_code_iata = %s",
+    #         )
+    # 
+    #         # Use cursor approach like flight_schedules.py with 2 parameters
+    #         cursor = redshift_db.cursor()
+    #         cursor.execute(modified_query, (date, airport))  # Only 2 parameters ✅
+    #         columns = [desc[0] for desc in cursor.description]
+    #         rows = cursor.fetchall()
+    #         cursor.close()
+    # 
+    #         flight_data = [dict(zip(columns, row)) for row in rows]
+    # 
+    #         # ✅ Remove duplicates based on carrier + flight_number + date
+    #         seen = set()
+    #         unique_flight_data = []
+    #         for flight in flight_data:
+    #             key = (
+    #                 flight.get("operating_carrier_iata"),
+    #                 flight.get("flight_number"),
+    #                 flight.get("flight_date")
+    #             )
+    #             if all(key) and key not in seen:
+    #                 seen.add(key)
+    #                 unique_flight_data.append(flight)
+    # 
+    #         if len(flight_data) != len(unique_flight_data):
+    #             logger.info(f"🔧 Arrival duplicates removed: {len(flight_data)} → {len(unique_flight_data)} ({len(flight_data) - len(unique_flight_data)} duplicates)")
+    # 
+    #         logger.info(f"✅ Found {len(unique_flight_data)} unique arrival flights")
+    #         return unique_flight_data
+    # 
+    #     except Exception as e:
+    #         logger.error(f"❌ Error fetching arrival data: {str(e)}")
+    #         return []
 
     def _extract_airline_mapping(
         self, flight_data: List[Dict[str, Any]]
@@ -239,23 +385,35 @@ class FlightFiltersResponse:
         """Generate departure filters from flight data"""
         filters = {}
 
-        # ✅ Calculate total unique flights FIRST (before any grouping)
-        # Use carrier + flight_number + date as uniqueness criteria
-        unique_flights = set()
-        for flight in departure_data:
-            carrier = flight.get("operating_carrier_iata")
-            flight_num = flight.get("flight_number")
-            flight_date = flight.get("flight_date")
-            if carrier and flight_num and flight_date:
-                unique_flights.add((carrier, flight_num, flight_date))
-
-        total_count = len(unique_flights)
+        # ========================================
+        # 🔵 PostgreSQL: 데이터가 이미 unique (현재 활성)
+        # ========================================
+        total_count = len(departure_data)
         filters["total_flights"] = total_count
 
-        logger.info(f"🔍 DEBUG: Departure unique flights calculation")
-        logger.info(f"   - Total raw records: {len(departure_data)}")
-        logger.info(f"   - Unique flights (carrier+flight_number+date): {total_count}")
-        logger.info(f"   - Sample unique flights: {list(unique_flights)[:3]}")
+        logger.info(f"🔍 DEBUG: Departure flights calculation")
+        logger.info(f"   - Total flights: {total_count}")
+
+        # ========================================
+        # 🔴 Redshift: 중복 제거 필요 (레거시 - 참고용)
+        # ========================================
+        # # Calculate total unique flights FIRST (before any grouping)
+        # # Use carrier + flight_number + date as uniqueness criteria
+        # unique_flights = set()
+        # for flight in departure_data:
+        #     carrier = flight.get("operating_carrier_iata")
+        #     flight_num = flight.get("flight_number")
+        #     flight_date = flight.get("flight_date")
+        #     if carrier and flight_num and flight_date:
+        #         unique_flights.add((carrier, flight_num, flight_date))
+        # 
+        # total_count = len(unique_flights)
+        # filters["total_flights"] = total_count
+        # 
+        # logger.info(f"🔍 DEBUG: Departure unique flights calculation")
+        # logger.info(f"   - Total raw records: {len(departure_data)}")
+        # logger.info(f"   - Unique flights (carrier+flight_number+date): {total_count}")
+        # logger.info(f"   - Sample unique flights: {list(unique_flights)[:3]}")
 
         # 1. Group by departure terminal
         filters["departure_terminal"] = self._group_by_field(
@@ -281,18 +439,27 @@ class FlightFiltersResponse:
         """Generate arrival filters from flight data"""
         filters = {}
 
-        # ✅ Calculate total unique flights FIRST (before any grouping)
-        # Use carrier + flight_number + date as uniqueness criteria
-        unique_flights = set()
-        for flight in arrival_data:
-            carrier = flight.get("operating_carrier_iata")
-            flight_num = flight.get("flight_number")
-            flight_date = flight.get("flight_date")
-            if carrier and flight_num and flight_date:
-                unique_flights.add((carrier, flight_num, flight_date))
-
-        total_count = len(unique_flights)
+        # ========================================
+        # 🔵 PostgreSQL: 데이터가 이미 unique (현재 활성)
+        # ========================================
+        total_count = len(arrival_data)
         filters["total_flights"] = total_count
+
+        # ========================================
+        # 🔴 Redshift: 중복 제거 필요 (레거시 - 참고용)
+        # ========================================
+        # # Calculate total unique flights FIRST (before any grouping)
+        # # Use carrier + flight_number + date as uniqueness criteria
+        # unique_flights = set()
+        # for flight in arrival_data:
+        #     carrier = flight.get("operating_carrier_iata")
+        #     flight_num = flight.get("flight_number")
+        #     flight_date = flight.get("flight_date")
+        #     if carrier and flight_num and flight_date:
+        #         unique_flights.add((carrier, flight_num, flight_date))
+        # 
+        # total_count = len(unique_flights)
+        # filters["total_flights"] = total_count
 
         # 1. Group by arrival terminal
         filters["arrival_terminal"] = self._group_by_field(
@@ -311,6 +478,44 @@ class FlightFiltersResponse:
 
         logger.info(f"📊 Generated arrival filters: {list(filters.keys())}, total: {total_count}")
         return filters
+
+    def _generate_flight_unique_id(self, flight: Dict[str, Any]) -> str:
+        """
+        항공편 고유 속성으로 unique ID 생성
+        PostgreSQL 데이터는 이미 unique하므로, 실제 항공편 속성 조합으로 전역적으로 unique한 ID 생성
+        """
+        carrier = flight.get("operating_carrier_iata", "XX")
+        dep_airport = flight.get("departure_airport_iata", "")
+        arr_airport = flight.get("arrival_airport_iata", "")
+        
+        # 시간 정보 처리 (UTC 우선, 없으면 Local 사용)
+        dep_time = flight.get("scheduled_departure_utc") or flight.get("scheduled_departure_local")
+        arr_time = flight.get("scheduled_arrival_utc") or flight.get("scheduled_arrival_local")
+        
+        # datetime 객체를 문자열로 변환 (ISO 형식)
+        if dep_time:
+            if hasattr(dep_time, 'strftime'):
+                dep_time_str = dep_time.strftime("%Y%m%d%H%M%S")
+            else:
+                dep_time_str = str(dep_time).replace("-", "").replace(":", "").replace(" ", "")[:14]
+        else:
+            dep_time_str = ""
+            
+        if arr_time:
+            if hasattr(arr_time, 'strftime'):
+                arr_time_str = arr_time.strftime("%Y%m%d%H%M%S")
+            else:
+                arr_time_str = str(arr_time).replace("-", "").replace(":", "").replace(" ", "")[:14]
+        else:
+            arr_time_str = ""
+        
+        # None이나 빈 문자열 처리
+        dep_airport = dep_airport or ""
+        arr_airport = arr_airport or ""
+        dep_time_str = dep_time_str.replace("None", "").replace("NaT", "").replace("nan", "")
+        arr_time_str = arr_time_str.replace("None", "").replace("NaT", "").replace("nan", "")
+        
+        return f"{carrier}_{dep_airport}_{arr_airport}_{dep_time_str}_{arr_time_str}"
 
     def _group_by_field(
         self,
@@ -341,23 +546,37 @@ class FlightFiltersResponse:
                 if airline_code:
                     airlines[airline_code].append(flight)
 
-            # Generate airline statistics (no additional deduplication needed)
+            # ========================================
+            # 🔵 PostgreSQL: 데이터가 이미 unique (현재 활성)
+            # ========================================
             airline_stats = {}
             for airline_code, airline_flights in airlines.items():
-                # ✅ 중복 제거: carrier + flight_number + date 조합으로 유니크하게 처리
-                unique_flights = list(set([
-                    (flight.get("operating_carrier_iata"), flight.get("flight_number"), flight.get("flight_date"))
-                    for flight in airline_flights
-                    if flight.get("operating_carrier_iata") and flight.get("flight_number") and flight.get("flight_date")
-                ]))
-
-                # flight_numbers만 추출 (UI 표시용)
-                flight_numbers = sorted(list(set([fn for _, fn, _ in unique_flights])))
-
+                # PostgreSQL 데이터는 이미 unique - 항공편 고유 속성으로 전역 unique ID 생성
+                flight_ids = [self._generate_flight_unique_id(flight) for flight in airline_flights]
                 airline_stats[airline_code] = {
-                    "count": len(unique_flights),  # 유니크한 항공편 수
-                    "flight_numbers": flight_numbers,
+                    "count": len(airline_flights),
+                    "flight_numbers": flight_ids,  # 항공편 고유 속성 기반 unique ID
                 }
+
+            # ========================================
+            # 🔴 Redshift: 중복 제거 필요 (레거시 - 참고용)
+            # ========================================
+            # airline_stats = {}
+            # for airline_code, airline_flights in airlines.items():
+            #     # 중복 제거: carrier + flight_number + date 조합으로 유니크하게 처리
+            #     unique_flights = list(set([
+            #         (flight.get("operating_carrier_iata"), flight.get("flight_number"), flight.get("flight_date"))
+            #         for flight in airline_flights
+            #         if flight.get("operating_carrier_iata") and flight.get("flight_number") and flight.get("flight_date")
+            #     ]))
+            # 
+            #     # flight_numbers만 추출 (UI 표시용)
+            #     flight_numbers = sorted(list(set([fn for _, fn, _ in unique_flights])))
+            # 
+            #     airline_stats[airline_code] = {
+            #         "count": len(unique_flights),  # 유니크한 항공편 수
+            #         "flight_numbers": flight_numbers,
+            #     }
 
             # ✅ total_flights를 개별 항공사의 중복 제거된 count 합계로 계산
             total_count = sum(stats["count"] for stats in airline_stats.values())
@@ -428,23 +647,37 @@ class FlightFiltersResponse:
                     if airline_code:
                         country_airlines[airline_code].append(flight)
                 
-                # Generate country level airline stats
+                # ========================================
+                # 🔵 PostgreSQL: 데이터가 이미 unique (현재 활성)
+                # ========================================
                 country_airline_stats = {}
                 for airline_code, airline_flights in country_airlines.items():
-                    # ✅ 중복 제거: carrier + flight_number + date 조합으로 유니크하게 처리
-                    unique_flights = list(set([
-                        (flight.get("operating_carrier_iata"), flight.get("flight_number"), flight.get("flight_date"))
-                        for flight in airline_flights
-                        if flight.get("operating_carrier_iata") and flight.get("flight_number") and flight.get("flight_date")
-                    ]))
-
-                    # flight_numbers만 추출 (UI 표시용)
-                    flight_numbers = sorted(list(set([fn for _, fn, _ in unique_flights])))
-
+                    # PostgreSQL 데이터는 이미 unique - 항공편 고유 속성으로 전역 unique ID 생성
+                    flight_ids = [self._generate_flight_unique_id(flight) for flight in airline_flights]
                     country_airline_stats[airline_code] = {
-                        "count": len(unique_flights),
-                        "flight_numbers": flight_numbers,
+                        "count": len(airline_flights),
+                        "flight_numbers": flight_ids,  # 항공편 고유 속성 기반 unique ID
                     }
+
+                # ========================================
+                # 🔴 Redshift: 중복 제거 필요 (레거시 - 참고용)
+                # ========================================
+                # country_airline_stats = {}
+                # for airline_code, airline_flights in country_airlines.items():
+                #     # 중복 제거: carrier + flight_number + date 조합으로 유니크하게 처리
+                #     unique_flights = list(set([
+                #         (flight.get("operating_carrier_iata"), flight.get("flight_number"), flight.get("flight_date"))
+                #         for flight in airline_flights
+                #         if flight.get("operating_carrier_iata") and flight.get("flight_number") and flight.get("flight_date")
+                #     ]))
+                # 
+                #     # flight_numbers만 추출 (UI 표시용)
+                #     flight_numbers = sorted(list(set([fn for _, fn, _ in unique_flights])))
+                # 
+                #     country_airline_stats[airline_code] = {
+                #         "count": len(unique_flights),
+                #         "flight_numbers": flight_numbers,
+                #     }
                 
                 # ✅ total_flights를 개별 항공사의 중복 제거된 count 합계로 계산
                 country_total_count = sum(stats["count"] for stats in country_airline_stats.values())

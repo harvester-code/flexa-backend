@@ -16,7 +16,7 @@ from app.routes.simulation.interface.controller import (
     public_simulation_router,
 )
 from packages.doppler.client import get_secret
-from packages.redshift.lifespan import lifespan
+from packages.postgresql.lifespan import lifespan
 
 # 애플리케이션 상수
 API_PREFIX = "/api/v1"

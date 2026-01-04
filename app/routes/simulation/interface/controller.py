@@ -27,7 +27,7 @@ from app.routes.simulation.interface.schema import (
 )
 from packages.supabase.database import aget_supabase_session
 from packages.supabase.dependencies import verify_scenario_ownership
-from packages.redshift.client import get_redshift_connection
+from packages.postgresql.client import get_postgresql_connection
 
 private_simulation_router = APIRouter(
     prefix="/simulations", dependencies=[Depends(verify_token)]
@@ -226,7 +226,7 @@ async def get_flight_filters(
     airport: str = Query(..., description="공항 IATA 코드 (예: ICN)"),
     date: str = Query(..., description="대상 날짜 (YYYY-MM-DD)"),
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
-    redshift_db: Connection = Depends(get_redshift_connection),
+    postgresql_db: Connection = Depends(get_postgresql_connection),
     db: AsyncSession = Depends(aget_supabase_session),
 ):
     """
@@ -244,7 +244,7 @@ async def get_flight_filters(
 
         # ✅ 권한 검증은 의존성에서 이미 처리됨, 바로 비즈니스 로직 실행
         filters_metadata = await sim_service.get_flight_filters_metadata(
-            redshift_db=redshift_db, scenario_id=scenario_id, airport=airport, date=date
+            postgresql_db=postgresql_db, scenario_id=scenario_id, airport=airport, date=date
         )
 
         logger.info(
@@ -279,7 +279,7 @@ async def fetch_scenario_flight_schedule(
     flight_schedule: FlightScheduleBody,
     scenario_id: str = Depends(verify_scenario_ownership),  # ✅ 의존성 방식으로 통일
     sim_service: SimulationService = Depends(Provide[Container.simulation_service]),
-    redshift_db: Connection = Depends(get_redshift_connection),
+    postgresql_db: Connection = Depends(get_postgresql_connection),
     supabase_db: AsyncSession = Depends(aget_supabase_session),
 ):
     # ✅ 권한 검증은 의존성에서 이미 처리됨, 바로 비즈니스 로직 실행
@@ -292,7 +292,7 @@ async def fetch_scenario_flight_schedule(
         logger.info(f"🔍 Conditions: {flight_schedule.conditions}")
 
         flight_sch = await sim_service.generate_scenario_flight_schedule(
-            redshift_db,
+            postgresql_db,
             flight_schedule.date,
             flight_schedule.airport,
             flight_schedule.type,

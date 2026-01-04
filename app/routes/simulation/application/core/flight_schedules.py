@@ -16,10 +16,18 @@ from loguru import logger
 from sqlalchemy import Connection
 
 from packages.aws.s3.s3_manager import S3Manager
-from app.routes.simulation.application.queries import (
-    SELECT_AIRPORT_FLIGHTS_EXTENDED,
-    SELECT_AIRPORT_SCHEDULE,
-)
+
+# ========================================
+# DATABASE QUERY IMPORTS
+# ========================================
+# 🔵 PostgreSQL (Current - Active)
+from packages.postgresql.queries import SELECT_AIRPORT_FLIGHTS_BOTH
+
+# 🔴 Redshift (Legacy - Commented out for reference)
+# from app.routes.simulation.application.queries import (
+#     SELECT_AIRPORT_FLIGHTS_EXTENDED,
+#     SELECT_AIRPORT_SCHEDULE,
+# )
 
 
 class FlightScheduleStorage:
@@ -95,42 +103,17 @@ class FlightScheduleStorage:
                     as_dict=True
                 )
 
-        # Redshift에서 데이터 조회
+        # ========================================
+        # 🔵 PostgreSQL에서 데이터 조회 (현재 활성)
+        # ========================================
         if not flight_schedule_data:
-            # 날짜에 따른 테이블 선택
-            target_date = datetime.strptime(date, "%Y-%m-%d").date()
-            today = datetime.now().date()
-
-            if target_date < today:
-                # 과거 데이터: flights_extended 테이블
-                query = SELECT_AIRPORT_FLIGHTS_EXTENDED
-            else:
-                # 오늘/미래 데이터: schedule 테이블
-                query = SELECT_AIRPORT_SCHEDULE
-
+            query = SELECT_AIRPORT_FLIGHTS_BOTH
+            # 날짜 조건을 = 로 변경하여 정확히 해당 날짜만 조회
+            params = (date, airport, date, airport)
+            
             cursor = db.cursor()
             try:
-                # flight_type에 따라 쿼리 파라미터 조정
-                if flight_type == "departure":
-                    modified_query = query.replace(
-                        "AND (fe.departure_airport_iata = %s OR fe.arrival_airport_iata = %s)",
-                        "AND fe.departure_airport_iata = %s",
-                    ).replace(
-                        "AND (s.departure_station_code_iata = %s OR s.arrival_station_code_iata = %s)",
-                        "AND s.departure_station_code_iata = %s",
-                    )
-                    await asyncio.to_thread(cursor.execute, modified_query, (date, airport))
-                elif flight_type == "arrival":
-                    modified_query = query.replace(
-                        "AND (fe.departure_airport_iata = %s OR fe.arrival_airport_iata = %s)",
-                        "AND fe.arrival_airport_iata = %s",
-                    ).replace(
-                        "AND (s.departure_station_code_iata = %s OR s.arrival_station_code_iata = %s)",
-                        "AND s.arrival_station_code_iata = %s",
-                    )
-                    await asyncio.to_thread(cursor.execute, modified_query, (date, airport))
-                else:
-                    await asyncio.to_thread(cursor.execute, query, (date, airport, airport))
+                await asyncio.to_thread(cursor.execute, query, params)
 
                 columns = [desc[0] for desc in cursor.description]
                 rows = await asyncio.to_thread(cursor.fetchall)
@@ -140,19 +123,79 @@ class FlightScheduleStorage:
             # DataFrame으로 변환
             flight_schedule_df = pd.DataFrame(rows, columns=columns)
             
-            # ✅ 중복 제거: 같은 날짜 + 같은 항공사 + 같은 편명은 유니크하게 처리
-            duplicate_columns = ['flight_date', 'operating_carrier_iata', 'flight_number']
-            available_columns = [col for col in duplicate_columns if col in flight_schedule_df.columns]
-            
-            if available_columns and len(available_columns) == 3:
-                before_count = len(flight_schedule_df)
-                flight_schedule_df = flight_schedule_df.drop_duplicates(subset=available_columns, keep='first')
-                after_count = len(flight_schedule_df)
-                
-                if before_count != after_count:
-                    logger.info(f"🔧 중복 제거: {before_count}개 → {after_count}개 ({before_count - after_count}개 중복 제거)")
+            # ✅ flight_type에 따라 필터링 (Python에서 처리)
+            if flight_type == "departure":
+                flight_schedule_df = flight_schedule_df[
+                    flight_schedule_df["departure_airport_iata"] == airport
+                ]
+            elif flight_type == "arrival":
+                flight_schedule_df = flight_schedule_df[
+                    flight_schedule_df["arrival_airport_iata"] == airport
+                ]
+            # "both"인 경우 필터링 없음 (모두 포함)
             
             flight_schedule_data = flight_schedule_df.to_dict("records")
+
+        # ========================================
+        # 🔴 Redshift에서 데이터 조회 (레거시 - 참고용)
+        # ========================================
+        # if not flight_schedule_data:
+        #     # 날짜에 따른 테이블 선택
+        #     target_date = datetime.strptime(date, "%Y-%m-%d").date()
+        #     today = datetime.now().date()
+        # 
+        #     if target_date < today:
+        #         # 과거 데이터: flights_extended 테이블
+        #         query = SELECT_AIRPORT_FLIGHTS_EXTENDED
+        #     else:
+        #         # 오늘/미래 데이터: schedule 테이블
+        #         query = SELECT_AIRPORT_SCHEDULE
+        # 
+        #     cursor = db.cursor()
+        #     try:
+        #         # flight_type에 따라 쿼리 파라미터 조정
+        #         if flight_type == "departure":
+        #             modified_query = query.replace(
+        #                 "AND (fe.departure_airport_iata = %s OR fe.arrival_airport_iata = %s)",
+        #                 "AND fe.departure_airport_iata = %s",
+        #             ).replace(
+        #                 "AND (s.departure_station_code_iata = %s OR s.arrival_station_code_iata = %s)",
+        #                 "AND s.departure_station_code_iata = %s",
+        #             )
+        #             await asyncio.to_thread(cursor.execute, modified_query, (date, airport))
+        #         elif flight_type == "arrival":
+        #             modified_query = query.replace(
+        #                 "AND (fe.departure_airport_iata = %s OR fe.arrival_airport_iata = %s)",
+        #                 "AND fe.arrival_airport_iata = %s",
+        #             ).replace(
+        #                 "AND (s.departure_station_code_iata = %s OR s.arrival_station_code_iata = %s)",
+        #                 "AND s.arrival_station_code_iata = %s",
+        #             )
+        #             await asyncio.to_thread(cursor.execute, modified_query, (date, airport))
+        #         else:
+        #             await asyncio.to_thread(cursor.execute, query, (date, airport, airport))
+        # 
+        #         columns = [desc[0] for desc in cursor.description]
+        #         rows = await asyncio.to_thread(cursor.fetchall)
+        #     finally:
+        #         cursor.close()
+        # 
+        #     # DataFrame으로 변환
+        #     flight_schedule_df = pd.DataFrame(rows, columns=columns)
+        #     
+        #     # ✅ 중복 제거: 같은 날짜 + 같은 항공사 + 같은 편명은 유니크하게 처리
+        #     duplicate_columns = ['flight_date', 'operating_carrier_iata', 'flight_number']
+        #     available_columns = [col for col in duplicate_columns if col in flight_schedule_df.columns]
+        #     
+        #     if available_columns and len(available_columns) == 3:
+        #         before_count = len(flight_schedule_df)
+        #         flight_schedule_df = flight_schedule_df.drop_duplicates(subset=available_columns, keep='first')
+        #         after_count = len(flight_schedule_df)
+        #         
+        #         if before_count != after_count:
+        #             logger.info(f"🔧 중복 제거: {before_count}개 → {after_count}개 ({before_count - after_count}개 중복 제거)")
+        #     
+        #     flight_schedule_data = flight_schedule_df.to_dict("records")
 
             # 조건 필터링 처리
             if conditions:
@@ -399,6 +442,44 @@ class FlightScheduleResponse:
 
         return {"traces": traces, "default_x": default_x}
 
+    def _generate_flight_unique_id_from_row(self, row: pd.Series) -> str:
+        """
+        DataFrame row에서 항공편 고유 속성으로 unique ID 생성
+        PostgreSQL 데이터는 이미 unique하므로, 실제 항공편 속성 조합으로 전역적으로 unique한 ID 생성
+        """
+        carrier = str(row.get('operating_carrier_iata', 'XX')) if pd.notna(row.get('operating_carrier_iata')) else 'XX'
+        dep_airport = str(row.get('departure_airport_iata', '')) if pd.notna(row.get('departure_airport_iata')) else ''
+        arr_airport = str(row.get('arrival_airport_iata', '')) if pd.notna(row.get('arrival_airport_iata')) else ''
+        
+        # 시간 정보 처리 (UTC 우선, 없으면 Local 사용)
+        dep_time = row.get('scheduled_departure_utc') if pd.notna(row.get('scheduled_departure_utc')) else row.get('scheduled_departure_local')
+        arr_time = row.get('scheduled_arrival_utc') if pd.notna(row.get('scheduled_arrival_utc')) else row.get('scheduled_arrival_local')
+        
+        # datetime 객체를 문자열로 변환 (ISO 형식)
+        if pd.notna(dep_time) and dep_time:
+            if hasattr(dep_time, 'strftime'):
+                dep_time_str = dep_time.strftime("%Y%m%d%H%M%S")
+            else:
+                dep_time_str = str(dep_time).replace("-", "").replace(":", "").replace(" ", "")[:14]
+        else:
+            dep_time_str = ""
+            
+        if pd.notna(arr_time) and arr_time:
+            if hasattr(arr_time, 'strftime'):
+                arr_time_str = arr_time.strftime("%Y%m%d%H%M%S")
+            else:
+                arr_time_str = str(arr_time).replace("-", "").replace(":", "").replace(" ", "")[:14]
+        else:
+            arr_time_str = ""
+        
+        # None이나 빈 문자열 처리
+        dep_airport = dep_airport or ""
+        arr_airport = arr_airport or ""
+        dep_time_str = dep_time_str.replace("None", "").replace("NaT", "").replace("nan", "")
+        arr_time_str = arr_time_str.replace("None", "").replace("NaT", "").replace("nan", "")
+        
+        return f"{carrier}_{dep_airport}_{arr_airport}_{dep_time_str}_{arr_time_str}"
+
     def _build_parquet_metadata(self, flight_df: pd.DataFrame) -> list:
         """
         새로운 Parquet 메타데이터 생성 - flights + indices 포함
@@ -416,10 +497,10 @@ class FlightScheduleResponse:
         if flight_df.empty:
             return []
         
-        # 핵심 컬럼 존재 여부 확인
-        required_cols = ['operating_carrier_iata', 'flight_number']
+        # 핵심 컬럼 존재 여부 확인 (PostgreSQL에서는 flight_number가 없을 수 있음)
+        required_cols = ['operating_carrier_iata']
         if not all(col in flight_df.columns for col in required_cols):
-            logger.error("필수 컬럼이 누락됨: operating_carrier_iata, flight_number")
+            logger.error("필수 컬럼이 누락됨: operating_carrier_iata")
             return []
         
         metadata = []
@@ -454,13 +535,25 @@ class FlightScheduleResponse:
                     mask = flight_df[column_name] == unique_value
                     matched_rows = flight_df[mask]
                     
-                    # flights 조합 생성 (operating_carrier_iata + flight_number)
+                    # ========================================
+                    # 🔵 PostgreSQL: 항공편 고유 속성으로 유니크 ID 생성 (현재 활성)
+                    # ========================================
                     flights = []
-                    for _, row in matched_rows.iterrows():
-                        carrier = str(row['operating_carrier_iata']) if pd.notna(row['operating_carrier_iata']) else ""
-                        flight_num = str(row['flight_number']) if pd.notna(row['flight_number']) else ""
-                        if carrier and flight_num:  # 둘 다 유효한 값일 때만 추가
-                            flights.append(f"{carrier}{flight_num}")
+                    for idx, row in matched_rows.iterrows():
+                        # 항공편 고유 속성 조합으로 전역 unique ID 생성
+                        flight_id = self._generate_flight_unique_id_from_row(row)
+                        if flight_id:
+                            flights.append(flight_id)
+                    
+                    # ========================================
+                    # 🔴 Redshift: carrier + flight_number로 유니크 ID 생성 (레거시 - 참고용)
+                    # ========================================
+                    # flights = []
+                    # for _, row in matched_rows.iterrows():
+                    #     carrier = str(row['operating_carrier_iata']) if pd.notna(row['operating_carrier_iata']) else ""
+                    #     flight_num = str(row['flight_number']) if pd.notna(row['flight_number']) else ""
+                    #     if carrier and flight_num:  # 둘 다 유효한 값일 때만 추가
+                    #         flights.append(f"{carrier}{flight_num}")
                     
                     # 인덱스 추출 (원본 DataFrame 기준)
                     indices = matched_rows.index.tolist()
