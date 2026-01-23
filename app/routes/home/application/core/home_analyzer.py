@@ -990,7 +990,7 @@ class HomeAnalyzer:
                     f"{process}_done_time"
                 ].dt.floor(time_freq)
 
-                # 한번에 모든 메트릭 계산
+                # 한번에 모든 메트릭 계산 (queue_length는 cumsum으로 별도 계산)
                 metrics = {
                     "inflow": process_data.groupby(
                         [f"{process}_on_floored", f"{process}_zone"]
@@ -998,9 +998,6 @@ class HomeAnalyzer:
                     "outflow": process_data.groupby(
                         [f"{process}_done_floored", f"{process}_zone"]
                     ).size(),
-                    "queue_length": process_data.groupby(
-                        [f"{process}_on_floored", f"{process}_zone"]
-                    )[f"{process}_queue_length"].mean(),
                     "waiting_time": process_data.groupby(
                         [f"{process}_on_floored", f"{process}_zone"]
                     )[f"{process}_waiting_seconds"].mean(),
@@ -1028,9 +1025,6 @@ class HomeAnalyzer:
                         "outflow": process_data.groupby(
                             [f"{process}_done_floored", f"{process}_zone", airline_col]
                         ).size(),
-                        "queue_length": process_data.groupby(
-                            [f"{process}_on_floored", f"{process}_zone", airline_col]
-                        )[f"{process}_queue_length"].mean(),
                         "waiting_time": process_data.groupby(
                             [f"{process}_on_floored", f"{process}_zone", airline_col]
                         )[f"{process}_waiting_seconds"].mean(),
@@ -1052,9 +1046,11 @@ class HomeAnalyzer:
 
                 # 결과 구성
                 process_facility_data = {}
+                # queue_length는 cumsum으로 별도 계산하므로 metrics.keys()에 추가
+                all_metric_keys = list(metrics.keys()) + ["queue_length"]
                 aggregated = {
                     k: pd.Series(0, index=time_df.index, dtype=float)
-                    for k in metrics.keys()
+                    for k in all_metric_keys
                 }
 
                 zone_capacity_map: Dict[str, List[float]] = {}
@@ -1075,6 +1071,11 @@ class HomeAnalyzer:
                         k: pivoted[k].get(original_facility_name, pd.Series(0, index=time_df.index))
                         for k in metrics.keys()
                     }
+                    
+                    # queue_length = 누적 inflow - 누적 outflow (현재 대기 인원)
+                    facility_data["queue_length"] = (
+                        facility_data["inflow"].cumsum() - facility_data["outflow"].cumsum()
+                    ).clip(lower=0)  # 음수 방지
 
                     # 집계
                     for k in facility_data.keys():
@@ -1110,9 +1111,17 @@ class HomeAnalyzer:
                                     series_data = metric_df[(zone_name, airline_code)]
                                     airlines_data[airline_code][metric_key] = (
                                         series_data.round().astype(int).tolist()
-                                        if metric_key in ["queue_length", "waiting_time"]
+                                        if metric_key in ["waiting_time"]
                                         else series_data.astype(int).tolist()
                                     )
+                        
+                        # 항공사별 queue_length 계산 (cumsum(inflow) - cumsum(outflow))
+                        for airline_code, airline_metrics in airlines_data.items():
+                            if "inflow" in airline_metrics and "outflow" in airline_metrics:
+                                inflow_series = pd.Series(airline_metrics["inflow"])
+                                outflow_series = pd.Series(airline_metrics["outflow"])
+                                queue_length = (inflow_series.cumsum() - outflow_series.cumsum()).clip(lower=0)
+                                airline_metrics["queue_length"] = queue_length.astype(int).tolist()
 
                         if airlines_data:
                             process_facility_data[node_name]["airlines"] = airlines_data
@@ -1140,7 +1149,7 @@ class HomeAnalyzer:
                             individual_facilities = sorted([individual_facility_name_mapping[f] for f in original_individual_facilities])
 
                             if individual_facilities:
-                                # 개별 facility별 메트릭 계산
+                                # 개별 facility별 메트릭 계산 (queue_length는 cumsum으로 별도 계산)
                                 facility_metrics = {
                                     "inflow": zone_process_data.groupby(
                                         [f"{process}_on_floored", facility_col]
@@ -1148,9 +1157,6 @@ class HomeAnalyzer:
                                     "outflow": zone_process_data.groupby(
                                         [f"{process}_done_floored", facility_col]
                                     ).size(),
-                                    "queue_length": zone_process_data.groupby(
-                                        [f"{process}_on_floored", facility_col]
-                                    )[f"{process}_queue_length"].mean(),
                                     "waiting_time": zone_process_data.groupby(
                                         [f"{process}_on_floored", facility_col]
                                     )[f"{process}_waiting_seconds"].mean(),
@@ -1166,9 +1172,6 @@ class HomeAnalyzer:
                                         "outflow": zone_process_data.groupby(
                                             [f"{process}_done_floored", facility_col, airline_col]
                                         ).size(),
-                                        "queue_length": zone_process_data.groupby(
-                                            [f"{process}_on_floored", facility_col, airline_col]
-                                        )[f"{process}_queue_length"].mean(),
                                         "waiting_time": zone_process_data.groupby(
                                             [f"{process}_on_floored", facility_col, airline_col]
                                         )[f"{process}_waiting_seconds"].mean(),
@@ -1208,6 +1211,11 @@ class HomeAnalyzer:
                                         k: facility_pivoted[k].get(original_individual_facility, pd.Series(0, index=time_df.index))
                                         for k in facility_metrics.keys()
                                     }
+                                    
+                                    # queue_length = 누적 inflow - 누적 outflow
+                                    ind_fac_data["queue_length"] = (
+                                        ind_fac_data["inflow"].cumsum() - ind_fac_data["outflow"].cumsum()
+                                    ).clip(lower=0)
 
                                     # 프론트로 보낼 키는 패딩된 이름
                                     sub_facility_data[individual_facility] = {
@@ -1236,9 +1244,17 @@ class HomeAnalyzer:
                                                     series_data = metric_df[(facility_name_col, airline_code)]
                                                     airlines_data[airline_code][metric_key] = (
                                                         series_data.round().astype(int).tolist()
-                                                        if metric_key in ["queue_length", "waiting_time"]
+                                                        if metric_key in ["waiting_time"]
                                                         else series_data.astype(int).tolist()
                                                     )
+                                        
+                                        # 항공사별 queue_length 계산
+                                        for airline_code, airline_metrics in airlines_data.items():
+                                            if "inflow" in airline_metrics and "outflow" in airline_metrics:
+                                                inflow_series = pd.Series(airline_metrics["inflow"])
+                                                outflow_series = pd.Series(airline_metrics["outflow"])
+                                                queue_length = (inflow_series.cumsum() - outflow_series.cumsum()).clip(lower=0)
+                                                airline_metrics["queue_length"] = queue_length.astype(int).tolist()
 
                                         if airlines_data:
                                             sub_facility_data[individual_facility]["airlines"] = airlines_data
@@ -1271,7 +1287,7 @@ class HomeAnalyzer:
                 all_zones_data = {
                     "inflow": aggregated["inflow"].astype(int).tolist(),
                     "outflow": aggregated["outflow"].astype(int).tolist(),
-                    "queue_length": (aggregated["queue_length"] / facility_count)
+                    "queue_length": aggregated["queue_length"]
                     .round()
                     .astype(int)
                     .tolist(),
