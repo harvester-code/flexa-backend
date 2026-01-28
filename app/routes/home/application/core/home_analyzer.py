@@ -1715,6 +1715,12 @@ class HomeAnalyzer:
                 continue
             block_start, block_end = period_bounds
 
+            # If schedule dates don't align with the simulation day, align by time-of-day.
+            if block_start.date() != start.date() and block_end.date() != start.date():
+                duration = block_end - block_start
+                block_start = pd.Timestamp.combine(start.date(), block_start.time())
+                block_end = block_start + duration
+
             if start >= block_end or end <= block_start:
                 continue
 

@@ -59,3 +59,27 @@ class ChatResponse(BaseModel):
     content: str = Field(..., description="AI의 응답 메시지")
     model: str = Field(..., description="사용된 모델명")
     usage: dict = Field(..., description="토큰 사용량 정보")
+
+
+class CommandRequest(BaseModel):
+    """명령 실행 요청 - 사용자가 content만 보냄"""
+    content: str = Field(..., description="사용자 명령 (예: 'checkin 카운터 프로세스 추가해줘')")
+    model: str = Field(
+        default="gpt-4o-2024-08-06",
+        description="사용할 OpenAI 모델 (Structured Outputs 지원 모델 권장)"
+    )
+    temperature: float = Field(
+        default=0.1,
+        description="응답의 일관성을 위한 낮은 temperature",
+        ge=0.0,
+        le=2.0
+    )
+
+
+class CommandResponse(BaseModel):
+    """명령 실행 응답"""
+    success: bool = Field(..., description="명령 실행 성공 여부")
+    message: str = Field(..., description="사용자에게 보여줄 메시지")
+    action: Optional[str] = Field(None, description="실행된 액션 (add_process, remove_process 등)")
+    data: Optional[dict] = Field(None, description="추가 데이터 (프로세스 정보 등)")
+    error: Optional[str] = Field(None, description="에러 메시지 (실패 시)")
