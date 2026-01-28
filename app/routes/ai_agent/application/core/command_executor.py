@@ -413,29 +413,53 @@ class CommandExecutor:
                                     "이름": proc.get("name", ""),
                                     "단계": proc.get("step", ""),
                                     "이동시간_분": proc.get("travel_time_minutes", 0),
+                                    "기본_처리시간_초": proc.get("process_time_seconds", 0),
                                     "구역_개수": len(proc.get("zones", {})),
                                 }
-                                # 각 구역의 시설 개수
-                                zone_info = {}
+
+                                # 각 구역의 시설 정보 (복잡한 시나리오 대응: 상세 목록 대신 요약만)
+                                zones_summary = {}
                                 total_facilities = 0
+                                active_facilities = 0
+                                sample_operating_period = None
+                                sample_process_time = None
+
                                 for zone_name, zone_data in proc.get("zones", {}).items():
                                     facilities = zone_data.get("facilities", [])
                                     facility_count = len(facilities)
-                                    zone_info[zone_name] = facility_count
                                     total_facilities += facility_count
-                                
-                                proc_info["구역별_시설_개수"] = zone_info
-                                proc_info["총_시설_개수"] = total_facilities
-                                
-                                # 첫 번째 시설의 운영 시간 예시
-                                if proc.get("zones"):
-                                    first_zone = list(proc["zones"].values())[0]
-                                    if first_zone.get("facilities"):
-                                        first_facility = first_zone["facilities"][0]
-                                        time_blocks = first_facility.get("operating_schedule", {}).get("time_blocks", [])
+
+                                    zone_active = 0
+                                    for fac in facilities:
+                                        operating_schedule = fac.get("operating_schedule", {})
+                                        time_blocks = operating_schedule.get("time_blocks", [])
+
                                         if time_blocks:
-                                            proc_info["운영시간_예시"] = time_blocks[0].get("period", "")[:50]
-                                
+                                            tb = time_blocks[0]
+                                            if tb.get("activate", False):
+                                                zone_active += 1
+                                                active_facilities += 1
+
+                                            # 대표 값 저장 (첫 번째 활성 시설)
+                                            if sample_operating_period is None and tb.get("activate", False):
+                                                sample_operating_period = tb.get("period", "")
+                                                sample_process_time = tb.get("process_time_seconds", proc.get("process_time_seconds", 0))
+
+                                    zones_summary[zone_name] = {
+                                        "시설_개수": facility_count,
+                                        "활성_시설_개수": zone_active
+                                    }
+
+                                proc_info["구역별_요약"] = zones_summary
+                                proc_info["총_시설_개수"] = total_facilities
+                                proc_info["활성_시설_개수"] = active_facilities
+
+                                # 대표 운영 정보
+                                if sample_operating_period:
+                                    proc_info["운영기간_예시"] = sample_operating_period
+                                if sample_process_time:
+                                    proc_info["처리시간_초_예시"] = sample_process_time
+
                                 summary_info["프로세스_흐름"].append(proc_info)
                         
                         # flight 정보 요약
@@ -502,7 +526,7 @@ class CommandExecutor:
                         "success": True,
                         "message": f"파일 '{filename}'의 내용을 분석 중입니다.",
                         "filename": filename,
-                        "content_preview": content_str[:20000],  # 구조화된 요약 정보
+                        "content_preview": content_str[:60000],  # 구조화된 요약 정보 (복잡한 시나리오 대응)
                         "full_content": content,  # 전체 내용은 별도로 전달
                         "needs_ai_analysis": True,
                     }
@@ -562,7 +586,7 @@ class CommandExecutor:
                             "success": True,
                             "message": f"파일 '{filename}'의 내용을 분석 중입니다.",
                             "filename": filename,
-                            "content_preview": content_str[:20000],
+                            "content_preview": content_str[:60000],  # 복잡한 시나리오 대응
                             "full_content": analysis,
                             "needs_ai_analysis": True,
                         }
@@ -1114,6 +1138,9 @@ class CommandExecutor:
         # 승객 도착 시간 통계 추출
         passenger_arrival_stats = self._extract_passenger_arrival_stats(df)
 
+        # 국적 및 프로필 정보 추출
+        demographics_info = self._extract_demographics_info(df)
+
         if metadata is None:
             # metadata가 없는 경우 간단한 응답 생성
             airport_val = df['departure_airport_iata'].iloc[0] if 'departure_airport_iata' in df.columns and len(df) > 0 else None
@@ -1133,6 +1160,7 @@ class CommandExecutor:
                 "목적지별_항공편": destination_analysis,
                 "항공기_정보": aircraft_info,
                 "승객_도착_통계": passenger_arrival_stats,
+                "승객_인구통계": demographics_info,
             }
 
             return {
@@ -1179,6 +1207,7 @@ class CommandExecutor:
             "목적지별_항공편": destination_analysis,  # 목적지별 분석 추가
             "항공기_정보": aircraft_info,
             "승객_도착_통계": passenger_arrival_stats,
+            "승객_인구통계": demographics_info,  # 국적/프로필 정보 추가
             "차트_데이터": response_data.get("chart_y_data", {}),
         }
 
@@ -1256,6 +1285,34 @@ class CommandExecutor:
                     aircraft_info["좌석_수_범위"] = f"{int(seats.min())}~{int(seats.max())}석"
 
         return aircraft_info if aircraft_info else {"설명": "항공기 정보가 없습니다"}
+
+    def _extract_demographics_info(self, df) -> Dict[str, Any]:
+        """승객 국적 및 프로필 정보 추출"""
+        import pandas as pd
+
+        demographics = {}
+
+        # 국적 정보
+        if 'nationality' in df.columns:
+            nationalities = df['nationality'].dropna()
+            if len(nationalities) > 0:
+                nat_counts = nationalities.value_counts()
+                demographics["국적_분포"] = {
+                    str(nat): int(count) for nat, count in nat_counts.items()
+                }
+                demographics["총_국적_수"] = len(nat_counts)
+
+        # 프로필 정보
+        if 'profile' in df.columns:
+            profiles = df['profile'].dropna()
+            if len(profiles) > 0:
+                prof_counts = profiles.value_counts()
+                demographics["프로필_분포"] = {
+                    str(prof): int(count) for prof, count in prof_counts.items()
+                }
+                demographics["총_프로필_수"] = len(prof_counts)
+
+        return demographics if demographics else {"설명": "국적 및 프로필 정보가 없습니다"}
 
     def _extract_passenger_arrival_stats(self, df) -> Dict[str, Any]:
         """

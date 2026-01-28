@@ -78,13 +78,28 @@ class CommandParser:
             },
             {
                 "name": "read_file",
-                "description": "S3에 있는 파일의 내용을 읽고 분석합니다. 예: 'metadata-for-frontend.json 내용 요약해', 'home-static-response.json 분석해', '파일 내용 보여줘'",
+                "description": """시뮬레이션 데이터를 읽고 분석합니다. 사용자가 파일명을 명시하지 않아도 질문 의도에 맞는 파일을 자동으로 선택하세요.
+
+**파일별 정보:**
+- **show-up-passenger.parquet**: 승객들이 공항에 언제 도착하는지, 어느 항공편을 타는지, 목적지가 어디인지 등의 정보
+  * 질문 예: "승객들이 언제 도착해?", "제주도 가는 항공편 몇 개야?", "승객들 언제 와?", "항공편 정보 알려줘"
+
+- **simulation-pax.parquet**: 승객들이 각 프로세스(체크인, 보안검색 등)에서 얼마나 대기했는지 시뮬레이션 결과
+  * 질문 예: "대기시간 얼마나 걸렸어?", "체크인에서 몇 분 기다렸어?", "프로세스별 대기시간 알려줘"
+
+- **flight-schedule.parquet**: 항공편 스케줄 정보 (출발시각, 도착시각, 항공사 등)
+  * 질문 예: "항공편 스케줄 보여줘", "몇 시에 출발해?", "항공편 시간표 알려줘"
+
+- **metadata-for-frontend.json**: 사용자가 설정한 시뮬레이션 설정값 (프로세스 구성, 시설 배치, 운영 시간 등)
+  * 질문 예: "시뮬레이션 설정이 뭐였어?", "체크인 시설 몇 개야?", "시설 설정 어떻게 되어있어?", "체크인 몇 시부터 운영해?", "A구역에 시설 몇 개 있어?", "처리 시간은 얼마로 설정했어?"
+
+**중요:** 사용자가 파일명을 언급하지 않으면 질문 내용을 보고 가장 적절한 파일을 선택하세요.""",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "filename": {
                             "type": "string",
-                            "description": "읽을 파일 이름 (예: metadata-for-frontend.json, home-static-response.json)"
+                            "description": "읽을 파일 이름. 사용자가 명시하지 않으면 질문 의도에 맞는 파일을 선택하세요: show-up-passenger.parquet (승객 도착), simulation-pax.parquet (대기시간), flight-schedule.parquet (항공편 스케줄), metadata-for-frontend.json (시설 설정, 프로세스 구성, 운영 시간)"
                         }
                     },
                     "required": ["filename"],
@@ -261,17 +276,28 @@ class CommandParser:
             else:
                 content_str = str(file_content)
             
-            # content_str이 너무 크면 일부만 사용 (이미 요약된 정보이므로 거의 발생하지 않음)
-            if len(content_str) > 20000:
-                content_str = content_str[:20000] + "\n\n... (내용이 길어 일부만 표시했습니다)"
-            
+            # content_str이 너무 크면 일부만 사용 (복잡한 시나리오 대응)
+            if len(content_str) > 60000:
+                content_str = content_str[:60000] + "\n\n... (내용이 길어 일부만 표시했습니다)"
+
             system_prompt = f"""당신은 Flexa 공항 시뮬레이션 시스템의 데이터 분석가입니다. 일반 사용자에게 친화적이고 구체적으로 설명하세요.
 
 현재 시나리오 ID: {scenario_id}
-분석할 파일: {filename}
 
-파일 내용 (구조화된 요약):
-{content_str[:20000]}
+시뮬레이션 데이터:
+{content_str[:60000]}
+
+**핵심 원칙:**
+- **파일명을 절대 언급하지 마세요**: "show-up-passenger.parquet", "simulation-pax.parquet", "metadata-for-frontend.json" 같은 파일명을 답변에 포함하지 마세요
+- **기술 용어 사용 금지**: "파일 분석 결과", "이 파일에는", "데이터에 따르면" 같은 표현 대신, 자연스럽게 답변하세요
+- **직접적으로 답변**: 마치 시뮬레이션을 직접 실행한 것처럼 답변하세요
+
+예시:
+❌ 나쁜 답변: "show-up-passenger.parquet 파일을 분석한 결과, 승객들은..."
+✅ 좋은 답변: "승객들은 평균 2시간 전에 공항에 도착했습니다..."
+
+❌ 나쁜 답변: "이 파일에는 제주도 가는 항공편이 2편 있습니다"
+✅ 좋은 답변: "제주도로 가는 항공편은 2편이 있습니다"
 
 **중요 지침:**
 
