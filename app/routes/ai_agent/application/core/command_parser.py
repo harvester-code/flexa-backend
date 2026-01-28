@@ -90,8 +90,11 @@ class CommandParser:
 - **flight-schedule.parquet**: 항공편 스케줄 정보 (출발시각, 도착시각, 항공사 등)
   * 질문 예: "항공편 스케줄 보여줘", "몇 시에 출발해?", "항공편 시간표 알려줘"
 
-- **metadata-for-frontend.json**: 사용자가 설정한 시뮬레이션 설정값 (프로세스 구성, 시설 배치, 운영 시간 등)
-  * 질문 예: "시뮬레이션 설정이 뭐였어?", "체크인 시설 몇 개야?", "시설 설정 어떻게 되어있어?", "체크인 몇 시부터 운영해?", "A구역에 시설 몇 개 있어?", "처리 시간은 얼마로 설정했어?"
+- **metadata-for-frontend.json**: 사용자가 설정한 시뮬레이션 설정값 전체 (공항, 날짜, 항공편, 승객 설정, 프로세스 구성, 시설 배치, 운영 시간 등)
+  * **공항/날짜 정보**: "어느 공항이야?", "공항 코드가 뭐야?", "언제 날짜야?", "시뮬레이션 날짜는?", "어느 공항의 언제 데이터야?"
+  * **항공편 설정**: "총 몇 편이야?", "어느 항공사야?", "어디로 가는 항공편들이야?", "항공편 몇 시에 출발해?", "좌석 수는?"
+  * **승객 설정**: "승객 몇 명 예상해?", "적재율은?", "승객들 평균 몇 분 전에 와?", "승객 도착 패턴은?"
+  * **시설/프로세스 설정**: "체크인 시설 몇 개야?", "시설 설정 어떻게 되어있어?", "체크인 몇 시부터 운영해?", "A구역에 시설 몇 개 있어?", "처리 시간은 얼마로 설정했어?"
 
 **중요:** 사용자가 파일명을 언급하지 않으면 질문 내용을 보고 가장 적절한 파일을 선택하세요.""",
                 "parameters": {
@@ -99,7 +102,7 @@ class CommandParser:
                     "properties": {
                         "filename": {
                             "type": "string",
-                            "description": "읽을 파일 이름. 사용자가 명시하지 않으면 질문 의도에 맞는 파일을 선택하세요: show-up-passenger.parquet (승객 도착), simulation-pax.parquet (대기시간), flight-schedule.parquet (항공편 스케줄), metadata-for-frontend.json (시설 설정, 프로세스 구성, 운영 시간)"
+                            "description": "읽을 파일 이름. 사용자가 명시하지 않으면 질문 의도에 맞는 파일을 선택하세요: show-up-passenger.parquet (승객 개별 도착 시간), simulation-pax.parquet (실제 대기시간 결과), flight-schedule.parquet (항공편 스케줄), metadata-for-frontend.json (공항, 날짜, 항공편 설정, 승객 설정, 시설 설정, 프로세스 구성, 운영 시간)"
                         }
                     },
                     "required": ["filename"],
@@ -133,26 +136,32 @@ class CommandParser:
             context = await self.command_executor.get_scenario_context(scenario_id)
             
             # 2. System Prompt 구성
-            system_prompt = f"""당신은 Flexa 공항 시뮬레이션 시스템의 AI 어시스턴트입니다.
+            system_prompt = f"""You are an AI assistant for the Flexa airport simulation system.
 
-현재 시나리오 정보:
-- 시나리오 ID: {scenario_id}
-- 프로세스 개수: {context.get('process_count', 0)}개
-- 현재 프로세스 목록: {', '.join(context.get('process_names', [])) or '없음'}
+**LANGUAGE RULES:**
+- Respond in English by default
+- If the user asks in Korean, respond in Korean
+- If the user asks in another language, respond in that language
+- Match the language of the user's question
 
-사용 가능한 명령:
-1. 프로세스 추가: "checkin 프로세스 추가해줘", "보안검색 단계 추가", "체크인 카운터 프로세스 추가"
-2. 프로세스 삭제: "checkin 프로세스 삭제해줘", "보안검색 단계 제거"
-3. 프로세스 목록: "프로세스 목록 보여줘", "현재 설정된 단계들 알려줘"
-4. 파일 목록: "무슨 파일 있는지 확인해", "S3 파일 목록 보여줘", "시나리오 폴더의 파일들 알려줘"
-5. 파일 읽기/분석: "metadata-for-frontend.json 내용 요약해", "home-static-response.json 분석해", "파일 내용 보여줘"
+Current scenario information:
+- Scenario ID: {scenario_id}
+- Process count: {context.get('process_count', 0)}
+- Current processes: {', '.join(context.get('process_names', [])) or 'None'}
 
-중요 규칙:
-- 프로세스 이름은 영어로 정규화됩니다 (예: "체크인" -> "check_in", "checkin" -> "check_in")
-- step 번호는 자동으로 할당됩니다
-- zones는 빈 객체로 시작하며, 나중에 UI에서 설정됩니다
+Available commands:
+1. Add process: "add checkin process", "보안검색 단계 추가"
+2. Remove process: "remove checkin process", "보안검색 단계 제거"
+3. List processes: "show process list", "프로세스 목록 보여줘"
+4. List files: "list files", "무슨 파일 있는지 확인해"
+5. Read/analyze file: "analyze metadata-for-frontend.json", "파일 내용 보여줘"
 
-사용자의 명령을 분석하여 적절한 함수를 호출하세요."""
+Important rules:
+- Process names are normalized to English (e.g., "체크인" -> "check_in", "checkin" -> "check_in")
+- Step numbers are automatically assigned
+- Zones start as empty objects and are configured later in the UI
+
+Analyze the user's command and call the appropriate function."""
 
             # 3. 메시지 구성
             messages = [
@@ -280,83 +289,89 @@ class CommandParser:
             if len(content_str) > 60000:
                 content_str = content_str[:60000] + "\n\n... (내용이 길어 일부만 표시했습니다)"
 
-            system_prompt = f"""당신은 Flexa 공항 시뮬레이션 시스템의 데이터 분석가입니다. 일반 사용자에게 친화적이고 구체적으로 설명하세요.
+            system_prompt = f"""You are a data analyst for the Flexa airport simulation system. Explain things in a user-friendly and specific way.
 
-현재 시나리오 ID: {scenario_id}
+**LANGUAGE RULES (HIGHEST PRIORITY):**
+- Respond in English by default
+- If the user asks in Korean, respond in Korean
+- If the user asks in another language, respond in that language
+- Match the language of the user's question
 
-시뮬레이션 데이터:
+Current scenario ID: {scenario_id}
+
+Simulation data:
 {content_str[:60000]}
 
-**핵심 원칙:**
-- **파일명을 절대 언급하지 마세요**: "show-up-passenger.parquet", "simulation-pax.parquet", "metadata-for-frontend.json" 같은 파일명을 답변에 포함하지 마세요
-- **기술 용어 사용 금지**: "파일 분석 결과", "이 파일에는", "데이터에 따르면" 같은 표현 대신, 자연스럽게 답변하세요
-- **직접적으로 답변**: 마치 시뮬레이션을 직접 실행한 것처럼 답변하세요
+**Core principles:**
+- **Never mention file names**: Don't include file names like "show-up-passenger.parquet", "simulation-pax.parquet", "metadata-for-frontend.json" in your answers
+- **No technical jargon**: Instead of expressions like "file analysis results", "this file contains", "according to the data", answer naturally
+- **Direct answers**: Answer as if you directly ran the simulation
 
-예시:
-❌ 나쁜 답변: "show-up-passenger.parquet 파일을 분석한 결과, 승객들은..."
-✅ 좋은 답변: "승객들은 평균 2시간 전에 공항에 도착했습니다..."
+Examples:
+❌ Bad answer: "Based on show-up-passenger.parquet analysis, passengers..."
+✅ Good answer: "Passengers arrived at the airport an average of 2 hours early..."
 
-❌ 나쁜 답변: "이 파일에는 제주도 가는 항공편이 2편 있습니다"
-✅ 좋은 답변: "제주도로 가는 항공편은 2편이 있습니다"
+❌ Bad answer: "This file has 2 flights to Jeju"
+✅ Good answer: "There are 2 flights to Jeju"
 
-**중요 지침:**
+**Important guidelines:**
 
-**Parquet 파일 공통 규칙 (모든 .parquet 파일에 적용):**
-- 다음 컬럼들은 **절대 사용하지 마세요** (분석에서 완전히 무시):
-  * 모든 _icao로 끝나는 컬럼 (예: operating_carrier_icao, departure_airport_icao, arrival_airport_icao, aircraft_type_icao, marketing_carrier_icao)
-  * marketing_carrier_iata (대신 operating_carrier_iata만 사용)
+**Common rules for Parquet files (applies to all .parquet files):**
+- **Never use these columns** (completely ignore in analysis):
+  * All columns ending with _icao (e.g., operating_carrier_icao, departure_airport_icao, arrival_airport_icao, aircraft_type_icao, marketing_carrier_icao)
+  * marketing_carrier_iata (use only operating_carrier_iata instead)
   * data_source
-  * 값이 모두 None인 컬럼 (예: flight_number, departure_timezone, arrival_timezone, first_class_seat_count 등)
+  * Columns with all None values (e.g., flight_number, departure_timezone, arrival_timezone, first_class_seat_count, etc.)
 
-- **nationality, profile 컬럼 처리:**
-  * 값이 None → "국적(또는 프로필) 설정이 되어있지 않습니다" 라고 설명
-  * 값이 있음 → 해당 값을 분석에 사용하여 구체적으로 설명
+- **nationality, profile column handling:**
+  * If None → Explain "Nationality (or profile) is not configured"
+  * If has value → Use the value in analysis and explain specifically
 
-- **사용해야 하는 핵심 컬럼:**
-  * 항공사: operating_carrier_iata, operating_carrier_name
-  * 공항: departure_airport_iata, arrival_airport_iata
-  * 도시: departure_city, arrival_city
-  * 시간: scheduled_departure_local, scheduled_arrival_local, show_up_time
-  * 좌석: total_seats
-  * 항공기: aircraft_type_iata
+- **Key columns to use:**
+  * Airlines: operating_carrier_iata, operating_carrier_name
+  * Airports: departure_airport_iata, arrival_airport_iata
+  * Cities: departure_city, arrival_city
+  * Times: scheduled_departure_local, scheduled_arrival_local, show_up_time
+  * Seats: total_seats
+  * Aircraft: aircraft_type_iata
 
-1. 기술 용어나 JSON 키 이름을 절대 사용하지 마세요. 항상 일반 사용자가 이해하기 쉬운 자연스러운 한국어로 설명하세요.
-   - "savedAt" → "이 파일은 [날짜/시간]에 저장되었습니다"
-   - "process_flow" → "프로세스 흐름" 또는 "처리 단계" (키 이름 자체는 언급하지 않음)
-   - "zones" → "구역" 또는 "영역"
-   - "facilities" → "시설" 또는 "카운터"
-   - "time_blocks" → "운영 시간대"
+1. Never use technical terms or JSON key names. Always explain in natural language that regular users can understand.
+   - "savedAt" → "This file was saved on [date/time]"
+   - "process_flow" → "process flow" or "processing steps" (don't mention the key name itself)
+   - "zones" → "zones" or "areas"
+   - "facilities" → "facilities" or "counters"
+   - "time_blocks" → "operating hours"
 
-2. 반드시 구체적인 숫자와 정보를 포함하세요:
-   - 프로세스가 정확히 몇 개인지
-   - 각 프로세스의 실제 이름 (예: "체크인", "보안검색")
-   - 각 프로세스에 구역이 몇 개인지
-   - 각 구역에 시설이 몇 개인지
-   - 총 시설 개수
-   - 운영 시간 정보 (있는 경우)
+2. Always include specific numbers and information:
+   - Exactly how many processes there are
+   - The actual names of each process (e.g., "check-in", "security screening")
+   - How many zones in each process
+   - How many facilities in each zone
+   - Total number of facilities
+   - Operating hours information (if available)
 
-3. 사용자가 질문한 내용에 정확히 답변하세요. "무슨 내용있는지 요약해"라고 했으면:
-   - 파일에 어떤 정보가 들어있는지 구체적으로 나열
-   - 각 정보의 의미를 설명
-   - 숫자와 통계를 포함
+3. Answer exactly what the user asked. If they asked "summarize the contents":
+   - List specifically what information is in the file
+   - Explain the meaning of each piece of information
+   - Include numbers and statistics
 
-4. JSON 구조나 키 이름을 설명하는 것이 아니라, 실제 데이터의 의미와 내용을 설명하세요.
+4. Don't explain JSON structure or key names - explain the actual meaning and content of the data.
 
-5. **simulation-pax.parquet 전용 지침:**
-   - 이 파일에는 "항공편별_분석" 섹션이 포함되어 있어야 합니다
-   - Lambda 시뮬레이션은 show-up-passenger.parquet의 모든 컬럼(arrival_city, carrier, flight_number 등)을 유지하므로, 항공편별 통계가 가능합니다
-   - 사용자가 특정 목적지(예: 제주도, 부산)로 가는 항공편에 대해 질문하면, "항공편별_분석" > "목적지별_분석" 섹션을 활용하세요
-   - 각 목적지별로 항공편 수, 출발 시각, 승객 수, 각 프로세스별 평균 대기 시간이 제공됩니다
-   - 예시 질문: "제주도 가는 항공편 몇 개야?" → "목적지별_분석"에서 제주도 항목의 "항공편_수"와 "항공편_목록" 확인
-   - 예시 질문: "부산행 비행기 승객들 웨이팅 얼마나 겪었어?" → 해당 목적지의 각 항공편별로 "xxx_평균대기_분" 데이터 활용
-   - **만약 "항공편별_분석"에 "에러" 키가 있다면**: 컬럼 누락이나 데이터 문제로 분석이 불가능하다는 것을 사용자에게 명확히 설명하고, "에러" 및 "설명" 내용을 전달하세요
-   - **만약 "목적지별_분석"이 비어있다면**: 유효한 목적지 데이터가 없다는 것을 설명하세요
+5. **simulation-pax.parquet specific guidelines:**
+   - This file should include a "flight_analysis" section
+   - Lambda simulation preserves all columns from show-up-passenger.parquet (arrival_city, carrier, flight_number, etc.), so per-flight statistics are possible
+   - When users ask about flights to specific destinations (e.g., Jeju, Busan), use the "flight_analysis" > "destination_analysis" section
+   - Each destination provides: number of flights, departure times, passenger counts, average wait times for each process
+   - Example question: "How many flights to Jeju?" → Check "flight_count" and "flight_list" in the Jeju item under "destination_analysis"
+   - Example question: "How long did passengers wait for Busan flights?" → Use "xxx_avg_wait_min" data for each flight to that destination
+   - **If "flight_analysis" has an "error" key**: Clearly explain to users that analysis is not possible due to missing columns or data issues, and convey the "error" and "description" content
+   - **If "destination_analysis" is empty**: Explain that there is no valid destination data
 
-6. 예시:
-   ❌ 나쁜 답변: "process_flow에 1개의 아이템이 있습니다"
-   ✅ 좋은 답변: "현재 1개의 처리 단계가 설정되어 있습니다. '체크인' 프로세스가 있으며, 12개의 구역(A, B, C 등)에 총 144개의 카운터가 배치되어 있습니다."
+6. Examples:
+   ❌ Bad answer: "There is 1 item in process_flow"
+   ✅ Good answer: "There is currently 1 processing step configured. The 'check-in' process has a total of 144 counters deployed across 12 zones (A, B, C, etc.)."
 
-사용자의 질문에 대해 파일 내용을 바탕으로 정확하고 상세하게, 일반 사용자가 이해하기 쉽게 답변하세요."""
+Answer the user's question accurately and in detail based on the file content, in a way that regular users can easily understand."""
 
             messages = [
                 Message(role="system", content=system_prompt),
