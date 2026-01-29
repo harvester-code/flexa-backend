@@ -123,6 +123,7 @@ async def execute_command(
         parsed = await command_parser.parse_command(
             user_content=request.content,
             scenario_id=scenario_id,
+            conversation_history=request.conversation_history,
             model=request.model,
             temperature=request.temperature
         )

@@ -64,6 +64,10 @@ class ChatResponse(BaseModel):
 class CommandRequest(BaseModel):
     """명령 실행 요청 - 사용자가 content만 보냄"""
     content: str = Field(..., description="사용자 명령 (예: 'checkin 카운터 프로세스 추가해줘')")
+    conversation_history: Optional[List[Message]] = Field(
+        default=None,
+        description="이전 대화 이력 (role과 content 포함)"
+    )
     model: str = Field(
         default="gpt-4o-2024-08-06",
         description="사용할 OpenAI 모델 (Structured Outputs 지원 모델 권장)"

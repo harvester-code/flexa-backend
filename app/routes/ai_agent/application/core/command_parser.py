@@ -116,18 +116,20 @@ class CommandParser:
         self,
         user_content: str,
         scenario_id: str,
+        conversation_history: list = None,
         model: str = "gpt-4o-2024-08-06",
         temperature: float = 0.1
     ) -> Dict[str, Any]:
         """
         사용자 명령을 파싱하여 실행 가능한 액션으로 변환
-        
+
         Args:
             user_content: 사용자 명령 (예: "checkin 프로세스 추가해줘")
             scenario_id: 시나리오 ID
+            conversation_history: 이전 대화 이력 (옵션)
             model: 사용할 OpenAI 모델
             temperature: temperature 설정
-        
+
         Returns:
             파싱된 명령 정보
         """
@@ -164,10 +166,21 @@ Important rules:
 Analyze the user's command and call the appropriate function."""
 
             # 3. 메시지 구성
-            messages = [
-                Message(role="system", content=system_prompt),
-                Message(role="user", content=user_content)
-            ]
+            messages = [Message(role="system", content=system_prompt)]
+
+            # 대화 이력 추가 (최근 20개만, 토큰 제한 고려)
+            if conversation_history:
+                # 시스템 메시지와 환영 메시지 제외하고 실제 대화만 추가
+                filtered_history = [
+                    msg for msg in conversation_history
+                    if msg.role != "system" and not (msg.role == "assistant" and "Ask me anything" in msg.content)
+                ]
+                # 최근 20개만 사용 (약 10턴)
+                recent_history = filtered_history[-20:] if len(filtered_history) > 20 else filtered_history
+                messages.extend(recent_history)
+
+            # 현재 사용자 메시지 추가
+            messages.append(Message(role="user", content=user_content))
             
             # 4. Function Calling 요청
             functions = self._get_functions()
