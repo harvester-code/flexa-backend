@@ -124,6 +124,7 @@ async def execute_command(
             user_content=request.content,
             scenario_id=scenario_id,
             conversation_history=request.conversation_history,
+            simulation_state=request.simulation_state,
             model=request.model,
             temperature=request.temperature
         )
@@ -235,6 +236,7 @@ async def execute_command(
                         "full_content": result.get("full_content")
                     },
                     user_query=request.content,  # 원본 질문
+                    simulation_state=request.simulation_state,  # 👈 실시간 상태 전달
                     model=request.model,
                     temperature=request.temperature
                 )

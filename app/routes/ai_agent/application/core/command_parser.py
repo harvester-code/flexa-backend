@@ -78,31 +78,39 @@ class CommandParser:
             },
             {
                 "name": "read_file",
-                "description": """시뮬레이션 데이터를 읽고 분석합니다. 사용자가 파일명을 명시하지 않아도 질문 의도에 맞는 파일을 자동으로 선택하세요.
+                "description": """시뮬레이션 결과 데이터를 읽고 분석합니다.
 
-**파일별 정보:**
-- **show-up-passenger.parquet**: 승객들이 공항에 언제 도착하는지, 어느 항공편을 타는지, 목적지가 어디인지 등의 정보
-  * 질문 예: "승객들이 언제 도착해?", "제주도 가는 항공편 몇 개야?", "승객들 언제 와?", "항공편 정보 알려줘"
+⚠️ IMPORTANT - When to use this function:
+- Configuration data (airport, date, flights, passengers, processes) → ALWAYS use simulation_state, NOT read_file
+- Result data (waiting times, arrival records, schedules) → Use read_file for .parquet files
 
-- **simulation-pax.parquet**: 승객들이 각 프로세스(체크인, 보안검색 등)에서 얼마나 대기했는지 시뮬레이션 결과
-  * 질문 예: "대기시간 얼마나 걸렸어?", "체크인에서 몇 분 기다렸어?", "프로세스별 대기시간 알려줘"
+**Available Files:**
+
+- **show-up-passenger.parquet**: 시뮬레이션 실행 후 생성된 승객별 도착 시간 기록
+  * 질문 예: "승객들이 실제로 언제 도착했어?", "제주도 가는 항공편에 배정된 승객 몇 명이야?"
+  * ⚠️ This is RESULT data from simulation execution
+
+- **simulation-pax.parquet**: 시뮬레이션 실행 결과 (각 프로세스에서의 실제 대기시간, 처리시간)
+  * 질문 예: "대기시간 얼마나 걸렸어?", "체크인에서 몇 분 기다렸어?", "프로세스별 대기시간 분석해줘"
+  * ⚠️ This is RESULT data from simulation execution
 
 - **flight-schedule.parquet**: 항공편 스케줄 정보 (출발시각, 도착시각, 항공사 등)
-  * 질문 예: "항공편 스케줄 보여줘", "몇 시에 출발해?", "항공편 시간표 알려줘"
+  * 질문 예: "항공편 스케줄 보여줘", "몇 시에 출발하는 항공편이야?", "항공편 시간표 분석해줘"
+  * ⚠️ This is RESULT data from simulation execution
 
-- **metadata-for-frontend.json**: 사용자가 설정한 시뮬레이션 설정값 전체 (공항, 날짜, 항공편, 승객 설정, 프로세스 구성, 시설 배치, 운영 시간 등)
-  * **공항/날짜 정보**: "어느 공항이야?", "공항 코드가 뭐야?", "언제 날짜야?", "시뮬레이션 날짜는?", "어느 공항의 언제 데이터야?"
-  * **항공편 설정**: "총 몇 편이야?", "어느 항공사야?", "어디로 가는 항공편들이야?", "항공편 몇 시에 출발해?", "좌석 수는?"
-  * **승객 설정**: "승객 몇 명 예상해?", "적재율은?", "승객들 평균 몇 분 전에 와?", "승객 도착 패턴은?"
-  * **시설/프로세스 설정**: "체크인 시설 몇 개야?", "시설 설정 어떻게 되어있어?", "체크인 몇 시부터 운영해?", "A구역에 시설 몇 개 있어?", "처리 시간은 얼마로 설정했어?"
+⚠️ DO NOT use read_file for configuration questions:
+- "어느 공항이야?" → Use simulation_state['airport']
+- "승객 몇 명 생성돼?" → Use simulation_state['passenger']['total']
+- "탑승률이 뭐야?" → Use simulation_state['passenger']['pax_generation']
+- "프로세스가 몇 개야?" → Use simulation_state['process_count']
 
-**중요:** 사용자가 파일명을 언급하지 않으면 질문 내용을 보고 가장 적절한 파일을 선택하세요.""",
+Only use read_file when the user asks about simulation RESULTS (.parquet files).""",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "filename": {
                             "type": "string",
-                            "description": "읽을 파일 이름. 사용자가 명시하지 않으면 질문 의도에 맞는 파일을 선택하세요: show-up-passenger.parquet (승객 개별 도착 시간), simulation-pax.parquet (실제 대기시간 결과), flight-schedule.parquet (항공편 스케줄), metadata-for-frontend.json (공항, 날짜, 항공편 설정, 승객 설정, 시설 설정, 프로세스 구성, 운영 시간)"
+                            "description": "읽을 파일 이름: show-up-passenger.parquet (승객 도착 시간 결과), simulation-pax.parquet (시뮬레이션 대기시간 결과), flight-schedule.parquet (항공편 스케줄 정보). ⚠️ Configuration questions should use simulation_state, NOT read_file."
                         }
                     },
                     "required": ["filename"],
@@ -117,6 +125,7 @@ class CommandParser:
         user_content: str,
         scenario_id: str,
         conversation_history: list = None,
+        simulation_state: dict = None,
         model: str = "gpt-4o-2024-08-06",
         temperature: float = 0.1
     ) -> Dict[str, Any]:
@@ -127,6 +136,7 @@ class CommandParser:
             user_content: 사용자 명령 (예: "checkin 프로세스 추가해줘")
             scenario_id: 시나리오 ID
             conversation_history: 이전 대화 이력 (옵션)
+            simulation_state: 현재 시뮬레이션 상태 (Zustand store에서 추출)
             model: 사용할 OpenAI 모델
             temperature: temperature 설정
 
@@ -138,6 +148,352 @@ class CommandParser:
             context = await self.command_executor.get_scenario_context(scenario_id)
             
             # 2. System Prompt 구성
+            # 현재 시뮬레이션 상태 정보 추가
+            simulation_status = ""
+            if simulation_state:
+                # 항공사 이름 리스트 생성
+                airline_names = simulation_state.get('airline_names', [])
+                airline_str = ', '.join(airline_names[:5]) if airline_names else 'None'
+                if len(airline_names) > 5:
+                    airline_str += f' and {len(airline_names) - 5} more'
+
+                # Passenger 데이터 추출
+                passenger_data = simulation_state.get('passenger', {})
+                passenger_total = passenger_data.get('total', 0)
+                pax_gen = passenger_data.get('pax_generation', {})
+                pax_demo = passenger_data.get('pax_demographics', {})
+                pax_arrival = passenger_data.get('pax_arrival_patterns', {})
+                chart_result = passenger_data.get('chartResult', {})
+
+                # 탑승률 요약
+                load_factor = pax_gen.get('default', {}).get('load_factor', 'Not set')
+
+                # 국적 요약
+                nationality_default = pax_demo.get('nationality', {}).get('default', {})
+                nationality_str = ', '.join([f"{k}: {v}%" for k, v in nationality_default.items() if k != 'flightCount']) if nationality_default else 'Not set'
+
+                # 프로필 요약
+                profile_default = pax_demo.get('profile', {}).get('default', {})
+                profile_str = ', '.join([f"{k}: {v}%" for k, v in profile_default.items() if k != 'flightCount']) if profile_default else 'Not set'
+
+                # 도착 패턴 요약
+                arrival_mean = pax_arrival.get('default', {}).get('mean', 'Not set')
+
+                simulation_status = f"""
+
+**CURRENT SIMULATION STATE (Real-time from browser):**
+
+**Basic Info:**
+- Airport: {simulation_state.get('airport', 'Not set')}
+- Date: {simulation_state.get('date', 'Not set')}
+
+**Flights:**
+- Selected: {simulation_state.get('flight_selected', 0)} out of {simulation_state.get('flight_total', 0)} flights
+- Airlines: {airline_str}
+  ⚠️ ALWAYS use full airline NAMES (e.g., "American Airlines"), NEVER codes (e.g., "AA")
+  ⚠️ Airlines mapping available in simulation_state['airlines_mapping']
+
+**Passengers (Summary):**
+- Total: {passenger_total} passengers
+- Load factor: {load_factor}%
+- Nationality: {nationality_str}
+- Profile: {profile_str}
+- Arrival pattern: Mean {arrival_mean} min before departure
+
+**Passengers (Full Data Available):**
+You have access to detailed passenger data in simulation_state['passenger']:
+
+**Data Flow: Configuration → Generation → Simulation**
+```
+1. pax_generation (config) → determines passenger count per flight
+2. pax_demographics (config) → assigns nationality, profile to each passenger
+3. pax_arrival_patterns (config) → assigns show_up_time to each passenger
+4. chartResult (generated data) → summary of created passengers
+5. Simulation → uses passenger fields for facility assignment
+```
+
+**1. pax_generation** - Passenger count generation (Load Factor)
+```
+{{
+  "default": {{"load_factor": 83}},
+  "rules": [
+    {{
+      "conditions": {{"operating_carrier_iata": ["AA"]}},
+      "value": {{"load_factor": 90}}
+    }}
+  ]
+}}
+```
+- **Purpose**: Determines how many passengers per flight
+- **load_factor**: Percentage of seats filled (e.g., 83% = 83 passengers per 100 seats)
+- **default**: Base load factor for all flights
+- **rules**: Override load factor for specific conditions
+  - Example: AA airline has 90% load factor
+- **Result**: Each flight generates N passengers based on (seats × load_factor)
+
+**2. pax_demographics** - Passenger attributes distribution
+
+**2a. nationality** - Nationality distribution
+```
+{{
+  "available_values": ["Domestic", "Foreign"],
+  "default": {{"Domestic": 59, "Foreign": 41}},
+  "rules": [
+    {{
+      "conditions": {{"flight_type": ["International"]}},
+      "value": {{"Domestic": 20, "Foreign": 80}}
+    }}
+  ]
+}}
+```
+- **Purpose**: Assigns nationality to each passenger
+- **available_values**: Possible nationality options
+- **default**: Base distribution (59% Domestic, 41% Foreign)
+- **rules**: Override for specific flight types
+  - Example: International flights → 80% Foreign
+- **Result**: Each passenger gets a `nationality` field
+- **Simulation use**: Checked in entry_conditions, passenger_conditions
+  - Example: travel_tax process only for Filipino passengers
+
+**2b. profile** - Passenger profile/type distribution
+```
+{{
+  "available_values": ["Regular", "Fast track", "Prm", "Ofw", "Crew", "Normal"],
+  "default": {{"Regular": 57, "Fast track": 43}},
+  "rules": []
+}}
+```
+- **Purpose**: Assigns passenger type/category
+- **default**: Base distribution (57% Regular, 43% Fast track)
+- **Result**: Each passenger gets a `profile` field
+- **Simulation use**: Determines which zone/facility to use
+  - Example: "PRIORITY" zone for Fast track passengers
+  - Example: "REGULAR" zone for Regular passengers
+
+**3. pax_arrival_patterns** - Airport arrival timing
+```
+{{
+  "default": {{"mean": 180, "std": 30}},
+  "rules": [
+    {{
+      "conditions": {{"flight_type": ["International"]}},
+      "value": {{"mean": 150, "std": 30}}
+    }}
+  ]
+}}
+```
+- **Purpose**: Determines when passengers arrive at airport (before flight departure)
+- **mean**: Average arrival time in minutes before departure
+  - Example: 180 = passengers arrive 3 hours before flight
+- **std**: Standard deviation (time variance)
+  - Example: std=30 means most arrive 150-210 minutes before
+- **default**: Base arrival pattern (domestic flights)
+- **rules**: Override for specific flight types
+  - Example: International flights → arrive 150 min (2.5 hours) before
+- **Result**: Each passenger gets a `show_up_time` field
+- **Simulation use**: Starting point of simulation (passenger arrival event)
+
+**4. chartResult** - Generated passenger data summary
+```
+{{
+  "total": 3731,
+  "chart_x_data": ["00:00", "01:00", "02:00", ...],
+  "chart_y_data": {{
+    "airline": [{{"name": "American Airlines", "y": [0, 0, 5, 10, ...]}}],
+    "nationality": [{{"name": "Domestic", "y": [...]}}],
+    "profile": [{{"name": "Regular", "y": [...]}}]
+  }},
+  "summary": {{"flights": 11, "avg_seats": 178.82, "load_factor": 83}}
+}}
+```
+- **Purpose**: Summary of generated passengers (NOT used in simulation, just reporting)
+- **total**: Total number of passengers created
+- **chart_x_data**: Time slots (hourly)
+- **chart_y_data**: Breakdown by category over time
+  - airline: How many passengers per hour per airline
+  - nationality: Distribution over time
+  - profile: Distribution over time
+- **summary**: Statistics
+  - flights: Number of flights
+  - avg_seats: Average seats per flight
+  - load_factor: Actual load factor achieved
+  - min_arrival_minutes: Earliest arrival time
+
+**How Passenger Fields Are Used in Simulation:**
+```
+Passenger row in simulation has fields:
+  - nationality: "Domestic" or "Foreign" or "Filipino" etc.
+  - profile: "Regular" or "Fast track" or "Prm" etc.
+  - operating_carrier_iata: "AA", "G3", etc.
+  - flight_type: "Domestic" or "International"
+  - show_up_time: timestamp of airport arrival
+
+These fields are checked against:
+  - entry_conditions: Who must go through this process?
+  - passenger_conditions: Who can use this facility at this time?
+
+Example:
+  entry_conditions: [{{"field": "nationality", "values": ["Filipino"]}}]
+  → Only passengers with nationality="Filipino" go through this process
+```
+
+**HOW TO ANSWER TIME-BASED QUESTIONS:**
+Example: "아메리칸 에어라인 승객이 몇시부터 몇시까지 몇명씩 와?"
+
+1. Find airline in chartResult.chart_y_data.airline:
+   ```
+   airline_data = next(item for item in chartResult['chart_y_data']['airline'] if item['name'] == 'American Airlines')
+   y_values = airline_data['y']  # [0, 0, 5, 10, 20, ...]
+   x_times = chartResult['chart_x_data']  # ["00:00", "01:00", "02:00", ...]
+   ```
+
+2. Analyze non-zero time slots:
+   ```
+   for i, count in enumerate(y_values):
+       if count > 0:
+           print(f"{{x_times[i]}} ~ {{x_times[i+1]}}: {{count}}명")
+   ```
+
+3. Answer in natural language: "아메리칸 에어라인 승객은 02:00~03:00에 5명, 03:00~04:00에 10명..."
+
+**Process Flow (Summary):**
+- Total: {simulation_state.get('process_count', 0)} processes
+- Names: {', '.join(simulation_state.get('process_names', [])) or 'None'}
+
+**Process Flow (Full Data Available):**
+You have access to detailed process data in simulation_state['process_flow']:
+
+**Structure:**
+```
+process_flow: [
+  {{
+    "step": 0,
+    "name": "check_in",
+    "travel_time_minutes": 1,
+    "process_time_seconds": 180,
+    "entry_conditions": [],
+    "zones": {{
+      "EAST KIOSK1": {{
+        "facilities": [{{
+          "id": "EAST KIOSK1_1",
+          "operating_schedule": {{
+            "time_blocks": [{{
+              "period": "2026-03-01 09:30:00-2026-03-01 14:00:00",
+              "process_time_seconds": 180,
+              "passenger_conditions": [],
+              "activate": true
+            }}]
+          }}
+        }}]
+      }}
+    }}
+  }}
+]
+```
+
+**Key Field Meanings:**
+
+1. **step**: Process order (0, 1, 2, ...)
+
+2. **name**: Process name (check_in, security, passport, immigration, travel_tax, etc.)
+
+3. **travel_time_minutes**: Walking time from PREVIOUS process to THIS process
+   - Example: 1 minute to walk from check_in to security
+   - Used to calculate arrival time: on_pred = prev_done_time + travel_time_minutes
+
+4. **process_time_seconds**: Time to pass through the facility
+   - ⚠️ IMPORTANT: time_block level value is actually used in simulation
+   - Process level value is "default" (for UI display)
+   - Each time block can have different processing times
+
+5. **entry_conditions**: Who must go through this process
+   - Example: {{"field": "nationality", "values": ["Filipino"]}} → Only Filipino passengers
+   - Example: {{"field": "flight_type", "values": ["International"]}} → Only international flights
+   - If matched → process proceeds
+   - If not matched → status = "skipped"
+
+6. **zones**: Physical/logical area groups
+   - Example: "EAST KIOSK1", "WEST MANNED", "PRIORITY", "REGULAR"
+   - Each zone contains multiple facilities
+
+7. **facilities**: Actual service counters/machines
+   - Example: "EAST KIOSK1_1", "EAST KIOSK1_2" → Kiosk machine numbers
+   - Each has operating_schedule with time_blocks
+
+8. **time_blocks**: Time-specific operating policies
+   - Why needed? Different policies by time:
+     * Peak hours → longer processing time
+     * Specific hours → specific airlines only
+     * Lunch break → facility closed
+   - Each block has:
+     * **period**: Operating time range (e.g., "09:30:00-14:00:00")
+     * **process_time_seconds**: Processing time for THIS time period
+     * **passenger_conditions**: Who can use this facility at this time
+     * **activate**: true = operating, false = closed (excluded from simulation)
+
+9. **passenger_conditions** (facility level):
+   - Who can use THIS facility at THIS time
+   - Example: {{"field": "operating_carrier_iata", "values": ["G3"]}} → G3 airline only
+   - **Difference from entry_conditions:**
+     * entry_conditions: Process-wide access (process level)
+     * passenger_conditions: Facility-specific access (time_block level)
+
+**How Simulation Works:**
+```
+Passenger arrives at process
+  ↓
+Check entry_conditions (if fail → skipped)
+  ↓
+Arrival time = prev_done_time + travel_time_minutes
+  ↓
+Find available facilities:
+  - Is current time in period range?
+  - Is activate = true?
+  - Do passenger_conditions match?
+  ↓
+Select fastest facility
+  ↓
+Processing: start_time + process_time_seconds = done_time
+  ↓
+Move to next process
+```
+
+**Example Questions You Can Answer:**
+- "check_in 시설 통과하는 데 얼마나 걸려?" → Look at time_blocks[].process_time_seconds
+- "security까지 이동하는 데 시간 얼마나?" → travel_time_minutes
+- "Filipino만 거치는 프로세스 뭐야?" → Check entry_conditions
+- "G3 항공사 승객은 어느 시설 사용해?" → Check passenger_conditions
+- "09:30-14:00에 운영하는 시설은?" → Check period and activate=true
+
+**Workflow:**
+- Flights tab: {'✅ Completed' if simulation_state.get('workflow', {}).get('flights_completed') else '❌ Not completed'}
+- Passengers tab: {'✅ Completed' if simulation_state.get('workflow', {}).get('passengers_completed') else '❌ Not completed'}
+
+**BUTTON CONDITIONS:**
+- Run Simulation: {'✅ Enabled' if simulation_state.get('process_count', 0) > 0 else '❌ Disabled (Need ≥1 process)'}
+- Save: ✅ Always enabled
+- Delete: ✅ Always enabled
+
+**CRITICAL ANSWERING RULES:**
+⚠️ **PASSENGER DATA IS ALREADY IN SIMULATION_STATE - NEVER SAY "NOT CONFIGURED"!**
+
+✅ DO:
+1. Use simulation_state['passenger'] for ALL passenger questions
+2. If passenger.total > 0, data IS configured and available
+3. Use chartResult.chart_y_data for time-based questions
+4. Use full airline names from airlines_mapping
+5. Be specific with numbers from the data
+6. Use "chat" action to answer passenger questions directly
+
+❌ DON'T:
+1. NEVER use read_file for passenger data
+2. NEVER say "not configured" if passenger.total > 0
+3. NEVER mention S3, JSON files, or "saved data"
+4. NEVER ignore simulation_state['passenger'] data
+
+**If passenger data exists (total > 0), YOU MUST USE IT!**
+"""
+
             system_prompt = f"""You are an AI assistant for the Flexa airport simulation system.
 
 **LANGUAGE RULES:**
@@ -145,8 +501,8 @@ class CommandParser:
 - If the user asks in Korean, respond in Korean
 - If the user asks in another language, respond in that language
 - Match the language of the user's question
-
-Current scenario information:
+{simulation_status}
+Current scenario information (from S3):
 - Scenario ID: {scenario_id}
 - Process count: {context.get('process_count', 0)}
 - Current processes: {', '.join(context.get('process_names', [])) or 'None'}
@@ -156,7 +512,7 @@ Available commands:
 2. Remove process: "remove checkin process", "보안검색 단계 제거"
 3. List processes: "show process list", "프로세스 목록 보여줘"
 4. List files: "list files", "무슨 파일 있는지 확인해"
-5. Read/analyze file: "analyze metadata-for-frontend.json", "파일 내용 보여줘"
+5. Read/analyze file: "analyze simulation-pax.parquet", "대기시간 결과 파일 보여줘"
 
 Important rules:
 - Process names are normalized to English (e.g., "체크인" -> "check_in", "checkin" -> "check_in")
@@ -180,7 +536,32 @@ Analyze the user's command and call the appropriate function."""
                 messages.extend(recent_history)
 
             # 현재 사용자 메시지 추가
-            messages.append(Message(role="user", content=user_content))
+            # Passenger/Process 데이터가 있으면 user message에 컨텍스트 추가
+            user_message_content = user_content
+            context_hints = []
+
+            if simulation_state:
+                # Passenger 데이터 힌트
+                if simulation_state.get('passenger', {}).get('total', 0) > 0:
+                    passenger_data = simulation_state.get('passenger', {})
+                    context_hints.append(f"Passenger data: {passenger_data.get('total', 0)} passengers with full details (chartResult, demographics, etc.)")
+
+                # Process flow 데이터 힌트
+                if simulation_state.get('process_flow'):
+                    process_flow = simulation_state.get('process_flow', [])
+                    process_count = len(process_flow)
+                    process_names = [p.get('name', '') for p in process_flow]
+                    context_hints.append(f"Process flow data: {process_count} processes ({', '.join(process_names)}) with zones, facilities, time_blocks, entry_conditions")
+
+            if context_hints:
+                context_str = "\n".join([f"- {hint}" for hint in context_hints])
+                user_message_content = f"""{user_content}
+
+[CONTEXT: Real-time simulation data available:
+{context_str}
+Use simulation_state to answer process-related questions.]"""
+
+            messages.append(Message(role="user", content=user_message_content))
             
             # 4. Function Calling 요청
             functions = self._get_functions()
@@ -268,20 +649,22 @@ Analyze the user's command and call the appropriate function."""
         filename: str,
         file_content: Any,
         user_query: str,
+        simulation_state: dict = None,
         model: str = "gpt-4o-2024-08-06",
         temperature: float = 0.1
     ) -> Dict[str, Any]:
         """
         파일 내용을 AI에게 전달하여 분석
-        
+
         Args:
             scenario_id: 시나리오 ID
             filename: 파일 이름
             file_content: 파일 내용
             user_query: 사용자 질문
+            simulation_state: 현재 시뮬레이션 상태 (Zustand store에서 추출)
             model: 사용할 모델
             temperature: temperature
-        
+
         Returns:
             AI 분석 결과
         """
@@ -302,6 +685,24 @@ Analyze the user's command and call the appropriate function."""
             if len(content_str) > 60000:
                 content_str = content_str[:60000] + "\n\n... (내용이 길어 일부만 표시했습니다)"
 
+            # 🆕 현재 시뮬레이션 상태 정보 추가
+            simulation_status = ""
+            if simulation_state:
+                simulation_status = f"""
+
+**CURRENT SIMULATION STATE (Real-time from browser):**
+- Airport: {simulation_state.get('airport', 'Not set')}
+- Date: {simulation_state.get('date', 'Not set')}
+- Flights configured: {simulation_state.get('flight_count', 0)} flights
+- Passengers configured: {'Yes' if simulation_state.get('passenger_configured') else 'No'}
+- Process flow: {simulation_state.get('process_count', 0)} processes ({', '.join(simulation_state.get('process_names', [])) or 'None'})
+- Workflow status:
+  * Flights tab completed: {'Yes' if simulation_state.get('workflow', {}).get('flights_completed') else 'No'}
+  * Passengers tab completed: {'Yes' if simulation_state.get('workflow', {}).get('passengers_completed') else 'No'}
+
+**IMPORTANT:** This is the current state in the user's browser. The file data below might be outdated if the user hasn't saved recently.
+"""
+
             system_prompt = f"""You are a data analyst for the Flexa airport simulation system. Explain things in a user-friendly and specific way.
 
 **LANGUAGE RULES (HIGHEST PRIORITY):**
@@ -309,7 +710,7 @@ Analyze the user's command and call the appropriate function."""
 - If the user asks in Korean, respond in Korean
 - If the user asks in another language, respond in that language
 - Match the language of the user's question
-
+{simulation_status}
 Current scenario ID: {scenario_id}
 
 Simulation data:

@@ -68,6 +68,10 @@ class CommandRequest(BaseModel):
         default=None,
         description="이전 대화 이력 (role과 content 포함)"
     )
+    simulation_state: Optional[dict] = Field(
+        default=None,
+        description="현재 시뮬레이션 상태 (Zustand store에서 추출한 실시간 상태)"
+    )
     model: str = Field(
         default="gpt-4o-2024-08-06",
         description="사용할 OpenAI 모델 (Structured Outputs 지원 모델 권장)"
