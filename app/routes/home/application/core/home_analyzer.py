@@ -1715,8 +1715,13 @@ class HomeAnalyzer:
                 continue
             block_start, block_end = period_bounds
 
-            # If schedule dates don't align with the simulation day, align by time-of-day.
-            if block_start.date() != start.date() and block_end.date() != start.date():
+            # Date alignment for recurring schedules vs multi-day continuous schedules
+            # - If slot's date is within block's date range: use exact block times (no alignment)
+            # - If slot's date is outside block's date range: apply time-of-day alignment (recurring)
+            # Example: Block 12/26 20:00 ~ 12/28 00:00, Slot 12/27 01:00 → no alignment (continuous)
+            # Example: Block 01/01 20:00 ~ 01/01 23:00, Slot 12/27 21:00 → alignment (recurring)
+            if not (block_start.date() <= start.date() <= block_end.date()):
+                # Slot date is outside block's date range, apply time-of-day alignment
                 duration = block_end - block_start
                 block_start = pd.Timestamp.combine(start.date(), block_start.time())
                 block_end = block_start + duration
