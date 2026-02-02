@@ -276,6 +276,8 @@ Only use read_file when the user asks about simulation RESULTS (.parquet files).
                         facility_status = f"{active_facility_count} active"
 
                     # 🆕 Helper function to translate field names to human-readable descriptions
+                    airlines_mapping = simulation_state.get('airlines_mapping', {})
+
                     def translate_condition(field, values):
                         """Translate field/values to human-readable description"""
                         field_translations = {
@@ -292,9 +294,15 @@ Only use read_file when the user asks about simulation RESULTS (.parquet files).
 
                         # Format values nicely
                         if isinstance(values, list):
-                            values_str = ', '.join(str(v) for v in values)
+                            if field == 'operating_carrier_iata':
+                                values_str = ', '.join(f"{airlines_mapping.get(v, v)} ({v})" for v in values)
+                            else:
+                                values_str = ', '.join(str(v) for v in values)
                         else:
-                            values_str = str(values)
+                            if field == 'operating_carrier_iata':
+                                values_str = f"{airlines_mapping.get(values, values)} ({values})"
+                            else:
+                                values_str = str(values)
 
                         return f"{field_name}: {values_str}"
 
