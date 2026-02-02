@@ -177,15 +177,20 @@ async def execute_command(
             )
         
         elif action == "list_processes":
-            context = await executor.get_scenario_context(scenario_id)
-            process_list = context.get("process_names", [])
-            
+            # 🔥 우선 simulation_state (브라우저 실시간 상태)를 사용
+            # simulation_state가 없을 때만 S3에서 가져옴
+            if request.simulation_state and request.simulation_state.get("process_names"):
+                process_list = request.simulation_state.get("process_names", [])
+            else:
+                context = await executor.get_scenario_context(scenario_id)
+                process_list = context.get("process_names", [])
+
             if not process_list:
                 message = "현재 설정된 프로세스가 없습니다."
             else:
                 formatted_list = "\n".join([f"- {name}" for name in process_list])
                 message = f"현재 프로세스 목록 ({len(process_list)}개):\n{formatted_list}"
-            
+
             return CommandResponse(
                 success=True,
                 message=message,
