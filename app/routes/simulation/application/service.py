@@ -139,10 +139,14 @@ class SimulationService:
                 detail="Failed to deactivate scenarios",
             )
 
-    async def delete_scenarios_permanently(
+    async def delete_scenarios(
         self, db: AsyncSession, scenario_ids: List[str], user_id: str
     ):
-        """권한 검증을 포함한 시나리오 영구 삭제 (Supabase + S3)"""
+        """권한 검증을 포함한 시나리오 소프트 삭제 (is_active=False)
+        
+        S3 데이터와 Supabase 레코드는 유지하고, is_active 플래그만 False로 변경합니다.
+        목록 조회 시 is_active=True인 시나리오만 표시되므로 사용자에게는 삭제된 것처럼 보입니다.
+        """
         try:
             # 🔒 각 시나리오에 대한 권한 검증
             for scenario_id in scenario_ids:
@@ -155,24 +159,16 @@ class SimulationService:
                         detail=f"Scenario '{scenario_id}' not found or you don't have permission to access it.",
                     )
 
-            # 🗑️ S3 데이터 삭제 (실패해도 계속 진행)
-            for scenario_id in scenario_ids:
-                try:
-                    await self.s3_manager.delete_scenario_data(scenario_id)
-                    logger.info(f"✅ S3 data deleted for scenario {scenario_id}")
-                except Exception as s3_error:
-                    logger.warning(f"⚠️ Failed to delete S3 data for {scenario_id}: {str(s3_error)}")
-
-            # 💾 Supabase에서 영구 삭제
-            await self.simulation_repo.delete_scenarios_permanently(db, scenario_ids)
-            logger.info(f"✅ Permanently deleted {len(scenario_ids)} scenarios")
+            # 💾 Supabase에서 소프트 삭제 (is_active=False)
+            await self.simulation_repo.deactivate_scenario_information(db, scenario_ids)
+            logger.info(f"✅ Soft deleted {len(scenario_ids)} scenarios (is_active=False)")
 
             return {"message": f"Successfully deleted {len(scenario_ids)} scenarios"}
 
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(f"Failed to permanently delete scenarios {scenario_ids}: {str(e)}")
+            logger.error(f"Failed to soft delete scenarios {scenario_ids}: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to delete scenarios",
