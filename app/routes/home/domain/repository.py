@@ -1,5 +1,5 @@
 from abc import ABCMeta, abstractmethod
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 import pandas as pd
 
@@ -30,4 +30,9 @@ class IHomeRepository(metaclass=ABCMeta):
     @abstractmethod
     async def save_cached_response(self, scenario_id: str, cache_filename: str, data: dict) -> bool:
         """계산된 응답을 캐시에 저장"""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def delete_old_caches(self, scenario_id: str, prefix: str, keep_filename: str) -> List[str]:
+        """현재 버전을 제외한 이전 캐시 파일 삭제"""
         raise NotImplementedError

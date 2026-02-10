@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 
 import pandas as pd
 from loguru import logger
@@ -80,3 +80,31 @@ class HomeRepository(IHomeRepository):
         else:
             logger.error(f"  ❌ [REPO] FAILED to save cache to S3")
         return success
+
+    async def delete_old_caches(self, scenario_id: str, prefix: str, keep_filename: str) -> List[str]:
+        """현재 버전을 제외한 이전 캐시 파일 삭제
+        
+        Args:
+            scenario_id: 시나리오 ID
+            prefix: 캐시 파일 prefix (예: "home-static-response-")
+            keep_filename: 삭제하지 않을 현재 캐시 파일명
+            
+        Returns:
+            삭제된 파일명 리스트
+        """
+        all_files = await self.s3_manager.list_files_async(scenario_id)
+        old_caches = [
+            f for f in all_files
+            if f.startswith(prefix) and f != keep_filename
+        ]
+        
+        deleted = []
+        for old_file in old_caches:
+            success = await self.s3_manager.delete_json_async(scenario_id, old_file)
+            if success:
+                deleted.append(old_file)
+                logger.info(f"  🗑️ [REPO] Deleted old cache: {old_file}")
+            else:
+                logger.warning(f"  ⚠️ [REPO] Failed to delete old cache: {old_file}")
+        
+        return deleted

@@ -1,3 +1,5 @@
+import hashlib
+import glob
 import os
 from typing import Any, Dict, List, Optional
 
@@ -6,6 +8,38 @@ from loguru import logger
 
 from app.routes.home.application.core.home_analyzer import HomeAnalyzer
 from app.routes.home.infra.repository import HomeRepository
+
+
+def _compute_code_hash() -> str:
+    """계산 로직 관련 소스 파일들의 해시를 생성합니다.
+    
+    서버 시작 시 1회 계산되며, 코드가 변경되면 해시가 바뀌어
+    캐시가 자동으로 무효화됩니다.
+    """
+    hasher = hashlib.md5()
+    
+    # 캐시에 영향을 주는 소스 파일들의 디렉토리
+    base_dir = os.path.dirname(__file__)
+    target_dirs = [
+        base_dir,                           # application/ (service.py 등)
+        os.path.join(base_dir, "core"),     # application/core/ (home_analyzer.py 등)
+    ]
+    
+    file_paths = []
+    for target_dir in target_dirs:
+        file_paths.extend(sorted(glob.glob(os.path.join(target_dir, "*.py"))))
+    
+    for file_path in file_paths:
+        with open(file_path, "rb") as f:
+            hasher.update(f.read())
+    
+    code_hash = hasher.hexdigest()[:8]  # 앞 8자리만 사용
+    logger.info(f"[CACHE] Code hash computed: {code_hash} (from {len(file_paths)} files)")
+    return code_hash
+
+
+# 서버 시작 시 1회 계산 (모듈 로드 시점)
+_CODE_HASH = _compute_code_hash()
 
 
 class HomeService:
@@ -80,16 +114,16 @@ class HomeService:
         """KPI와 무관한 정적 데이터 반환 (S3 캐싱 지원)
         
         로직:
-        1. S3에서 캐시된 응답 파일 확인
-        2. 캐시가 있고 유효하면 (parquet보다 최신) → 캐시 반환
+        1. S3에서 캐시된 응답 파일 확인 (코드 해시 포함 파일명)
+        2. 캐시가 있고 유효하면 (parquet보다 최신 + 코드 해시 일치) → 캐시 반환
         3. 캐시가 없거나 오래되었으면 → 새로 계산 + S3에 저장
         """
         logger.info(f"=" * 80)
         logger.info(f"🔍 [CACHE CHECK START] scenario_id={scenario_id}")
-        cache_filename = "home-static-response.json"
+        cache_filename = f"home-static-response-{_CODE_HASH}.json"
         
         # 1. 캐시가 유효한지 확인 (parquet 수정일 비교)
-        logger.info(f"📋 Checking cache validity for: {cache_filename}")
+        logger.info(f"📋 Checking cache validity for: {cache_filename} (code_hash={_CODE_HASH})")
         is_valid = await self.home_repo.is_cache_valid(scenario_id, cache_filename)
         logger.info(f"📊 Cache validation result: is_valid={is_valid}")
         
@@ -133,6 +167,17 @@ class HomeService:
         # 4. 계산된 결과를 S3에 캐시로 저장
         save_success = await self.home_repo.save_cached_response(scenario_id, cache_filename, result)
         logger.info(f"💾 Cache save result: success={save_success}")
+        
+        # 5. 이전 버전 캐시 파일 정리
+        if save_success:
+            deleted = await self.home_repo.delete_old_caches(
+                scenario_id,
+                prefix="home-static-response-",
+                keep_filename=cache_filename,
+            )
+            if deleted:
+                logger.info(f"🗑️ Deleted {len(deleted)} old cache(s): {deleted}")
+        
         logger.info(f"=" * 80)
         
         return result
