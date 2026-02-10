@@ -33,8 +33,8 @@ from packages.postgresql.queries import SELECT_AIRPORT_FLIGHTS_BOTH
 class FlightScheduleStorage:
     """항공편 스케줄 데이터 저장 전담 클래스"""
 
-    def __init__(self):
-        self.s3_manager = S3Manager()
+    def __init__(self, s3_manager: S3Manager):
+        self.s3_manager = s3_manager
 
     async def fetch_and_store(
         self,

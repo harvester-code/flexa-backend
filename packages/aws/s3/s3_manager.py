@@ -2,6 +2,7 @@ import io
 import json
 from typing import Optional, List, Union
 from botocore.exceptions import ClientError
+from loguru import logger
 
 import pandas as pd
 
@@ -41,15 +42,14 @@ class S3Manager:
                     df = pd.read_parquet(io.BytesIO(data))
                     return df.to_dict('records') if as_dict else df
         except Exception as e:
-            # 상세한 로깅으로 디버깅 지원
-            print(f"Error downloading parquet {filename} for {scenario_id}: {e}")
+            logger.error(f"[S3] Error downloading parquet {filename} for {scenario_id}: {e}")
             return None
 
     async def get_json_async(self, scenario_id: str, filename: str) -> Optional[dict]:
         """S3에서 JSON 파일 다운로드 (비동기)"""
         try:
             key = f"{scenario_id}/{filename}"
-            print(f"    [S3Manager] GET s3://{self.bucket_name}/{key}")
+            logger.debug(f"[S3] GET s3://{self.bucket_name}/{key}")
             async with await get_s3_client() as s3_client:
                 response = await s3_client.get_object(
                     Bucket=self.bucket_name,
@@ -58,10 +58,10 @@ class S3Manager:
                 async with response["Body"] as stream:
                     data = await stream.read()
                     result = json.loads(data.decode("utf-8"))
-                    print(f"    [S3Manager] ✅ Successfully downloaded JSON ({len(data)} bytes)")
+                    logger.debug(f"[S3] Successfully downloaded JSON ({len(data)} bytes)")
                     return result
         except Exception as e:
-            print(f"    [S3Manager] ❌ Error downloading json {filename} for {scenario_id}: {e}")
+            logger.error(f"[S3] Error downloading json {filename} for {scenario_id}: {e}")
             return None
 
     async def save_json_async(self, scenario_id: str, filename: str, data: dict):
@@ -69,7 +69,7 @@ class S3Manager:
         try:
             json_content = json.dumps(data, ensure_ascii=False, indent=2)
             key = f"{scenario_id}/{filename}"
-            print(f"    [S3Manager] PUT s3://{self.bucket_name}/{key} ({len(json_content)} bytes)")
+            logger.debug(f"[S3] PUT s3://{self.bucket_name}/{key} ({len(json_content)} bytes)")
             
             async with await get_s3_client() as s3_client:
                 await s3_client.put_object(
@@ -79,10 +79,10 @@ class S3Manager:
                     ContentType="application/json",
                     ContentEncoding="utf-8",
                 )
-                print(f"    [S3Manager] ✅ Successfully uploaded JSON to S3")
+                logger.debug(f"[S3] Successfully uploaded JSON to S3")
                 return True
         except Exception as e:
-            print(f"    [S3Manager] ❌ Error uploading json {filename} for {scenario_id}: {e}")
+            logger.error(f"[S3] Error uploading json {filename} for {scenario_id}: {e}")
             return False
 
     async def delete_json_async(self, scenario_id: str, filename: str) -> bool:
@@ -95,7 +95,7 @@ class S3Manager:
                 )
                 return True
         except Exception as e:
-            print(f"Error deleting json {filename} for {scenario_id}: {e}")
+            logger.error(f"[S3] Error deleting json {filename} for {scenario_id}: {e}")
             return False
 
     async def delete_scenario_data(self, scenario_id: str) -> bool:
@@ -124,11 +124,11 @@ class S3Manager:
                         Bucket=self.bucket_name,
                         Delete={'Objects': delete_keys}
                     )
-                    print(f"Deleted {len(delete_keys)} objects from S3 for scenario {scenario_id}")
+                    logger.info(f"[S3] Deleted {len(delete_keys)} objects for scenario {scenario_id}")
 
                 return True
         except Exception as e:
-            print(f"Error deleting scenario data for {scenario_id}: {e}")
+            logger.error(f"[S3] Error deleting scenario data for {scenario_id}: {e}")
             return False
 
     async def save_parquet_async(self, scenario_id: str, filename: str, df: pd.DataFrame) -> bool:
@@ -157,7 +157,7 @@ class S3Manager:
                 )
                 return True
         except Exception as e:
-            print(f"Error uploading parquet {filename} for {scenario_id}: {e}")
+            logger.error(f"[S3] Error uploading parquet {filename} for {scenario_id}: {e}")
             return False
 
     async def check_exists_async(self, scenario_id: str, filename: str) -> bool:
@@ -180,10 +180,10 @@ class S3Manager:
         except ClientError as e:
             if e.response['Error']['Code'] == '404':
                 return False
-            print(f"Error checking existence of {filename} for {scenario_id}: {e}")
+            logger.error(f"[S3] Error checking existence of {filename} for {scenario_id}: {e}")
             return False
         except Exception as e:
-            print(f"Error checking existence of {filename} for {scenario_id}: {e}")
+            logger.error(f"[S3] Error checking existence of {filename} for {scenario_id}: {e}")
             return False
 
     async def get_metadata_async(self, scenario_id: str, filename: str) -> Optional[dict]:
@@ -198,7 +198,7 @@ class S3Manager:
         """
         try:
             key = f"{scenario_id}/{filename}"
-            print(f"    [S3Manager] HEAD s3://{self.bucket_name}/{key}")
+            logger.debug(f"[S3] HEAD s3://{self.bucket_name}/{key}")
             async with await get_s3_client() as s3_client:
                 response = await s3_client.head_object(
                     Bucket=self.bucket_name,
@@ -210,16 +210,16 @@ class S3Manager:
                     'content_type': response.get('ContentType'),
                     'etag': response.get('ETag'),
                 }
-                print(f"    [S3Manager] ✅ Metadata retrieved: last_modified={metadata['last_modified']}")
+                logger.debug(f"[S3] Metadata retrieved: last_modified={metadata['last_modified']}")
                 return metadata
         except ClientError as e:
             if e.response['Error']['Code'] == '404':
-                print(f"    [S3Manager] ⚠️ File not found (404): {filename}")
+                logger.debug(f"[S3] File not found (404): {scenario_id}/{filename}")
                 return None
-            print(f"    [S3Manager] ❌ Error getting metadata for {filename} in {scenario_id}: {e}")
+            logger.error(f"[S3] Error getting metadata for {filename} in {scenario_id}: {e}")
             return None
         except Exception as e:
-            print(f"    [S3Manager] ❌ Error getting metadata for {filename} in {scenario_id}: {e}")
+            logger.error(f"[S3] Error getting metadata for {filename} in {scenario_id}: {e}")
             return None
 
     async def list_files_async(self, scenario_id: str, prefix: str = "") -> List[str]:
@@ -252,7 +252,7 @@ class S3Manager:
 
                 return files
         except Exception as e:
-            print(f"Error listing files for {scenario_id}: {e}")
+            logger.error(f"[S3] Error listing files for {scenario_id}: {e}")
             return []
 
     async def copy_scenario_data(self, source_scenario_id: str, target_scenario_id: str) -> bool:
@@ -272,7 +272,7 @@ class S3Manager:
             files = await self.list_files_async(source_scenario_id)
 
             if not files:
-                print(f"No files to copy for scenario {source_scenario_id}")
+                logger.info(f"[S3] No files to copy for scenario {source_scenario_id}")
                 return True  # 복사할 파일이 없어도 성공으로 처리
 
             # 2. 각 파일을 복사
@@ -294,15 +294,15 @@ class S3Manager:
                             Key=target_key
                         )
 
-                        print(f"✅ Copied: {source_key} → {target_key}")
+                        logger.debug(f"[S3] Copied: {source_key} → {target_key}")
 
                     except Exception as file_error:
-                        print(f"⚠️ Failed to copy {file_path}: {file_error}")
+                        logger.warning(f"[S3] Failed to copy {file_path}: {file_error}")
                         # 개별 파일 복사 실패는 경고만 기록하고 계속 진행
 
-            print(f"✅ S3 data copy completed: {source_scenario_id} → {target_scenario_id}")
+            logger.info(f"[S3] Data copy completed: {source_scenario_id} → {target_scenario_id}")
             return True
 
         except Exception as e:
-            print(f"❌ Error copying scenario data from {source_scenario_id} to {target_scenario_id}: {e}")
+            logger.error(f"[S3] Error copying scenario data from {source_scenario_id} to {target_scenario_id}: {e}")
             return False

@@ -1,5 +1,4 @@
 # Standard Library
-import asyncio
 from datetime import datetime
 from typing import List
 
@@ -17,7 +16,6 @@ from app.routes.simulation.infra.models import (
     ScenarioInformation,
     UserInformation,
 )
-from packages.aws.s3.s3_manager import S3Manager
 
 
 class SimulationRepository(ISimulationRepository):
@@ -32,7 +30,7 @@ class SimulationRepository(ISimulationRepository):
     """
 
     def __init__(self):
-        self.s3_manager = S3Manager()
+        pass
 
     # =====================================
     # 1. 시나리오 관리 (기본 CRUD 기능)
@@ -43,14 +41,16 @@ class SimulationRepository(ISimulationRepository):
         db: AsyncSession,
         user_id: str,
     ):
-        """시나리오 목록 조회 (현재 사용자의 모든 시나리오)"""
+        """시나리오 목록 조회 (현재 사용자의 모든 시나리오)
+        
+        DB의 has_simulation_data 컬럼을 사용하여 시뮬레이션 데이터 존재 여부를 판단합니다.
+        (S3 HEAD 요청 없이 DB 조회만으로 처리)
+        """
         from loguru import logger
         
-        # 디버깅: user_id 확인
         logger.info(f"🔍 fetch_scenario_information called with user_id: {user_id}")
         
         async with db.begin():
-            # ORM을 사용한 JOIN 쿼리
             stmt = (
                 select(
                     ScenarioInformation,
@@ -73,67 +73,14 @@ class SimulationRepository(ISimulationRepository):
             )
 
             result = await db.execute(stmt)
-
-            # 결과를 리스트로 반환
-            scenarios = []
-            scenarios_to_update = []  # 업데이트가 필요한 시나리오들
-            
-            # 디버깅: 조회된 시나리오 수 확인
             rows = result.all()
             logger.info(f"🔍 Found {len(rows)} scenarios for user_id: {user_id}")
-            
-            # 🚀 병렬 처리: 모든 시나리오의 S3 메타데이터를 동시에 조회
-            logger.info(f"⚡ [PARALLEL] Fetching S3 metadata for {len(rows)} scenarios in parallel...")
-            
-            async def get_metadata_for_scenario(scenario_id: str):
-                """단일 시나리오의 S3 메타데이터 조회"""
-                if scenario_id:
-                    return await self.s3_manager.get_metadata_async(
-                        scenario_id=scenario_id,
-                        filename="simulation-pax.parquet"
-                    )
-                return None
-            
-            # 모든 메타데이터 요청을 병렬로 실행
-            metadata_tasks = [
-                get_metadata_for_scenario(row[0].scenario_id) 
-                for row in rows
-            ]
-            metadata_results = await asyncio.gather(*metadata_tasks)
-            logger.info(f"✅ [PARALLEL] Completed S3 metadata fetch in parallel")
-            
-            # 결과를 사용하여 시나리오 목록 구성
-            for idx, row in enumerate(rows):
-                scenario_info = row[0]  # ScenarioInformation 객체
-                file_metadata = metadata_results[idx]  # 병렬로 가져온 메타데이터
 
-                # S3 파일 존재 여부 및 메타데이터 확인
-                has_simulation_data = False
-                file_last_modified = None
-                
-                if file_metadata:
-                    has_simulation_data = True
-                    file_last_modified = file_metadata.get('last_modified')
-                
-                # 🆕 자동 시뮬레이션 시작 시간 업데이트 로직 (S3 파일 저장 시간 사용)
-                simulation_start_at = scenario_info.simulation_start_at
-                if (has_simulation_data and 
-                    scenario_info.simulation_start_at is None and 
-                    str(scenario_info.user_id) == user_id):  # 본인 시나리오만
-                    
-                    # S3 파일 시간 또는 현재 시간 사용
-                    file_time = file_last_modified if file_last_modified else datetime.utcnow()
-                    
-                    # DB에서 자동으로 초 단위로 truncate하므로 Python에서 처리 불필요
-                    scenarios_to_update.append({
-                        'scenario_id': scenario_info.scenario_id,
-                        'simulation_start_at': file_time
-                    })
-                    # 응답에는 파일 시간 사용 (DB 저장 시 자동으로 초 단위가 됨)
-                    simulation_start_at = file_time
+            scenarios = []
+            for row in rows:
+                scenario_info = row[0]
 
                 scenario_dict = {
-                    # ScenarioInformation 필드들
                     "id": scenario_info.id,
                     "scenario_id": scenario_info.scenario_id,
                     "user_id": str(scenario_info.user_id),
@@ -144,50 +91,20 @@ class SimulationRepository(ISimulationRepository):
                     "memo": scenario_info.memo,
                     "target_flight_schedule_date": scenario_info.target_flight_schedule_date,
                     "is_active": scenario_info.is_active,
-                    "simulation_start_at": simulation_start_at,
+                    "simulation_start_at": scenario_info.simulation_start_at,
                     "created_at": scenario_info.created_at,
                     "updated_at": scenario_info.updated_at,
                     "metadata_updated_at": scenario_info.metadata_updated_at,
-                    "simulation_status": scenario_info.simulation_status,  # 🔴 시뮬레이션 상태
-                    "simulation_end_at": scenario_info.simulation_end_at,  # 🔴 시뮬레이션 종료 시각
+                    "simulation_status": scenario_info.simulation_status,
+                    "simulation_end_at": scenario_info.simulation_end_at,
                     # UserInformation 필드들
                     "first_name": row[1],
                     "last_name": row[2],
                     "email": row[3],
-                    # S3 파일 존재 여부 추가
-                    "has_simulation_data": has_simulation_data,
+                    # DB 컬럼에서 직접 조회 (S3 HEAD 요청 불필요)
+                    "has_simulation_data": scenario_info.has_simulation_data,
                 }
                 scenarios.append(scenario_dict)
-            
-            # 🆕 일괄 DB 업데이트 (변경이 있는 경우에만, S3 파일 저장 시간 사용)
-            if scenarios_to_update:
-                try:
-                    # 각 시나리오별로 개별 업데이트 (서로 다른 시간 저장)
-                    for scenario_update in scenarios_to_update:
-                        scenario_id = scenario_update['scenario_id']
-                        start_time = scenario_update['simulation_start_at']
-                        
-                        update_stmt = (
-                            update(ScenarioInformation)
-                            .where(ScenarioInformation.scenario_id == scenario_id)
-                            .values(
-                                simulation_start_at=start_time,
-                                updated_at=func.timezone('utc', func.now())  # DB 기본값으로 자동 truncate
-                            )
-                        )
-                        await db.execute(update_stmt)
-                    
-                    await db.commit()
-                    
-                    # 성공 로그
-                    scenario_ids = [s['scenario_id'] for s in scenarios_to_update]
-                    print(f"✅ Updated simulation_start_at for {len(scenario_ids)} scenarios using S3 file timestamps")
-                    
-                except Exception as e:
-                    # DB 업데이트 실패해도 목록 조회는 계속 진행
-                    scenario_ids = [s['scenario_id'] for s in scenarios_to_update]
-                    print(f"⚠️ Warning: Failed to update simulation_start_at for scenarios {scenario_ids}: {e}")
-                    await db.rollback()
 
             return scenarios
 
@@ -287,7 +204,8 @@ class SimulationRepository(ISimulationRepository):
                     simulation_start_at=current_time,
                     simulation_status="processing",  # 🔴 즉시 processing 상태로 변경
                     simulation_error=None,  # 🔴 이전 에러 메시지 리셋
-                    simulation_end_at=None  # 🔴 이전 종료 시각 리셋
+                    simulation_end_at=None,  # 🔴 이전 종료 시각 리셋
+                    has_simulation_data=False,  # 🔴 재실행 시 시뮬레이션 데이터 플래그 리셋
                 )
             )
             

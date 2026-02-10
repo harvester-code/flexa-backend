@@ -41,9 +41,9 @@ class SimulationService:
         self.simulation_repo = simulation_repo
         self.s3_manager = s3_manager
 
-        # Storage layer instances
-        self.flight_storage = FlightScheduleStorage()
-        self.passenger_storage = ShowUpPassengerStorage()
+        # Storage layer instances (DI 싱글톤 S3Manager 전달)
+        self.flight_storage = FlightScheduleStorage(s3_manager=s3_manager)
+        self.passenger_storage = ShowUpPassengerStorage(s3_manager=s3_manager)
         self.simulation_storage = RunSimulationStorage()
 
         # Response layer instances

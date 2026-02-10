@@ -46,6 +46,9 @@ class ScenarioInformation(Base):
     simulation_end_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    has_simulation_data: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
 
 
 

@@ -10,6 +10,19 @@ from loguru import logger
 # Application
 from packages.doppler.client import get_secret
 
+# 싱글톤 aioboto3 세션 (SQS용 - 애플리케이션 전체에서 재사용)
+_sqs_session = None
+
+
+def _get_sqs_session() -> aioboto3.Session:
+    """SQS용 싱글톤 aioboto3 세션 반환"""
+    global _sqs_session
+    if _sqs_session is None:
+        region = get_secret("AWS_REGION")
+        _sqs_session = aioboto3.Session(region_name=region)
+        logger.info(f"[SQS] Created singleton aioboto3 session (region={region})")
+    return _sqs_session
+
 
 class SQSClient:
     """
@@ -19,10 +32,7 @@ class SQSClient:
     """
 
     def __init__(self):
-        self.region_name = get_secret("AWS_REGION")
-        self.queue_url = get_secret(
-            "AWS_SQS_URL"
-        )  # https://sqs.ap-northeast-2.amazonaws.com/.../flexa-simulator-queue
+        self.queue_url = get_secret("AWS_SQS_URL")
 
     async def send_simulation_message(
         self, scenario_id: str, setting: Dict[str, Any], process_flow: List[Dict[str, Any]]
@@ -48,7 +58,7 @@ class SQSClient:
         }
 
         try:
-            session = aioboto3.Session(region_name=self.region_name)
+            session = _get_sqs_session()
             async with session.client("sqs") as sqs:
                 response = await sqs.send_message(
                     QueueUrl=self.queue_url,
@@ -77,23 +87,3 @@ class SQSClient:
         except Exception as e:
             logger.error(f"❌ SQS 전송 실패 (Unexpected Error): {str(e)}")
             raise Exception(f"Failed to send SQS message: {str(e)}")
-
-    async def get_queue_attributes(self) -> Dict[str, Any]:
-        """
-        SQS 큐 상태 정보 조회 (디버깅/모니터링 용도)
-
-        Returns:
-            Queue attributes including message count, etc.
-        """
-        try:
-            session = aioboto3.Session(region_name=self.region_name)
-            async with session.client("sqs") as sqs:
-                response = await sqs.get_queue_attributes(
-                    QueueUrl=self.queue_url, AttributeNames=["All"]
-                )
-
-                return response.get("Attributes", {})
-
-        except Exception as e:
-            logger.error(f"❌ SQS 큐 속성 조회 실패: {str(e)}")
-            raise Exception(f"Failed to get queue attributes: {str(e)}")

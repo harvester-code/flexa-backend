@@ -22,8 +22,8 @@ from packages.aws.s3.s3_manager import S3Manager
 class ShowUpPassengerStorage:
     """승객 스케줄 데이터 저장 전담 클래스"""
 
-    def __init__(self):
-        self.s3_manager = S3Manager()
+    def __init__(self, s3_manager: S3Manager):
+        self.s3_manager = s3_manager
 
     async def generate_and_store(self, scenario_id: str, config: dict) -> pd.DataFrame:
         """승객 스케줄 생성 및 저장"""
