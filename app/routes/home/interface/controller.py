@@ -46,8 +46,9 @@ async def fetch_metrics_data(
     scenario_id: str,
     home_service: HomeService = Depends(Provide[Container.home_service]),
     percentile: int | None = None,
+    percentile_mode: str = "cumulative",
 ):
     result = await home_service.fetch_metrics_data(
-        scenario_id, percentile
+        scenario_id, percentile, percentile_mode
     )
     return result

@@ -16,11 +16,13 @@ class HomeAnalyzer:
         metadata: Optional[Dict[str, Any]] = None,
         country_to_airports_path: Optional[str] = None,
         interval_minutes: int = 60,
+        percentile_mode: str = "cumulative",
     ):
         # 전체 데이터를 유지 - 각 함수에서 status 기준으로 필터링
         self.pax_df = pax_df.copy()
 
         self.percentile = percentile
+        self.percentile_mode = percentile_mode  # "cumulative" (누적 평균) 또는 "quantile" (분위값)
         self.interval_minutes = interval_minutes
         self.process_list = self._get_process_list()
         self.process_flow_map = self._build_process_flow_map(process_flow)
@@ -247,43 +249,76 @@ class HomeAnalyzer:
                 # 각 승객의 전체 대기시간 계산 (open + queue)
                 total_wait_per_pax = total_open_wait_per_pax + total_queue_wait_per_pax
 
-                # total_wait_per_pax 기준으로 상위 N% 승객 필터링
                 q = 1 - (self.percentile / 100)
-                threshold = total_wait_per_pax.dt.total_seconds().quantile(q)
-                top_n_mask = total_wait_per_pax.dt.total_seconds() >= threshold
 
-                # 상위 N% 승객들의 평균 시간 메트릭
-                total_open_wait_seconds = total_open_wait_per_pax[top_n_mask].dt.total_seconds().mean()
-                total_queue_wait_seconds = total_queue_wait_per_pax[top_n_mask].dt.total_seconds().mean()
-                total_wait_seconds = total_wait_per_pax[top_n_mask].dt.total_seconds().mean()
-                total_process_time_seconds = total_process_time_per_pax[top_n_mask].dt.total_seconds().mean()
+                if self.percentile_mode == "quantile":
+                    # Quantile 모드: 정확한 분위값 사용
+                    total_open_wait_seconds = total_open_wait_per_pax.dt.total_seconds().quantile(q)
+                    total_queue_wait_seconds = total_queue_wait_per_pax.dt.total_seconds().quantile(q)
+                    total_wait_seconds = total_wait_per_pax.dt.total_seconds().quantile(q)
+                    total_process_time_seconds = total_process_time_per_pax.dt.total_seconds().quantile(q)
 
-                # 상위 N% 승객들의 commercial_dwell_time 평균 계산
-                top_n_df = working_df[top_n_mask]
-                commercial_dwell_per_pax = []
-                for idx, row in top_n_df.iterrows():
-                    last_completed_process = None
-                    for process in reversed(self.process_list):
-                        status_col = f"{process}_status"
-                        if status_col in working_df.columns and row[status_col] == 'completed':
-                            last_completed_process = process
-                            break
+                    # commercial_dwell_time: 모든 승객의 dwell 계산 후 quantile
+                    commercial_dwell_all_pax = []
+                    for idx, row in working_df.iterrows():
+                        last_completed_process = None
+                        for process in reversed(self.process_list):
+                            status_col = f"{process}_status"
+                            if status_col in working_df.columns and row[status_col] == 'completed':
+                                last_completed_process = process
+                                break
 
-                    if last_completed_process and 'scheduled_departure_local' in working_df.columns:
-                        last_done_col = f"{last_completed_process}_done_time"
-                        if last_done_col in working_df.columns:
-                            done_t = pd.to_datetime(row[last_done_col], errors='coerce')
-                            depart_t = pd.to_datetime(row['scheduled_departure_local'], errors='coerce')
-                            if pd.notna(done_t) and pd.notna(depart_t):
-                                commercial_dwell_per_pax.append(max(0, (depart_t - done_t).total_seconds()))
+                        if last_completed_process and 'scheduled_departure_local' in working_df.columns:
+                            last_done_col = f"{last_completed_process}_done_time"
+                            if last_done_col in working_df.columns:
+                                done_t = pd.to_datetime(row[last_done_col], errors='coerce')
+                                depart_t = pd.to_datetime(row['scheduled_departure_local'], errors='coerce')
+                                if pd.notna(done_t) and pd.notna(depart_t):
+                                    commercial_dwell_all_pax.append(max(0, (depart_t - done_t).total_seconds()))
+                                else:
+                                    commercial_dwell_all_pax.append(0)
+                            else:
+                                commercial_dwell_all_pax.append(0)
+                        else:
+                            commercial_dwell_all_pax.append(0)
+
+                    commercial_dwell_value = float(np.percentile(commercial_dwell_all_pax, q * 100)) if commercial_dwell_all_pax else 0
+                else:
+                    # Cumulative 모드: 상위 N% 승객들의 평균
+                    threshold = total_wait_per_pax.dt.total_seconds().quantile(q)
+                    top_n_mask = total_wait_per_pax.dt.total_seconds() >= threshold
+
+                    total_open_wait_seconds = total_open_wait_per_pax[top_n_mask].dt.total_seconds().mean()
+                    total_queue_wait_seconds = total_queue_wait_per_pax[top_n_mask].dt.total_seconds().mean()
+                    total_wait_seconds = total_wait_per_pax[top_n_mask].dt.total_seconds().mean()
+                    total_process_time_seconds = total_process_time_per_pax[top_n_mask].dt.total_seconds().mean()
+
+                    # 상위 N% 승객들의 commercial_dwell_time 평균 계산
+                    top_n_df = working_df[top_n_mask]
+                    commercial_dwell_per_pax = []
+                    for idx, row in top_n_df.iterrows():
+                        last_completed_process = None
+                        for process in reversed(self.process_list):
+                            status_col = f"{process}_status"
+                            if status_col in working_df.columns and row[status_col] == 'completed':
+                                last_completed_process = process
+                                break
+
+                        if last_completed_process and 'scheduled_departure_local' in working_df.columns:
+                            last_done_col = f"{last_completed_process}_done_time"
+                            if last_done_col in working_df.columns:
+                                done_t = pd.to_datetime(row[last_done_col], errors='coerce')
+                                depart_t = pd.to_datetime(row['scheduled_departure_local'], errors='coerce')
+                                if pd.notna(done_t) and pd.notna(depart_t):
+                                    commercial_dwell_per_pax.append(max(0, (depart_t - done_t).total_seconds()))
+                                else:
+                                    commercial_dwell_per_pax.append(0)
                             else:
                                 commercial_dwell_per_pax.append(0)
                         else:
                             commercial_dwell_per_pax.append(0)
-                    else:
-                        commercial_dwell_per_pax.append(0)
 
-                commercial_dwell_value = sum(commercial_dwell_per_pax) / len(commercial_dwell_per_pax) if commercial_dwell_per_pax else 0
+                    commercial_dwell_value = sum(commercial_dwell_per_pax) / len(commercial_dwell_per_pax) if commercial_dwell_per_pax else 0
 
                 # airport_dwell_time = total_wait + process_time + commercial_dwell
                 airport_dwell_value = total_wait_seconds + total_process_time_seconds + commercial_dwell_value
@@ -743,74 +778,50 @@ class HomeAnalyzer:
         pax_experience_queue = {}
 
         if self.percentile is not None:
-            # Percentile 모드: 모든 프로세스를 합산한 Total Wait Time 기준으로 상위 N% 승객들의 평균
-            # 각 승객의 모든 프로세스의 total_wait 합산
-            total_wait_per_pax = pd.Series([pd.Timedelta(0)] * len(self.pax_df), index=self.pax_df.index)
-
-            for process in self.process_list:
-                status_col = f"{process}_status"
-                open_wait_col = f"{process}_open_wait_time"
-                queue_wait_col = f"{process}_queue_wait_time"
-
-                if status_col in self.pax_df.columns:
-                    completed_mask = self.pax_df[status_col] == 'completed'
-
-                    # 해당 프로세스를 completed한 승객의 total_wait (open + queue) 합산
-                    process_total_wait = pd.Series([pd.Timedelta(0)] * len(self.pax_df), index=self.pax_df.index)
-
-                    if open_wait_col in self.pax_df.columns:
-                        open_wait_values = pd.to_timedelta(self.pax_df[open_wait_col], errors='coerce').fillna(pd.Timedelta(0))
-                        process_total_wait = process_total_wait + open_wait_values.where(completed_mask, pd.Timedelta(0))
-
-                    if queue_wait_col in self.pax_df.columns:
-                        queue_wait_values = pd.to_timedelta(self.pax_df[queue_wait_col], errors='coerce').fillna(pd.Timedelta(0))
-                        process_total_wait = process_total_wait + queue_wait_values.where(completed_mask, pd.Timedelta(0))
-
-                    total_wait_per_pax = total_wait_per_pax + process_total_wait
-
-            # 전체 합산 Total Wait Time 기준으로 상위 N% 승객 필터링
             q = 1 - (self.percentile / 100)
-            threshold = total_wait_per_pax.dt.total_seconds().quantile(q)
-            top_n_mask = total_wait_per_pax.dt.total_seconds() >= threshold
 
-            # 상위 N% 승객들의 각 프로세스별 평균값 계산
-            top_n_df = self.pax_df[top_n_mask]
+            if self.percentile_mode == "quantile":
+                # Quantile 모드: 각 프로세스별로 정확한 분위값 계산
+                for process in self.process_list:
+                    status_col = f"{process}_status"
+                    open_wait_col = f"{process}_open_wait_time"
+                    queue_wait_col = f"{process}_queue_wait_time"
+                    queue_col = f"{process}_queue_length"
 
-            for process in self.process_list:
-                status_col = f"{process}_status"
-                open_wait_col = f"{process}_open_wait_time"
-                queue_wait_col = f"{process}_queue_wait_time"
-                queue_col = f"{process}_queue_length"
+                    if status_col in self.pax_df.columns:
+                        process_completed = self.pax_df[self.pax_df[status_col] == 'completed']
 
-                # 상위 N% 승객 중 해당 프로세스를 completed한 승객만 필터
-                if status_col in top_n_df.columns:
-                    process_completed = top_n_df[top_n_df[status_col] == 'completed']
+                        if len(process_completed) > 0:
+                            open_wait_q = 0
+                            queue_wait_q = 0
 
-                    if len(process_completed) > 0:
-                        open_wait_mean = 0
-                        queue_wait_mean = 0
+                            if open_wait_col in process_completed.columns:
+                                open_wait_td = pd.to_timedelta(process_completed[open_wait_col], errors='coerce').dropna()
+                                open_wait_q = open_wait_td.dt.total_seconds().quantile(q) if len(open_wait_td) > 0 else 0
 
-                        if open_wait_col in process_completed.columns:
-                            open_wait_td = pd.to_timedelta(process_completed[open_wait_col], errors='coerce').dropna()
-                            open_wait_mean = open_wait_td.dt.total_seconds().mean() if len(open_wait_td) > 0 else 0
+                            if queue_wait_col in process_completed.columns:
+                                queue_wait_td = pd.to_timedelta(process_completed[queue_wait_col], errors='coerce').dropna()
+                                queue_wait_q = queue_wait_td.dt.total_seconds().quantile(q) if len(queue_wait_td) > 0 else 0
 
-                        if queue_wait_col in process_completed.columns:
-                            queue_wait_td = pd.to_timedelta(process_completed[queue_wait_col], errors='coerce').dropna()
-                            queue_wait_mean = queue_wait_td.dt.total_seconds().mean() if len(queue_wait_td) > 0 else 0
+                            total_wait_q = open_wait_q + queue_wait_q
 
-                        total_wait_mean = open_wait_mean + queue_wait_mean
+                            pax_experience_waiting[process] = {
+                                "total": self._format_waiting_time(total_wait_q),
+                                "open_wait": self._format_waiting_time(open_wait_q),
+                                "queue_wait": self._format_waiting_time(queue_wait_q)
+                            }
 
-                        pax_experience_waiting[process] = {
-                            "total": self._format_waiting_time(total_wait_mean),
-                            "open_wait": self._format_waiting_time(open_wait_mean),
-                            "queue_wait": self._format_waiting_time(queue_wait_mean)
-                        }
-
-                        # 대기열도 상위 N% 승객들의 평균
-                        if queue_col in process_completed.columns:
-                            valid_queue = process_completed[queue_col].dropna()
-                            pax_experience_queue[process] = int(valid_queue.mean()) if len(valid_queue) > 0 else 0
+                            if queue_col in process_completed.columns:
+                                valid_queue = process_completed[queue_col].dropna()
+                                pax_experience_queue[process] = int(valid_queue.quantile(q)) if len(valid_queue) > 0 else 0
+                            else:
+                                pax_experience_queue[process] = 0
                         else:
+                            pax_experience_waiting[process] = {
+                                "total": {"hour": 0, "minute": 0, "second": 0},
+                                "open_wait": {"hour": 0, "minute": 0, "second": 0},
+                                "queue_wait": {"hour": 0, "minute": 0, "second": 0}
+                            }
                             pax_experience_queue[process] = 0
                     else:
                         pax_experience_waiting[process] = {
@@ -819,13 +830,83 @@ class HomeAnalyzer:
                             "queue_wait": {"hour": 0, "minute": 0, "second": 0}
                         }
                         pax_experience_queue[process] = 0
-                else:
-                    pax_experience_waiting[process] = {
-                        "total": {"hour": 0, "minute": 0, "second": 0},
-                        "open_wait": {"hour": 0, "minute": 0, "second": 0},
-                        "queue_wait": {"hour": 0, "minute": 0, "second": 0}
-                    }
-                    pax_experience_queue[process] = 0
+
+            else:
+                # Cumulative 모드: 모든 프로세스를 합산한 Total Wait Time 기준으로 상위 N% 승객들의 평균
+                total_wait_per_pax = pd.Series([pd.Timedelta(0)] * len(self.pax_df), index=self.pax_df.index)
+
+                for process in self.process_list:
+                    status_col = f"{process}_status"
+                    open_wait_col = f"{process}_open_wait_time"
+                    queue_wait_col = f"{process}_queue_wait_time"
+
+                    if status_col in self.pax_df.columns:
+                        completed_mask = self.pax_df[status_col] == 'completed'
+
+                        process_total_wait = pd.Series([pd.Timedelta(0)] * len(self.pax_df), index=self.pax_df.index)
+
+                        if open_wait_col in self.pax_df.columns:
+                            open_wait_values = pd.to_timedelta(self.pax_df[open_wait_col], errors='coerce').fillna(pd.Timedelta(0))
+                            process_total_wait = process_total_wait + open_wait_values.where(completed_mask, pd.Timedelta(0))
+
+                        if queue_wait_col in self.pax_df.columns:
+                            queue_wait_values = pd.to_timedelta(self.pax_df[queue_wait_col], errors='coerce').fillna(pd.Timedelta(0))
+                            process_total_wait = process_total_wait + queue_wait_values.where(completed_mask, pd.Timedelta(0))
+
+                        total_wait_per_pax = total_wait_per_pax + process_total_wait
+
+                threshold = total_wait_per_pax.dt.total_seconds().quantile(q)
+                top_n_mask = total_wait_per_pax.dt.total_seconds() >= threshold
+                top_n_df = self.pax_df[top_n_mask]
+
+                for process in self.process_list:
+                    status_col = f"{process}_status"
+                    open_wait_col = f"{process}_open_wait_time"
+                    queue_wait_col = f"{process}_queue_wait_time"
+                    queue_col = f"{process}_queue_length"
+
+                    if status_col in top_n_df.columns:
+                        process_completed = top_n_df[top_n_df[status_col] == 'completed']
+
+                        if len(process_completed) > 0:
+                            open_wait_mean = 0
+                            queue_wait_mean = 0
+
+                            if open_wait_col in process_completed.columns:
+                                open_wait_td = pd.to_timedelta(process_completed[open_wait_col], errors='coerce').dropna()
+                                open_wait_mean = open_wait_td.dt.total_seconds().mean() if len(open_wait_td) > 0 else 0
+
+                            if queue_wait_col in process_completed.columns:
+                                queue_wait_td = pd.to_timedelta(process_completed[queue_wait_col], errors='coerce').dropna()
+                                queue_wait_mean = queue_wait_td.dt.total_seconds().mean() if len(queue_wait_td) > 0 else 0
+
+                            total_wait_mean = open_wait_mean + queue_wait_mean
+
+                            pax_experience_waiting[process] = {
+                                "total": self._format_waiting_time(total_wait_mean),
+                                "open_wait": self._format_waiting_time(open_wait_mean),
+                                "queue_wait": self._format_waiting_time(queue_wait_mean)
+                            }
+
+                            if queue_col in process_completed.columns:
+                                valid_queue = process_completed[queue_col].dropna()
+                                pax_experience_queue[process] = int(valid_queue.mean()) if len(valid_queue) > 0 else 0
+                            else:
+                                pax_experience_queue[process] = 0
+                        else:
+                            pax_experience_waiting[process] = {
+                                "total": {"hour": 0, "minute": 0, "second": 0},
+                                "open_wait": {"hour": 0, "minute": 0, "second": 0},
+                                "queue_wait": {"hour": 0, "minute": 0, "second": 0}
+                            }
+                            pax_experience_queue[process] = 0
+                    else:
+                        pax_experience_waiting[process] = {
+                            "total": {"hour": 0, "minute": 0, "second": 0},
+                            "open_wait": {"hour": 0, "minute": 0, "second": 0},
+                            "queue_wait": {"hour": 0, "minute": 0, "second": 0}
+                        }
+                        pax_experience_queue[process] = 0
 
         else:
             # Mean 모드: 각 프로세스별로 평균 계산
@@ -1380,14 +1461,21 @@ class HomeAnalyzer:
             process_total = process_opened_info.get('total', 0)
 
             if self.percentile is not None:
-                # 상위 N% 필터링 후 평균
-                q_threshold = waiting_time.quantile(1 - self.percentile / 100)
-                top_n_wt_mask = waiting_time >= q_threshold
                 overview_queue_col = process_df[f"{process}_queue_length"]
-                q_threshold_queue = overview_queue_col.quantile(1 - self.percentile / 100)
-                top_n_q_mask = overview_queue_col >= q_threshold_queue
-                overview_queue_pax = int(overview_queue_col[top_n_q_mask].mean()) if top_n_q_mask.sum() > 0 else 0
-                overview_wait_time = waiting_time[top_n_wt_mask].mean() if top_n_wt_mask.sum() > 0 else 0
+                pct_q = 1 - self.percentile / 100
+
+                if self.percentile_mode == "quantile":
+                    # Quantile 모드: 정확한 분위값
+                    overview_queue_pax = int(overview_queue_col.quantile(pct_q)) if len(overview_queue_col) > 0 else 0
+                    overview_wait_time = waiting_time.quantile(pct_q) if len(waiting_time) > 0 else 0
+                else:
+                    # Cumulative 모드: 상위 N% 평균
+                    q_threshold = waiting_time.quantile(pct_q)
+                    top_n_wt_mask = waiting_time >= q_threshold
+                    q_threshold_queue = overview_queue_col.quantile(pct_q)
+                    top_n_q_mask = overview_queue_col >= q_threshold_queue
+                    overview_queue_pax = int(overview_queue_col[top_n_q_mask].mean()) if top_n_q_mask.sum() > 0 else 0
+                    overview_wait_time = waiting_time[top_n_wt_mask].mean() if top_n_wt_mask.sum() > 0 else 0
             else:
                 overview_queue_pax = int(process_df[f"{process}_queue_length"].mean())
                 overview_wait_time = waiting_time.mean()
@@ -1419,14 +1507,21 @@ class HomeAnalyzer:
                 zone_total = zone_opened_info.get('total', 0)
 
                 if self.percentile is not None:
-                    # 상위 N% 필터링 후 평균
-                    z_q_threshold_wt = waiting_time.quantile(1 - self.percentile / 100)
-                    z_top_n_wt_mask = waiting_time >= z_q_threshold_wt
                     z_queue_col = facility_df[f"{process}_queue_length"]
-                    z_q_threshold_q = z_queue_col.quantile(1 - self.percentile / 100)
-                    z_top_n_q_mask = z_queue_col >= z_q_threshold_q
-                    comp_queue_pax = int(z_queue_col[z_top_n_q_mask].mean()) if z_top_n_q_mask.sum() > 0 else 0
-                    comp_wait_time = waiting_time[z_top_n_wt_mask].mean() if z_top_n_wt_mask.sum() > 0 else 0
+                    z_pct_q = 1 - self.percentile / 100
+
+                    if self.percentile_mode == "quantile":
+                        # Quantile 모드: 정확한 분위값
+                        comp_queue_pax = int(z_queue_col.quantile(z_pct_q)) if len(z_queue_col) > 0 else 0
+                        comp_wait_time = waiting_time.quantile(z_pct_q) if len(waiting_time) > 0 else 0
+                    else:
+                        # Cumulative 모드: 상위 N% 평균
+                        z_q_threshold_wt = waiting_time.quantile(z_pct_q)
+                        z_top_n_wt_mask = waiting_time >= z_q_threshold_wt
+                        z_q_threshold_q = z_queue_col.quantile(z_pct_q)
+                        z_top_n_q_mask = z_queue_col >= z_q_threshold_q
+                        comp_queue_pax = int(z_queue_col[z_top_n_q_mask].mean()) if z_top_n_q_mask.sum() > 0 else 0
+                        comp_wait_time = waiting_time[z_top_n_wt_mask].mean() if z_top_n_wt_mask.sum() > 0 else 0
                 else:
                     comp_queue_pax = int(facility_df[f"{process}_queue_length"].mean())
                     comp_wait_time = waiting_time.mean()
@@ -1837,8 +1932,12 @@ class HomeAnalyzer:
         if self.percentile is None:
             # Mean 모드: 전체 평균
             result_series = df.mean()
+        elif self.percentile_mode == "quantile":
+            # Quantile 모드: 정확한 분위값
+            q = 1 - (self.percentile / 100)
+            result_series = df.quantile(q)
         else:
-            # Percentile 모드: 상위 N% 승객들의 평균
+            # Cumulative 모드: 상위 N% 승객들의 평균
             threshold = np.percentile(df["total"], 100 - self.percentile)
             top_n_df = df[df["total"] >= threshold]
             result_series = top_n_df.mean()

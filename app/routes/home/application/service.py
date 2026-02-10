@@ -98,6 +98,7 @@ class HomeService:
         process_flow: Optional[List[dict]] = None,
         metadata: Optional[Dict[str, Any]] = None,
         interval_minutes: int = 60,
+        percentile_mode: str = "cumulative",
     ) -> HomeAnalyzer:
         return HomeAnalyzer(
             pax_df,
@@ -106,6 +107,7 @@ class HomeService:
             metadata=metadata,
             country_to_airports_path=self.country_to_airports_path,
             interval_minutes=interval_minutes,
+            percentile_mode=percentile_mode,
         )
 
     async def fetch_static_data(
@@ -183,9 +185,16 @@ class HomeService:
         return result
 
     async def fetch_metrics_data(
-        self, scenario_id: str, percentile: Optional[int] = None
+        self,
+        scenario_id: str,
+        percentile: Optional[int] = None,
+        percentile_mode: str = "cumulative",
     ) -> Dict[str, Any]:
-        """KPI 의존적 메트릭 데이터 반환"""
+        """KPI 의존적 메트릭 데이터 반환
+        
+        Args:
+            percentile_mode: "cumulative" (Top N% 평균) 또는 "quantile" (정확한 분위값)
+        """
 
         pax_df = await self._get_pax_dataframe(scenario_id)
         metadata = await self._get_metadata(scenario_id, required=True)
@@ -195,6 +204,7 @@ class HomeService:
             percentile,
             process_flow=process_flow,
             metadata=metadata,
+            percentile_mode=percentile_mode,
         )
 
         return {
