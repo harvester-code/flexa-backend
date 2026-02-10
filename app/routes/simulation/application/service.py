@@ -142,10 +142,11 @@ class SimulationService:
     async def delete_scenarios(
         self, db: AsyncSession, scenario_ids: List[str], user_id: str
     ):
-        """권한 검증을 포함한 시나리오 소프트 삭제 (is_active=False)
+        """권한 검증을 포함한 시나리오 소프트 삭제 (is_active=False) + S3 데이터 삭제
         
-        S3 데이터와 Supabase 레코드는 유지하고, is_active 플래그만 False로 변경합니다.
-        목록 조회 시 is_active=True인 시나리오만 표시되므로 사용자에게는 삭제된 것처럼 보입니다.
+        Supabase에서 is_active 플래그를 False로 변경하고, S3 시나리오 폴더도 삭제합니다.
+        S3 버저닝이 활성화되어 있으므로 삭제 후에도 90일간 noncurrent version으로 복구 가능합니다.
+        90일 후 S3 lifecycle 정책과 Supabase 크론잡에 의해 양쪽 모두 완전 삭제됩니다.
         """
         try:
             # 🔒 각 시나리오에 대한 권한 검증
@@ -162,6 +163,12 @@ class SimulationService:
             # 💾 Supabase에서 소프트 삭제 (is_active=False)
             await self.simulation_repo.deactivate_scenario_information(db, scenario_ids)
             logger.info(f"✅ Soft deleted {len(scenario_ids)} scenarios (is_active=False)")
+
+            # 🗑️ S3 데이터 삭제 (버저닝으로 90일간 복구 가능)
+            for scenario_id in scenario_ids:
+                success = await self.s3_manager.delete_scenario_data(scenario_id)
+                if not success:
+                    logger.warning(f"⚠️ S3 deletion failed for {scenario_id}, but soft delete succeeded")
 
             return {"message": f"Successfully deleted {len(scenario_ids)} scenarios"}
 
