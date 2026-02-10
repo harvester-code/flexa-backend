@@ -1389,7 +1389,7 @@ class HomeAnalyzer:
             zone_metrics_map = process_metrics.get('zones', {})
             zone_opened_map = process_opened_info.get('zones', {})
 
-            for facility in sorted(process_df[f"{process}_zone"].unique()):
+            for facility in self._get_ordered_zones(process, process_df[f"{process}_zone"].unique()):
                 facility_df = process_df[process_df[f"{process}_zone"] == facility]
                 waiting_time = self._calculate_waiting_time(facility_df, process)
 
@@ -1449,7 +1449,7 @@ class HomeAnalyzer:
             # 해당 프로세스에서 completed 상태인 승객만 사용
             process_completed_df = self._filter_by_status(self.pax_df, process)
 
-            facilities = sorted(process_completed_df[f"{process}_zone"].dropna().unique())
+            facilities = self._get_ordered_zones(process, process_completed_df[f"{process}_zone"].dropna().unique())
             wt_collection, ql_collection = [], []
             facility_data = {}
 
@@ -1869,6 +1869,17 @@ class HomeAnalyzer:
             if name:
                 mapping[name] = step
         return mapping
+
+    def _get_ordered_zones(self, process: str, actual_zones) -> list:
+        """process_flow에 정의된 사용자 지정 순서대로 zone 목록을 반환한다.
+        process_flow에 없는 zone은 알파벳 순으로 뒤에 추가된다."""
+        actual_set = set(actual_zones)
+        if self.process_flow_map and process in self.process_flow_map:
+            user_order = list(self.process_flow_map[process].get("zones", {}).keys())
+            ordered = [z for z in user_order if z in actual_set]
+            remaining = sorted(z for z in actual_set if z not in user_order)
+            return ordered + remaining
+        return sorted(actual_set)
 
     def _get_waiting_time(self, df, process):
         """순수 queue 대기시간 반환"""

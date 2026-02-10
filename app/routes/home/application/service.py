@@ -144,9 +144,11 @@ class HomeService:
 
         pax_df = await self._get_pax_dataframe(scenario_id)
         metadata = await self._get_metadata(scenario_id, required=True)
+        process_flow = await self._load_process_flow(scenario_id)
         calculator = self._create_calculator(
             pax_df,
             percentile,
+            process_flow=process_flow,
             metadata=metadata,
         )
 
