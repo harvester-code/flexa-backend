@@ -159,30 +159,107 @@ Only use read_file when the user asks about simulation RESULTS (.parquet files).
                 if len(airline_names) > 5:
                     airline_str += f' and {len(airline_names) - 5} more'
 
-                # Passenger 데이터 추출
-                passenger_data = simulation_state.get('passenger', {})
+                # Passenger 데이터 추출 (None 안전 처리)
+                passenger_data = simulation_state.get('passenger') or {}
                 passenger_total = passenger_data.get('total', 0)
-                pax_gen = passenger_data.get('pax_generation', {})
-                pax_demo = passenger_data.get('pax_demographics', {})
-                pax_arrival = passenger_data.get('pax_arrival_patterns', {})
-                chart_result = passenger_data.get('chartResult', {})
+                pax_gen = passenger_data.get('pax_generation') or {}
+                pax_demo = passenger_data.get('pax_demographics') or {}
+                pax_arrival = passenger_data.get('pax_arrival_patterns') or {}
+                chart_result = passenger_data.get('chartResult') or {}
 
-                # 탑승률 요약
-                load_factor = pax_gen.get('default', {}).get('load_factor', 'Not set')
+                # 탑승률 요약 (default + rules)
+                load_factor = (pax_gen.get('default') or {}).get('load_factor', 'Not set')
+                load_factor_str = f"{load_factor}%"
+                load_factor_rules = pax_gen.get('rules') or []
+                if load_factor_rules:
+                    load_factor_str += " (default)"
+                    for rule in load_factor_rules:
+                        rule_lf = rule.get('load_factor', '')
+                        rule_conditions = rule.get('conditions', {})
+                        cond_parts = []
+                        for field, values in rule_conditions.items():
+                            if isinstance(values, list):
+                                cond_parts.append(f"{field}={','.join(str(v) for v in values)}")
+                            else:
+                                cond_parts.append(f"{field}={values}")
+                        cond_str = ', '.join(cond_parts) if cond_parts else 'unknown condition'
+                        load_factor_str += f" / When {cond_str} → {rule_lf}%"
 
-                # 국적 요약
-                nationality_default = pax_demo.get('nationality', {}).get('default', {})
-                nationality_str = ', '.join([f"{k}: {v}%" for k, v in nationality_default.items() if k != 'flightCount']) if nationality_default else 'Not set'
+                # 국적 요약 (default + rules)
+                nationality_data_raw = pax_demo.get('nationality') or {}
+                nationality_default = nationality_data_raw.get('default') or {}
+                nationality_values = {k: v for k, v in nationality_default.items() if k != 'flightCount'}
+                nationality_str = ', '.join([f"{k}: {v}%" for k, v in nationality_values.items()]) if nationality_values else 'Not configured'
+                nationality_rules = nationality_data_raw.get('rules') or []
+                if nationality_rules:
+                    nationality_str += f" (default)"
+                    for rule in nationality_rules:
+                        rule_values = {k: v for k, v in rule.items() if k not in ('conditions', 'flightCount')}
+                        rule_conditions = rule.get('conditions', {})
+                        cond_parts = []
+                        for field, values in rule_conditions.items():
+                            if isinstance(values, list):
+                                cond_parts.append(f"{field}={','.join(str(v) for v in values)}")
+                            else:
+                                cond_parts.append(f"{field}={values}")
+                        cond_str = ', '.join(cond_parts) if cond_parts else 'unknown condition'
+                        dist_str = ', '.join([f"{k}: {v}%" for k, v in rule_values.items()])
+                        nationality_str += f" / When {cond_str} → {dist_str}"
 
-                # 프로필 요약
-                profile_default = pax_demo.get('profile', {}).get('default', {})
-                profile_str = ', '.join([f"{k}: {v}%" for k, v in profile_default.items() if k != 'flightCount']) if profile_default else 'Not set'
+                # 프로필 요약 (default + rules)
+                profile_data_raw = pax_demo.get('profile') or {}
+                profile_default = profile_data_raw.get('default') or {}
+                profile_values = {k: v for k, v in profile_default.items() if k != 'flightCount'}
+                profile_str = ', '.join([f"{k}: {v}%" for k, v in profile_values.items()]) if profile_values else 'Not configured'
+                profile_rules = profile_data_raw.get('rules') or []
+                if profile_rules:
+                    profile_str += f" (default)"
+                    for rule in profile_rules:
+                        rule_values = {k: v for k, v in rule.items() if k not in ('conditions', 'flightCount')}
+                        rule_conditions = rule.get('conditions', {})
+                        cond_parts = []
+                        for field, values in rule_conditions.items():
+                            if isinstance(values, list):
+                                cond_parts.append(f"{field}={','.join(str(v) for v in values)}")
+                            else:
+                                cond_parts.append(f"{field}={values}")
+                        cond_str = ', '.join(cond_parts) if cond_parts else 'unknown condition'
+                        dist_str = ', '.join([f"{k}: {v}%" for k, v in rule_values.items()])
+                        profile_str += f" / When {cond_str} → {dist_str}"
 
-                # 도착 패턴 요약
-                arrival_mean = pax_arrival.get('default', {}).get('mean', 'Not set')
+                # 도착 패턴 요약 (default + rules)
+                arrival_mean = (pax_arrival.get('default') or {}).get('mean', 'Not set')
+                arrival_std = (pax_arrival.get('default') or {}).get('std', 'Not set')
+                arrival_str = f"Mean {arrival_mean} min before departure (std: {arrival_std})"
+                arrival_rules = pax_arrival.get('rules') or []
+                if arrival_rules:
+                    arrival_str += " (default)"
+                    for rule in arrival_rules:
+                        rule_mean = rule.get('mean', '')
+                        rule_std = rule.get('std', '')
+                        rule_conditions = rule.get('conditions', {})
+                        cond_parts = []
+                        for field, values in rule_conditions.items():
+                            if isinstance(values, list):
+                                cond_parts.append(f"{field}={','.join(str(v) for v in values)}")
+                            else:
+                                cond_parts.append(f"{field}={values}")
+                        cond_str = ', '.join(cond_parts) if cond_parts else 'unknown condition'
+                        arrival_str += f" / When {cond_str} → mean {rule_mean} min (std: {rule_std})"
+
+                # 실제 데이터를 JSON으로 직렬화 (하드코딩 예시 대신 사용)
+                pax_gen_json = json.dumps(pax_gen, ensure_ascii=False, indent=2) if pax_gen else '{}'
+                nationality_data = (pax_demo.get('nationality') or {})
+                nationality_json = json.dumps(nationality_data, ensure_ascii=False, indent=2) if nationality_data else '{}'
+                profile_data = (pax_demo.get('profile') or {})
+                profile_json = json.dumps(profile_data, ensure_ascii=False, indent=2) if profile_data else '{}'
+                pax_arrival_json = json.dumps(pax_arrival, ensure_ascii=False, indent=2) if pax_arrival else '{}'
+                chart_result_summary = (chart_result.get('summary') or {})
+                chart_result_summary_json = json.dumps(chart_result_summary, ensure_ascii=False, indent=2) if chart_result_summary else '{}'
+                chart_result_json = json.dumps(chart_result, ensure_ascii=False, indent=2) if chart_result else '{}'
 
                 # 🆕 프로세스/시설 요약 생성 (실제 데이터에서 추출)
-                process_flow = simulation_state.get('process_flow', [])
+                process_flow = simulation_state.get('process_flow') or []
                 process_summary_lines = []
                 total_facilities = 0
                 for proc in process_flow:
@@ -209,7 +286,7 @@ Only use read_file when the user asks about simulation RESULTS (.parquet files).
                             facility_id = facility.get('id', 'Unknown')
                             # Check if facility has any active time_block
                             has_active_block = False
-                            for block in facility.get('operating_schedule', {}).get('time_blocks', []):
+                            for block in (facility.get('operating_schedule') or {}).get('time_blocks', []):
                                 if block.get('activate', True):  # Default is True (operating)
                                     has_active_block = True
                                     period = block.get('period', '')
@@ -311,7 +388,7 @@ Only use read_file when the user asks about simulation RESULTS (.parquet files).
                     for zone_name, zone_data in zones.items():
                         for facility in zone_data.get('facilities', []):
                             fac_id = facility.get('id', 'Unknown')
-                            time_blocks = facility.get('operating_schedule', {}).get('time_blocks', [])
+                            time_blocks = (facility.get('operating_schedule') or {}).get('time_blocks', [])
 
                             # Collect detailed info per time block
                             block_details = []
@@ -417,10 +494,10 @@ There are {simulation_state.get('flight_total', 0)} flights available in the dat
 
 **Passengers (Summary):**
 - Total: {passenger_total} passengers
-- Load factor: {load_factor}%
+- Load factor: {load_factor_str}
 - Nationality: {nationality_str}
 - Profile: {profile_str}
-- Arrival pattern: Mean {arrival_mean} min before departure
+- Arrival pattern: {arrival_str}
 
 **Passengers (Full Data Available):**
 You have access to detailed passenger data in simulation_state['passenger']:
@@ -435,172 +512,98 @@ You have access to detailed passenger data in simulation_state['passenger']:
 ```
 
 **1. pax_generation** - Passenger count generation (Load Factor / Boarding Rate)
+Current configuration:
 ```
-{{
-  "default": {{"load_factor": 83}},
-  "rules": [
-    {{
-      "conditions": {{"operating_carrier_iata": ["AA"]}},
-      "value": {{"load_factor": 90}}
-    }}
-  ]
-}}
+{pax_gen_json}
 ```
 - **Purpose**: Determines how many passengers per flight
-- **load_factor**: Boarding rate (탑승률). For example, 83% means 83 passengers for a 100-seat flight
+- **load_factor**: Boarding rate (탑승률). Percentage of seats filled. e.g., 83 means 83 passengers for a 100-seat flight
 - **default**: Base boarding rate for all flights
-- **rules**: Override boarding rate for specific conditions
-  - Example: AA airline has 90% boarding rate
-- **Result**: Each flight generates N passengers based on (seats × boarding rate)
+- **rules**: Override boarding rate for specific conditions (by airline, flight type, etc.)
+- **Result**: Each flight generates N passengers based on (seats × load_factor / 100)
 
 **💡 WHY CONFIGURE LOAD FACTOR?** (When users ask "왜 설정해?", "Why configure?")
-→ "Load Factor (boarding rate) determines how many passengers to generate per flight.
-   For example, if there are 100 seats and boarding rate is 85%, 85 passengers will be created.
-   You can set different boarding rates per flight like real airports (e.g., specific airline has 90%)."
+→ "Load Factor determines how many passengers to generate per flight.
+   You can set different boarding rates per flight condition like real airports."
 
 **2. pax_demographics** - Passenger attributes distribution
 
 **2a. nationality** - Nationality distribution
+Current configuration:
 ```
-{{
-  "available_values": ["Domestic", "Foreign"],
-  "default": {{"Domestic": 59, "Foreign": 41}},
-  "rules": [
-    {{
-      "conditions": {{"flight_type": ["International"]}},
-      "value": {{"Domestic": 20, "Foreign": 80}}
-    }}
-  ]
-}}
+{nationality_json}
 ```
 - **Purpose**: Assigns nationality to each passenger
 - **available_values**: Possible nationality options
-- **default**: Base distribution (59% Domestic, 41% Foreign)
-- **rules**: Override for specific flight types
-  - Example: International flights → 80% Foreign
+- **default**: Base distribution percentages (must sum to 100)
+- **rules**: Override for specific conditions (by flight type, airline, etc.)
 - **Result**: Each passenger gets a `nationality` field
-- **Simulation use**: Checked in entry_conditions, passenger_conditions
-  - Example: immigration process only for foreign passengers
+- **Simulation use**: Checked in entry_conditions, passenger_conditions (e.g., immigration process only for foreign passengers)
 
 **💡 WHY CONFIGURE NATIONALITY?** (When users ask "nationality 왜 설정해?")
 → "Nationality is used when domestic and foreign passengers need to go through different processes.
-   For example, you can set entry_conditions so that only foreign passengers go through immigration,
-   while domestic passengers skip that process (status=skipped).
-   During simulation, the system checks each passenger's nationality field to determine which processes they must go through.
-   This allows you to realistically reflect different procedures for different nationalities."
+   For example, entry_conditions can route only foreign passengers through immigration.
+   The system checks each passenger's nationality field to determine which processes they must go through."
 
 **2b. profile** - Passenger profile/type distribution (Pax Profile)
+Current configuration:
 ```
-{{
-  "available_values": ["First", "Business", "Economy", "Wheelchair", "Crew", ...],
-  "default": {{"Economy": 70, "Business": 20, "First": 10}},
-  "rules": []
-}}
+{profile_json}
 ```
 - **Purpose**: Assigns passenger type/category based on their characteristics
+- **available_values**: Possible profile options
+- **default**: Base distribution percentages (must sum to 100)
+- **rules**: Override for specific conditions (by flight type, airline, destination, etc.)
 - **Result**: Each passenger gets a `profile` field
-- **Simulation use**: Determines which processes to go through and which facilities to use
+- **Simulation use**: Checked in entry_conditions, passenger_conditions (determines which processes to go through and which facilities to use)
 
 **💡 WHY CONFIGURE PAX PROFILE?** (When users ask "Pax Profile이 뭐야?", "profile 왜 설정해?")
 → "Pax Profile represents passenger characteristics that determine which facilities they use and which processes they go through.
-
-   **Why is this needed?**
-   In real airports, different passengers use different facilities and procedures based on their characteristics:
-
-   **1. By Seat Class (First / Business / Economy):**
-   - First/Business passengers → Dedicated check-in counters, priority security lanes
-   - Economy passengers → Regular counters, standard security lanes
-
-   **2. By Passenger Type (Regular Passenger / Crew):**
-   - Regular passengers → Go through all processes: check-in → security → boarding
-   - Crew → May skip certain processes or use crew-only facilities
-
-   **3. Passengers with Reduced Mobility (Wheelchair users, elderly, etc.):**
-   - Use dedicated accessible facilities (wheelchair lanes, accessible counters)
-   - May require longer processing time
-   - Use separate security screening lanes
-
-   **4. Other Examples:**
-   - Fast track passengers → Priority lanes at check-in and security
-   - Transfer passengers → Skip check-in, go directly to security
-   - VIP passengers → Dedicated lounges, expedited processing
-
-   **How to use in simulation:**
-   Set entry_conditions and passenger_conditions to:
-   - Route different profiles to different facilities (e.g., Business → Priority counter)
-   - Set different processing times per profile (e.g., Wheelchair → 300 sec vs Regular 180 sec)
-   - Skip certain processes for specific profiles (e.g., Crew skips immigration)
-
-   The profile values shown here are just examples. You can define any profile types that match your airport's actual passenger categories."
+   In real airports, different passengers use different facilities based on seat class, passenger type, mobility needs, etc.
+   Set entry_conditions and passenger_conditions to route different profiles to different facilities or set different processing times."
 
 **3. pax_arrival_patterns** - Airport arrival timing
+Current configuration:
 ```
-{{
-  "default": {{"mean": 180, "std": 30}},
-  "rules": [
-    {{
-      "conditions": {{"flight_type": ["International"]}},
-      "value": {{"mean": 150, "std": 30}}
-    }}
-  ]
-}}
+{pax_arrival_json}
 ```
 - **Purpose**: Determines when passengers arrive at airport (before flight departure)
 - **mean**: Average arrival time in minutes before departure
-  - Example: 180 = passengers arrive 3 hours before flight
 - **std**: Standard deviation (time variance)
-  - Example: std=30 means most arrive 150-210 minutes before
-- **default**: Base arrival pattern (domestic flights)
-- **rules**: Override for specific flight types
-  - Example: International flights → arrive 150 min (2.5 hours) before
+- **default**: Base arrival pattern for all flights
+- **rules**: Override for specific conditions (by flight type, airline, etc.)
 - **Result**: Each passenger gets a `show_up_time` field
 - **Simulation use**: Starting point of simulation (passenger arrival event)
 
 **💡 WHY CONFIGURE SHOW-UP-TIME?** (When users ask "show-up-time 왜 설정해?")
 → "Show-up-Time determines when passengers arrive at the airport.
-   For example, if mean=120 and std=30, passengers arrive 120 minutes before departure (±30 min variance).
-   This becomes the starting point of simulation. From each passenger's show_up_time, they go through processes sequentially like check-in, security, etc.
-   International flights usually arrive earlier (e.g., 180 min before), so you can set different values per flight type."
+   mean is the average minutes before departure, std is variance.
+   This becomes the starting point of simulation. You can set different values per flight type or airline."
 
 **4. chartResult** - Generated passenger data summary
+Current data:
 ```
-{{
-  "total": 3731,
-  "chart_x_data": ["00:00", "01:00", "02:00", ...],
-  "chart_y_data": {{
-    "airline": [{{"name": "American Airlines", "y": [0, 0, 5, 10, ...]}}],
-    "nationality": [{{"name": "Domestic", "y": [...]}}],
-    "profile": [{{"name": "Regular", "y": [...]}}]
-  }},
-  "summary": {{"flights": 11, "avg_seats": 178.82, "load_factor": 83}}
-}}
+{chart_result_json}
 ```
 - **Purpose**: Summary of generated passengers (NOT used in simulation, just reporting)
 - **total**: Total number of passengers created
 - **chart_x_data**: Time slots (hourly)
-- **chart_y_data**: Breakdown by category over time
-  - airline: How many passengers per hour per airline
-  - nationality: Distribution over time
-  - profile: Distribution over time
-- **summary**: Statistics
-  - flights: Number of flights
-  - avg_seats: Average seats per flight
-  - load_factor: Actual boarding rate achieved
-  - min_arrival_minutes: Earliest arrival time
+- **chart_y_data**: Breakdown by category over time (airline, nationality, profile)
+- **summary**: Statistics (flights count, avg_seats, load_factor, min_arrival_minutes)
 
 **How Passenger Fields Are Used in Simulation:**
 
 **Available Passenger Fields for Conditions:**
-| Field | Source | Example Values | Usage |
-|-------|--------|----------------|-------|
-| `nationality` | pax_demographics | "Domestic", "Foreign" | Immigration only for Foreign passengers |
-| `profile` | pax_demographics | "Economy", "Business", "First", "Wheelchair", "Crew" | Priority lanes for Business/First |
-| `operating_carrier_iata` | Flight data | "AA", "G3", "UA", "DL" | Airline-specific counters |
-| `flight_type` | Flight data | "Domestic", "International" | Different processing for Int'l flights |
-| `show_up_time` | pax_arrival_patterns | timestamp | Starting point for simulation |
-| `flight_number` | Flight data | "AA1234", "G3567" | Specific flight handling |
-| `terminal` | Flight data | "T1", "T2", "A", "B" | Terminal-specific facilities |
-| `destination` | Flight data | "LAX", "JFK", "ICN" | Destination-based routing |
+| Field | Source | Description |
+|-------|--------|-------------|
+| `nationality` | pax_demographics | Passenger nationality (values from nationality config above) |
+| `profile` | pax_demographics | Passenger profile/type (values from profile config above) |
+| `operating_carrier_iata` | Flight data | Airline IATA code from flight schedule |
+| `flight_type` | Flight data | "Domestic" or "International" |
+| `show_up_time` | pax_arrival_patterns | Passenger arrival timestamp |
+| `flight_number` | Flight data | Flight number from schedule |
+| `terminal` | Flight data | Terminal from flight schedule |
+| `destination` | Flight data | Destination from flight schedule |
 
 **Condition Matching Logic (from simulator):**
 ```
@@ -631,11 +634,12 @@ passenger_conditions: [
 
 **💡 WHAT FIELDS CAN BE USED IN CONDITIONS?** (When users ask "어떤 필드 쓸 수 있어?")
 → "You can use any passenger attribute in entry_conditions or passenger_conditions:
-   - **nationality**: Set in Passengers → Nationality tab (e.g., Domestic, Foreign)
-   - **profile**: Set in Passengers → Pax Profile tab (e.g., Economy, Business, First, Wheelchair, Crew)
-   - **operating_carrier_iata**: Airline code from flight data (e.g., AA, G3, UA)
+   - **nationality**: Values from the nationality configuration above
+   - **profile**: Values from the profile configuration above
+   - **operating_carrier_iata**: Airline IATA codes from the flight schedule
    - **flight_type**: Domestic or International (from flight data)
-   - And other flight attributes: terminal, destination, flight_number, etc."
+   - And other flight attributes: terminal, destination, flight_number, etc.
+   Refer to the actual configuration data above for the specific values available in this simulation."
 
 **HOW TO ANSWER TIME-BASED QUESTIONS:**
 Example: "아메리칸 에어라인 승객이 몇시부터 몇시까지 몇명씩 와?"
@@ -1088,8 +1092,8 @@ Analyze the user's command and call the appropriate function."""
 
             if simulation_state:
                 # Passenger 데이터 힌트
-                if simulation_state.get('passenger', {}).get('total', 0) > 0:
-                    passenger_data = simulation_state.get('passenger', {})
+                if (simulation_state.get('passenger') or {}).get('total', 0) > 0:
+                    passenger_data = simulation_state.get('passenger') or {}
                     context_hints.append(f"Passenger data: {passenger_data.get('total', 0)} passengers with full details (chartResult, demographics, etc.)")
 
                 # Process flow 데이터 힌트
