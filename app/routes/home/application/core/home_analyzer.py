@@ -84,58 +84,53 @@ class HomeAnalyzer:
                 "gdp_ppp_per_capita": None,
             }
 
+            def _fetch_first_valid(indicator_url: str) -> Optional[dict]:
+                """API 응답에서 value가 non-null인 첫 번째 항목 반환 (최신 연도 데이터가 아직 없을 수 있음)"""
+                try:
+                    with urllib.request.urlopen(indicator_url, timeout=10) as response:
+                        data = json.loads(response.read().decode())
+                        if len(data) > 1 and data[1]:
+                            for item in data[1]:
+                                if item.get('value') is not None:
+                                    return item
+                except Exception as e:
+                    print(f"World Bank API 조회 실패: {e}")
+                return None
+
             # GDP (current US$)
-            try:
-                url_gdp = f"https://api.worldbank.org/v2/country/{country_code}/indicator/NY.GDP.MKTP.CD?format=json&per_page=1&date=2020:2025"
-                with urllib.request.urlopen(url_gdp, timeout=10) as response:
-                    data = json.loads(response.read().decode())
-                    if len(data) > 1 and data[1] and len(data[1]) > 0:
-                        latest = data[1][0]
-                        if latest.get('value'):
-                            result["gdp"] = {
-                                "year": latest['date'],
-                                "value": latest['value'],
-                                "value_billions": round(latest['value'] / 1e9, 2),
-                                "formatted": f"${latest['value'] / 1e9:.2f}B",
-                                "indicator": "GDP (current US$)"
-                            }
-            except Exception as e:
-                print(f"GDP 조회 실패: {e}")
+            url_gdp = f"https://api.worldbank.org/v2/country/{country_code}/indicator/NY.GDP.MKTP.CD?format=json&per_page=10&date=2020:2025"
+            latest = _fetch_first_valid(url_gdp)
+            if latest:
+                result["gdp"] = {
+                    "year": latest['date'],
+                    "value": latest['value'],
+                    "value_billions": round(latest['value'] / 1e9, 2),
+                    "formatted": f"${latest['value'] / 1e9:.2f}B",
+                    "indicator": "GDP (current US$)"
+                }
 
             # GDP PPP (current international $)
-            try:
-                url_ppp = f"https://api.worldbank.org/v2/country/{country_code}/indicator/NY.GDP.MKTP.PP.CD?format=json&per_page=1&date=2020:2025"
-                with urllib.request.urlopen(url_ppp, timeout=10) as response:
-                    data = json.loads(response.read().decode())
-                    if len(data) > 1 and data[1] and len(data[1]) > 0:
-                        latest = data[1][0]
-                        if latest.get('value'):
-                            result["gdp_ppp"] = {
-                                "year": latest['date'],
-                                "value": latest['value'],
-                                "value_billions": round(latest['value'] / 1e9, 2),
-                                "formatted": f"${latest['value'] / 1e9:.2f}B",
-                                "indicator": "GDP, PPP (current international $)"
-                            }
-            except Exception as e:
-                print(f"GDP PPP 조회 실패: {e}")
+            url_ppp = f"https://api.worldbank.org/v2/country/{country_code}/indicator/NY.GDP.MKTP.PP.CD?format=json&per_page=10&date=2020:2025"
+            latest = _fetch_first_valid(url_ppp)
+            if latest:
+                result["gdp_ppp"] = {
+                    "year": latest['date'],
+                    "value": latest['value'],
+                    "value_billions": round(latest['value'] / 1e9, 2),
+                    "formatted": f"${latest['value'] / 1e9:.2f}B",
+                    "indicator": "GDP, PPP (current international $)"
+                }
 
             # 인구 (Population, total)
-            try:
-                url_pop = f"https://api.worldbank.org/v2/country/{country_code}/indicator/SP.POP.TOTL?format=json&per_page=1&date=2020:2025"
-                with urllib.request.urlopen(url_pop, timeout=10) as response:
-                    data = json.loads(response.read().decode())
-                    if len(data) > 1 and data[1] and len(data[1]) > 0:
-                        latest = data[1][0]
-                        if latest.get('value'):
-                            result["population"] = {
-                                "year": latest['date'],
-                                "value": latest['value'],
-                                "formatted": f"{latest['value']:,.0f}",
-                                "indicator": "Population, total"
-                            }
-            except Exception as e:
-                print(f"인구 조회 실패: {e}")
+            url_pop = f"https://api.worldbank.org/v2/country/{country_code}/indicator/SP.POP.TOTL?format=json&per_page=10&date=2020:2025"
+            latest = _fetch_first_valid(url_pop)
+            if latest:
+                result["population"] = {
+                    "year": latest['date'],
+                    "value": latest['value'],
+                    "formatted": f"{latest['value']:,.0f}",
+                    "indicator": "Population, total"
+                }
 
             # 1인당 GDP 계산
             if result["gdp"] and result["population"]:
