@@ -4,11 +4,12 @@
 #   * 출발편: idx_date_dep 인덱스 활용 (Time series, Dep Airport Code)
 #   * 도착편: idx_date_arr 인덱스 활용 (Time series, Arr Airport Code)
 # - 날짜 범위 조건으로 idx_time_series 인덱스도 활용 가능
+#
+# Named parameters: %(flight_date)s, %(airport)s → 호출 시 dict로 전달
+# 출발편 + 도착편을 UNION ALL로 조회하되 파라미터는 2개만 사용
 
-# ✅ 출발편 + 도착편 한 번에 조회 (UNION으로 인덱스 최적화)
 SELECT_AIRPORT_FLIGHTS_BOTH = """
 SELECT 
-    -- 기본 항공편 정보
     "Time series"::date as flight_date,
     NULL as flight_number,
     "Carrier Code" as marketing_carrier_iata,
@@ -51,14 +52,13 @@ SELECT
     "Seats (Total)"::integer as total_seats
      
 FROM utc_world_all_years
-WHERE "Time series" = %s
-  AND "Dep Airport Code" = %s
+WHERE "Time series" = %(flight_date)s
+  AND "Dep Airport Code" = %(airport)s
   AND "Seats (Total)" > 0
 
 UNION ALL
 
 SELECT 
-    -- 기본 항공편 정보
     "Time series"::date as flight_date,
     NULL as flight_number,
     "Carrier Code" as marketing_carrier_iata,
@@ -101,8 +101,8 @@ SELECT
     "Seats (Total)"::integer as total_seats
      
 FROM utc_world_all_years
-WHERE "Time series" = %s
-  AND "Arr Airport Code" = %s
+WHERE "Time series" = %(flight_date)s
+  AND "Arr Airport Code" = %(airport)s
   AND "Seats (Total)" > 0
 
 ORDER BY scheduled_departure_local

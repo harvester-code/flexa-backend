@@ -165,60 +165,13 @@ class FlightFiltersResponse:
             logger.info(f"🔍 With conditions: {conditions}")
 
         try:
-            # ✅ 인덱스 최적화된 UNION 쿼리 구조
             query = SELECT_AIRPORT_FLIGHTS_BOTH
-            # 날짜 조건을 = 로 변경하여 정확히 해당 날짜만 조회
-            params = [date, airport, date, airport]
+            params = {"flight_date": date, "airport": airport}
             
-            # ✅ Add dynamic WHERE conditions if provided
-            # UNION ALL의 각 SELECT에 조건 추가 필요
-            if conditions:
-                extra_conditions = []
-                extra_params = []
-                
-                if "carrier" in conditions:
-                    extra_conditions.append('"Carrier Code" = %s')
-                    extra_params.append(conditions["carrier"])
-                
-                if "terminal" in conditions and conditions["terminal"]:
-                    # Terminal can be departure or arrival
-                    extra_conditions.append('("Dep Terminal" = %s OR "Arr Terminal" = %s)')
-                    extra_params.extend([conditions["terminal"], conditions["terminal"]])
-                
-                if "flight_type" in conditions:
-                    extra_conditions.append('"International/Domestic" = %s')
-                    extra_params.append(conditions["flight_type"])
-                
-                if "arrival_airport" in conditions:
-                    extra_conditions.append('"Arr Airport Code" = %s')
-                    extra_params.append(conditions["arrival_airport"])
-                
-                if "departure_airport" in conditions:
-                    extra_conditions.append('"Dep Airport Code" = %s')
-                    extra_params.append(conditions["departure_airport"])
-                
-                # Append extra conditions to both SELECT statements in UNION
-                if extra_conditions:
-                    conditions_sql = "\nAND " + "\nAND ".join(extra_conditions)
-                    # 첫 번째 SELECT (출발편)에 조건 추가
-                    query = query.replace(
-                        'AND "Seats (Total)" > 0\n\nUNION ALL',
-                        f'AND "Seats (Total)" > 0{conditions_sql}\n\nUNION ALL'
-                    )
-                    # 두 번째 SELECT (도착편)에 조건 추가
-                    query = query.replace(
-                        'AND "Seats (Total)" > 0\n\nORDER BY',
-                        f'AND "Seats (Total)" > 0{conditions_sql}\n\nORDER BY'
-                    )
-                    # 각 SELECT에 동일한 파라미터 추가
-                    params.extend(extra_params)  # 첫 번째 SELECT용
-                    params.extend(extra_params)  # 두 번째 SELECT용
-                    logger.info(f"📋 Added {len(extra_conditions)} filter conditions to both UNION parts")
-            
-            logger.info(f"📅 Using Snowflake query (Index-optimized UNION structure)")
+            logger.info(f"📅 Using flight data query (UNION structure, named params)")
 
             cursor = snowflake_db.cursor()
-            cursor.execute(query, tuple(params))
+            cursor.execute(query, params)
             columns = [desc[0] for desc in cursor.description]
             rows = cursor.fetchall()
             cursor.close()

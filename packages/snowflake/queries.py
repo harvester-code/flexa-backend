@@ -8,6 +8,9 @@
 #
 # Snowflake는 별칭을 대문자로 반환하므로, 소문자 유지를 위해
 # 모든 별칭을 쌍따옴표(")로 감싸야 함
+#
+# Named parameters: %(flight_date)s, %(airport)s → 호출 시 dict로 전달
+# 출발편(DEPAPT) + 도착편(ARRAPT)을 UNION ALL로 조회하되 파라미터는 2개만 사용
 
 SELECT_AIRPORT_FLIGHTS_BOTH = """
 SELECT DISTINCT
@@ -48,8 +51,8 @@ SELECT DISTINCT
     ECONOMY_CLASS_SEATS as "economy_class_seat_count",
     TOTAL_SEATS as "total_seats"
 FROM OAG_SCHEDULES.DIRECT_CUSTOMER_CONFIGURATIONS.AIR_DREAMER_SCHED
-WHERE FLIGHT_DATE = %s
-  AND DEPAPT = %s
+WHERE FLIGHT_DATE = %(flight_date)s
+  AND DEPAPT = %(airport)s
   AND OPERATING = 'O'
 
 UNION ALL
@@ -92,8 +95,8 @@ SELECT DISTINCT
     ECONOMY_CLASS_SEATS as "economy_class_seat_count",
     TOTAL_SEATS as "total_seats"
 FROM OAG_SCHEDULES.DIRECT_CUSTOMER_CONFIGURATIONS.AIR_DREAMER_SCHED
-WHERE FLIGHT_DATE = %s
-  AND ARRAPT = %s
+WHERE FLIGHT_DATE = %(flight_date)s
+  AND ARRAPT = %(airport)s
   AND OPERATING = 'O'
 
 ORDER BY "scheduled_departure_local"

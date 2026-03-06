@@ -108,8 +108,7 @@ class FlightScheduleStorage:
         # ========================================
         if not flight_schedule_data:
             query = SELECT_AIRPORT_FLIGHTS_BOTH
-            # 날짜 조건을 = 로 변경하여 정확히 해당 날짜만 조회
-            params = (date, airport, date, airport)
+            params = {"flight_date": date, "airport": airport}
             
             cursor = db.cursor()
             try:
