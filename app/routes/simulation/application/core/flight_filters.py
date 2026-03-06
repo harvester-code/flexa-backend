@@ -14,8 +14,8 @@ from sqlalchemy import Connection
 # ========================================
 # DATABASE QUERY IMPORTS
 # ========================================
-# 🔵 PostgreSQL (Current - Active)
-from packages.postgresql.queries import SELECT_AIRPORT_FLIGHTS_BOTH
+# 🟢 Provider Pattern: FLIGHT_DATA_SOURCE 환경변수로 PostgreSQL/Snowflake 자동 전환
+from packages.flight_data import SELECT_AIRPORT_FLIGHTS_BOTH
 
 # 🔴 Redshift (Legacy - Commented out for reference)
 # from ..queries import SELECT_AIRPORT_FLIGHTS_EXTENDED, SELECT_AIRPORT_SCHEDULE
@@ -26,7 +26,7 @@ class FlightFiltersResponse:
 
     async def generate_filters_metadata(
         self, 
-        postgresql_db: Connection,  # 🔵 PostgreSQL (Current)
+        snowflake_db: Connection,  # 🔵 Snowflake (Current)
         # redshift_db: Connection,  # 🔴 Redshift (Legacy - for reference)
         scenario_id: str, 
         airport: str, 
@@ -36,7 +36,7 @@ class FlightFiltersResponse:
         Generate flight filters metadata based on real data
 
         Args:
-            postgresql_db: PostgreSQL database connection (Current)
+            snowflake_db: Snowflake database connection (Current)
             # redshift_db: Redshift database connection (Legacy)
             scenario_id: Scenario ID
             airport: Airport IATA code (e.g. ICN, KPO) - case insensitive
@@ -52,12 +52,12 @@ class FlightFiltersResponse:
         logger.info(f"📍 Parameters: airport={airport}, date={date}")
 
         # ========================================
-        # 🔵 PostgreSQL: 단일 쿼리로 모든 데이터 조회 (현재 활성)
+        # 🔵 Snowflake: 단일 쿼리로 모든 데이터 조회 (현재 활성)
         # ========================================
         try:
             logger.info("✈️  Fetching ALL flight data (departure + arrival) in one query...")
             all_flights = await self._fetch_both_flights(
-                postgresql_db, airport, date, scenario_id
+                snowflake_db, airport, date, scenario_id
             )
             logger.info(f"✅ All flight data fetched: {len(all_flights)} flights")
 
@@ -137,11 +137,11 @@ class FlightFiltersResponse:
         return metadata
 
     # ========================================
-    # 🔵 PostgreSQL: 단일 쿼리로 출발/도착 모두 조회 (현재 활성)
+    # 🔵 Snowflake: 단일 쿼리로 출발/도착 모두 조회 (현재 활성)
     # ========================================
     async def _fetch_both_flights(
         self, 
-        postgresql_db: Connection, 
+        snowflake_db: Connection, 
         airport: str, 
         date: str, 
         scenario_id: str,
@@ -151,7 +151,7 @@ class FlightFiltersResponse:
         ✅ Fetch BOTH departure and arrival flight data in ONE query (optimized!)
         
         Args:
-            postgresql_db: Database connection
+            snowflake_db: Snowflake database connection
             airport: Airport IATA code
             date: Target date (YYYY-MM-DD)
             scenario_id: Scenario ID
@@ -215,10 +215,9 @@ class FlightFiltersResponse:
                     params.extend(extra_params)  # 두 번째 SELECT용
                     logger.info(f"📋 Added {len(extra_conditions)} filter conditions to both UNION parts")
             
-            logger.info(f"📅 Using PostgreSQL query (Index-optimized UNION structure)")
+            logger.info(f"📅 Using Snowflake query (Index-optimized UNION structure)")
 
-            # Execute query
-            cursor = postgresql_db.cursor()
+            cursor = snowflake_db.cursor()
             cursor.execute(query, tuple(params))
             columns = [desc[0] for desc in cursor.description]
             rows = cursor.fetchall()

@@ -599,15 +599,14 @@ class SimulationService:
             )
 
     async def get_flight_filters_metadata(
-        self, postgresql_db: Connection, scenario_id: str, airport: str, date: str
+        self, snowflake_db: Connection, scenario_id: str, airport: str, date: str
     ) -> dict:
         """
         항공편 필터링 메타데이터 생성 (실제 데이터 기반)
 
         Departure/Arrival 모드별 필터 옵션을 제공합니다.
-        실제 PostgreSQL 데이터에서 메타정보를 추출합니다.
+        실제 Snowflake 데이터에서 메타정보를 추출합니다.
         """
-        # FlightFiltersResponse 클래스를 사용하여 실제 데이터 기반 메타데이터 생성
         return await self.flight_filters_response.generate_filters_metadata(
-            postgresql_db=postgresql_db, scenario_id=scenario_id, airport=airport, date=date
+            snowflake_db=snowflake_db, scenario_id=scenario_id, airport=airport, date=date
         )

@@ -2,7 +2,7 @@
 항공편 스케줄 처리 통합 모듈 (Flight Schedule Processing)
 
 이 모듈은 항공편 스케줄 처리의 Storage와 Response 기능을 통합합니다:
-- FlightScheduleStorage: Redshift에서 항공편 데이터 조회 및 S3 저장
+- FlightScheduleStorage: Snowflake에서 항공편 데이터 조회 및 S3 저장
 - FlightScheduleResponse: 프론트엔드용 JSON 응답 생성 (차트 데이터 포함)
 """
 
@@ -20,8 +20,8 @@ from packages.aws.s3.s3_manager import S3Manager
 # ========================================
 # DATABASE QUERY IMPORTS
 # ========================================
-# 🔵 PostgreSQL (Current - Active)
-from packages.postgresql.queries import SELECT_AIRPORT_FLIGHTS_BOTH
+# 🟢 Provider Pattern: FLIGHT_DATA_SOURCE 환경변수로 PostgreSQL/Snowflake 자동 전환
+from packages.flight_data import SELECT_AIRPORT_FLIGHTS_BOTH
 
 # 🔴 Redshift (Legacy - Commented out for reference)
 # from app.routes.simulation.application.queries import (
@@ -44,7 +44,7 @@ class FlightScheduleStorage:
         flight_type: str,
         conditions: list | None,
         scenario_id: str,
-        storage: str = "redshift",
+        storage: str = "snowflake",
     ) -> List[dict]:
         """항공편 스케줄 데이터 조회 및 저장"""
         try:
@@ -104,7 +104,7 @@ class FlightScheduleStorage:
                 )
 
         # ========================================
-        # 🔵 PostgreSQL에서 데이터 조회 (현재 활성)
+        # 🔵 Snowflake에서 데이터 조회 (현재 활성)
         # ========================================
         if not flight_schedule_data:
             query = SELECT_AIRPORT_FLIGHTS_BOTH
