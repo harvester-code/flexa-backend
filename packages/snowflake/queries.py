@@ -2,9 +2,11 @@
 # PostgreSQL queries.py와 동일한 출력 컬럼 별칭을 사용하여
 # 다운스트림 코드 변경 없이 데이터소스 교체 가능
 #
-# 필터링 로직:
-#   1. OPERATING = 'O' → 실제 운항편만 (코드쉐어 마케팅편/독립편 제외)
-#   2. SELECT DISTINCT → OAG_SCHEDULE_FINGERPRINT, FILE_DATE 제외한 나머지 컬럼 중복 제거
+# 필터링 로직 (OAG 권장):
+#   1. OPERATING <> 'N' → 운항편만 (코드쉐어 포함, 마케팅 전용편 제외)
+#   2. SERVICE = 'J' → 여객편만 (화물편 제외)
+#   3. FILE_DATE = FLIGHT_DATE - 1일 → 최신 파일로 중복 제거 + 처리 속도 향상
+#   4. SELECT DISTINCT → 나머지 컬럼 중복 제거
 #
 # Snowflake는 별칭을 대문자로 반환하므로, 소문자 유지를 위해
 # 모든 별칭을 쌍따옴표(")로 감싸야 함
@@ -53,7 +55,9 @@ SELECT DISTINCT
 FROM OAG_SCHEDULES.DIRECT_CUSTOMER_CONFIGURATIONS.AIR_DREAMER_SCHED
 WHERE FLIGHT_DATE = %(flight_date)s
   AND DEPAPT = %(airport)s
-  AND OPERATING = 'O'
+  AND OPERATING <> 'N'
+  AND SERVICE = 'J'
+  AND FILE_DATE = DATEADD(day, -1, %(flight_date)s::DATE)
 
 UNION ALL
 
@@ -97,7 +101,9 @@ SELECT DISTINCT
 FROM OAG_SCHEDULES.DIRECT_CUSTOMER_CONFIGURATIONS.AIR_DREAMER_SCHED
 WHERE FLIGHT_DATE = %(flight_date)s
   AND ARRAPT = %(airport)s
-  AND OPERATING = 'O'
+  AND OPERATING <> 'N'
+  AND SERVICE = 'J'
+  AND FILE_DATE = DATEADD(day, -1, %(flight_date)s::DATE)
 
 ORDER BY "scheduled_departure_local"
 """
