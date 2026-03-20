@@ -4,9 +4,10 @@
 #
 # 필터링 로직 (OAG 권장):
 #   1. OPERATING <> 'N' → 운항편만 (코드쉐어 포함, 마케팅 전용편 제외)
-#   2. SERVICE = 'J' → 여객편만 (화물편 제외)
-#   3. FILE_DATE = FLIGHT_DATE - 1일 → 최신 파일로 중복 제거 + 처리 속도 향상
-#   4. SELECT DISTINCT → 나머지 컬럼 중복 제거
+#   2. SERVICE = 'J' → 여객편만 (화물편 SERVICE='F' 등 제외)
+#   3. TOTAL_SEATS > 0 → 좌석 데이터 누락된 불완전 레코드 제외 (NULL/0 모두 제거)
+#   4. FILE_DATE = FLIGHT_DATE - 1일 → 최신 파일로 중복 제거 + 처리 속도 향상
+#   5. SELECT DISTINCT → 나머지 컬럼 중복 제거
 #
 # JOIN 구조 (OAG Caryen Cheong 제공 샘플 기반):
 #   - MASTER_CARRIER_TRIAL: 항공사 코드 → 항공사명 매핑
@@ -54,6 +55,7 @@ WITH schedule_data AS (
       AND DEPAPT = %(airport)s
       AND OPERATING <> 'N'
       AND SERVICE = 'J'
+      AND TOTAL_SEATS > 0
       AND FILE_DATE = DATEADD(day, -1, %(flight_date)s::DATE)
 
     UNION ALL
@@ -90,6 +92,7 @@ WITH schedule_data AS (
       AND ARRAPT = %(airport)s
       AND OPERATING <> 'N'
       AND SERVICE = 'J'
+      AND TOTAL_SEATS > 0
       AND FILE_DATE = DATEADD(day, -1, %(flight_date)s::DATE)
 )
 SELECT
