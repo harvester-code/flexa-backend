@@ -7,6 +7,7 @@ FLIGHT_DATA_SOURCE 환경변수로 데이터소스를 전환합니다:
 
 사용법:
   from packages.flight_data import get_snowflake_connection, SELECT_AIRPORT_FLIGHTS_BOTH, lifespan
+  from packages.flight_data import enrich_flight_data  # Snowflake 국가/지역 보강
 """
 
 from packages.doppler.client import get_secret
@@ -24,4 +25,12 @@ else:
     from packages.postgresql.queries import SELECT_AIRPORT_FLIGHTS_BOTH
     from packages.postgresql.lifespan import lifespan
 
-__all__ = ["get_snowflake_connection", "SELECT_AIRPORT_FLIGHTS_BOTH", "lifespan", "FLIGHT_DATA_SOURCE"]
+from packages.flight_data.enrichment import enrich_flight_data
+
+__all__ = [
+    "get_snowflake_connection",
+    "SELECT_AIRPORT_FLIGHTS_BOTH",
+    "lifespan",
+    "FLIGHT_DATA_SOURCE",
+    "enrich_flight_data",
+]

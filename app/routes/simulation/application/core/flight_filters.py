@@ -15,7 +15,7 @@ from sqlalchemy import Connection
 # DATABASE QUERY IMPORTS
 # ========================================
 # 🟢 Provider Pattern: FLIGHT_DATA_SOURCE 환경변수로 PostgreSQL/Snowflake 자동 전환
-from packages.flight_data import SELECT_AIRPORT_FLIGHTS_BOTH
+from packages.flight_data import SELECT_AIRPORT_FLIGHTS_BOTH, enrich_flight_data
 
 # 🔴 Redshift (Legacy - Commented out for reference)
 # from ..queries import SELECT_AIRPORT_FLIGHTS_EXTENDED, SELECT_AIRPORT_SCHEDULE
@@ -177,6 +177,7 @@ class FlightFiltersResponse:
             cursor.close()
 
             flight_data = [dict(zip(columns, row)) for row in rows]
+            flight_data = enrich_flight_data(flight_data)
 
             logger.info(f"✅ Found {len(flight_data)} total flights in ONE query (2x faster!)")
             return flight_data

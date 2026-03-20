@@ -21,7 +21,7 @@ from packages.aws.s3.s3_manager import S3Manager
 # DATABASE QUERY IMPORTS
 # ========================================
 # 🟢 Provider Pattern: FLIGHT_DATA_SOURCE 환경변수로 PostgreSQL/Snowflake 자동 전환
-from packages.flight_data import SELECT_AIRPORT_FLIGHTS_BOTH
+from packages.flight_data import SELECT_AIRPORT_FLIGHTS_BOTH, enrich_flight_data
 
 # 🔴 Redshift (Legacy - Commented out for reference)
 # from app.routes.simulation.application.queries import (
@@ -119,8 +119,10 @@ class FlightScheduleStorage:
             finally:
                 cursor.close()
 
-            # DataFrame으로 변환
-            flight_schedule_df = pd.DataFrame(rows, columns=columns)
+            # DataFrame으로 변환 (enrichment 적용 후)
+            raw_data = [dict(zip(columns, row)) for row in rows]
+            raw_data = enrich_flight_data(raw_data)
+            flight_schedule_df = pd.DataFrame(raw_data)
             
             # ✅ flight_type에 따라 필터링 (Python에서 처리)
             if flight_type == "departure":
