@@ -1357,6 +1357,33 @@ class HomeAnalyzer:
                                 process_facility_data[node_name]["sub_facilities"] = individual_facilities
                                 process_facility_data[node_name]["facility_data"] = sub_facility_data
 
+                # 미운영 존 포함: step_config에 정의되어 있지만 실제 데이터에 없는 존을 0값으로 추가
+                if step_config:
+                    config_zone_names = set(step_config.get("zones", {}).keys())
+                    existing_zone_names = {
+                        facility_name_reverse_mapping.get(f, f) for f in facilities
+                    }
+                    inactive_zones = config_zone_names - existing_zone_names
+
+                    for zone_name in sorted(inactive_zones):
+                        zero_data = {
+                            "inflow": [0] * len(time_df),
+                            "outflow": [0] * len(time_df),
+                            "queue_length": [0] * len(time_df),
+                            "waiting_time": [0] * len(time_df),
+                        }
+                        if zone_name in zone_capacity_map:
+                            zero_data["capacity"] = [
+                                int(round(v)) for v in zone_capacity_map[zone_name]
+                            ]
+                        else:
+                            zero_data["capacity"] = [0] * len(time_df)
+
+                        process_info["facilities"].append(zone_name)
+                        process_facility_data[zone_name] = zero_data
+
+                    process_info["facilities"].sort()
+
                 # None/Skip 데이터 처리 - 프로세스를 건너뛴 승객
                 if no_zone.any():
                     skip_count = no_zone.sum()
@@ -1533,6 +1560,32 @@ class HomeAnalyzer:
                     }
                 )
 
+            # 미운영 존 포함: process_flow에 정의되어 있지만 실제 데이터에 없는 존을 CLOSED로 추가
+            step_config = self.process_flow_map.get(process) if self.process_flow_map else None
+            if step_config:
+                config_zone_names = set(step_config.get("zones", {}).keys())
+                existing_zone_names = set(process_df[f"{process}_zone"].dropna().unique())
+                inactive_zones = config_zone_names - existing_zone_names
+
+                for zone_name in sorted(inactive_zones):
+                    zone_oi = zone_opened_map.get(zone_name, {})
+                    components.append(
+                        {
+                            "title": zone_name,
+                            "throughput": 0,
+                            "queuePax": 0,
+                            "waitTime": self._format_waiting_time(0),
+                            "facility_effi": 0,
+                            "workforce_effi": 0,
+                            "opened": [zone_oi.get('opened', 0), zone_oi.get('total', 0)],
+                        }
+                    )
+
+                # process_flow 존 순서에 맞춰 정렬
+                user_order = list(step_config.get("zones", {}).keys())
+                order_map = {name: idx for idx, name in enumerate(user_order)}
+                components.sort(key=lambda c: order_map.get(c["title"], len(user_order)))
+
             data.append(
                 {"category": process, "overview": overview, "components": components}
             )
@@ -1588,6 +1641,24 @@ class HomeAnalyzer:
                     wt_collection.append(wt_bins)
                 if ql_bins:
                     ql_collection.append(ql_bins)
+
+            # 미운영 존 포함: process_flow에 정의되어 있지만 실제 데이터에 없는 존을 빈 히스토그램으로 추가
+            step_config = self.process_flow_map.get(process) if self.process_flow_map else None
+            if step_config:
+                config_zone_names = set(step_config.get("zones", {}).keys())
+                existing_zone_names = set(facilities)
+                inactive_zones = config_zone_names - existing_zone_names
+
+                if inactive_zones:
+                    empty_wt_bins = [{"title": label, "value": 0, "unit": "%"} for label in WT_LABELS]
+                    empty_ql_bins = [{"title": label, "value": 0, "unit": "%"} for label in QL_LABELS]
+
+                    for zone_name in sorted(inactive_zones):
+                        short_name = zone_name.split("_")[-1]
+                        facility_data[short_name] = {
+                            "waiting_time": self._create_bins_data(empty_wt_bins, "min", True),
+                            "queue_length": self._create_bins_data(empty_ql_bins, "pax", False),
+                        }
 
             # all_zones 생성
             if wt_collection and ql_collection:
