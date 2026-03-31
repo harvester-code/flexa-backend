@@ -31,6 +31,28 @@ class HomeStaticResponse(BaseModel):
     sankey_diagram: Optional[Dict[str, Any]] = None
 
 
+class PassengerTimelineStepInfo(BaseModel):
+    name: str
+    travel_minutes: float = 0
+
+
+class PassengerTimelineZone(BaseModel):
+    x: float
+    y: float
+    w: float = 0
+    h: float = 0
+
+
+class PassengerTimelineResponse(BaseModel):
+    """3D 뷰어용 승객 타임라인 데이터"""
+    base_time: Optional[str] = None
+    duration_seconds: int = 0
+    steps: List[PassengerTimelineStepInfo] = Field(default_factory=list)
+    zones: Dict[str, PassengerTimelineZone] = Field(default_factory=dict)
+    zone_facilities: Dict[str, List[str]] = Field(default_factory=dict)
+    passengers: List[Any] = Field(default_factory=list)
+
+
 # ============================================================
 # Metrics Data 응답 (/homes/{scenario_id}/metrics)
 # ============================================================

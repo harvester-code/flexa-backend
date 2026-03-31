@@ -4,7 +4,11 @@ from fastapi import APIRouter, Depends, status
 from app.libs.containers import Container
 from packages.supabase.dependencies import verify_scenario_ownership, verify_token
 from app.routes.home.application.service import HomeService
-from app.routes.home.interface.schema import HomeMetricsResponse, HomeStaticResponse
+from app.routes.home.interface.schema import (
+    HomeMetricsResponse,
+    HomeStaticResponse,
+    PassengerTimelineResponse,
+)
 
 """
 status 코드 정리
@@ -34,6 +38,22 @@ async def fetch_static_data(
     interval_minutes: int = 60,
 ):
     result = await home_service.fetch_static_data(scenario_id, interval_minutes)
+    return result
+
+
+@home_router.get(
+    "/{scenario_id}/passenger-timelines",
+    status_code=200,
+    response_model=PassengerTimelineResponse,
+    summary="승객 타임라인 데이터 조회 (3D 뷰어용)",
+    description="시뮬레이션 결과를 승객별 이벤트 타임라인으로 변환하여 반환합니다. 3D 시뮬레이션 뷰어에서 애니메이션 재생에 사용됩니다.",
+)
+@inject
+async def fetch_passenger_timelines(
+    scenario_id: str = Depends(verify_scenario_ownership),
+    home_service: HomeService = Depends(Provide[Container.home_service]),
+):
+    result = await home_service.fetch_passenger_timelines(scenario_id)
     return result
 
 

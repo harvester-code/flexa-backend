@@ -7,6 +7,7 @@ from fastapi import HTTPException, status
 from loguru import logger
 
 from app.routes.home.application.core.home_analyzer import HomeAnalyzer
+from app.routes.home.application.core.timeline_builder import build_passenger_timelines
 from app.routes.home.infra.repository import HomeRepository
 
 
@@ -182,6 +183,37 @@ class HomeService:
         
         logger.info(f"=" * 80)
         
+        return result
+
+    async def fetch_passenger_timelines(self, scenario_id: str) -> Dict[str, Any]:
+        """승객별 타임라인 데이터 반환 (3D 뷰어용, S3 캐싱 지원)"""
+        logger.info(f"={'=' * 79}")
+        logger.info(f"[TIMELINE] scenario_id={scenario_id}")
+
+        cache_filename = f"passenger-timelines-{_CODE_HASH}.json"
+
+        is_valid = await self.home_repo.is_cache_valid(scenario_id, cache_filename)
+        if is_valid:
+            cached = await self.home_repo.load_cached_response(scenario_id, cache_filename)
+            if cached:
+                logger.info("[TIMELINE] Cache hit – returning cached data")
+                return cached
+
+        logger.info("[TIMELINE] Cache miss – computing timelines from parquet")
+        pax_df = await self._get_pax_dataframe(scenario_id)
+        metadata = await self._get_metadata(scenario_id)
+
+        result = build_passenger_timelines(pax_df, metadata)
+
+        save_ok = await self.home_repo.save_cached_response(scenario_id, cache_filename, result)
+        if save_ok:
+            await self.home_repo.delete_old_caches(
+                scenario_id,
+                prefix="passenger-timelines-",
+                keep_filename=cache_filename,
+            )
+
+        logger.info(f"={'=' * 79}")
         return result
 
     async def fetch_metrics_data(
