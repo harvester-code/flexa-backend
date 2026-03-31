@@ -184,10 +184,14 @@ def build_passenger_timelines(
         logger.info("No zone positions in metadata – auto-generating from parquet data")
         zone_centers = _auto_generate_zone_positions(pax_df, process_list)
 
+    has_show_up = "show_up_time" in pax_df.columns
+
     global_min = pd.Timestamp.max
     global_max = pd.Timestamp.min
 
     time_cols = []
+    if has_show_up:
+        time_cols.append("show_up_time")
     for proc in process_list:
         for suffix in ("_on_pred", "_done_time"):
             col = f"{proc}{suffix}"
@@ -239,6 +243,13 @@ def build_passenger_timelines(
     passengers_out: List[Any] = []
 
     for _, row in pax_df.iterrows():
+        # show_up_offset: seconds from base_time when passenger enters airport
+        show_up_off = -1
+        if has_show_up:
+            su = row.get("show_up_time")
+            if pd.notna(su):
+                show_up_off = int((pd.Timestamp(su) - base_time).total_seconds())
+
         pax_events: List[Any] = []
 
         for proc in process_list:
@@ -276,7 +287,7 @@ def build_passenger_timelines(
             fac_str = str(facility) if facility and not pd.isna(facility) else ""
             pax_events.append([on_off, st_off, dn_off, zone_str, fac_str])
 
-        passengers_out.append(pax_events)
+        passengers_out.append([show_up_off, pax_events])
 
     logger.info(
         f"Timeline built: {len(passengers_out):,} passengers, "
