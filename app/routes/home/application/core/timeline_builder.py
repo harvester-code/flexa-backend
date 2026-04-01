@@ -97,13 +97,16 @@ def _auto_generate_zone_positions(
         return {}
 
     centers: Dict[str, Dict[str, float]] = {}
+    placed_zones: set = set()
     margin = 0.05
     usable = 1.0 - 2 * margin
     gap = 0.01
 
     for step_idx, proc in enumerate(process_list):
-        zones = step_zones[proc]
+        zones = [z for z in step_zones[proc] if str(z) not in placed_zones]
         n_zones = len(zones)
+        if n_zones == 0:
+            continue
         row_y = margin + (step_idx + 0.5) / n_steps * usable
 
         weights = [zone_fac_count.get(str(zn), 1) for zn in zones]
@@ -124,6 +127,7 @@ def _auto_generate_zone_positions(
                 "w": round(zone_w, 4),
                 "h": round(zone_h, 4),
             }
+            placed_zones.add(str(zone_name))
             cursor_x += zone_w + gap
 
     logger.info(
