@@ -128,7 +128,7 @@ Only use read_file when the user asks about simulation RESULTS (.parquet files).
         scenario_id: str,
         conversation_history: list = None,
         simulation_state: dict = None,
-        model: str = "gpt-4o-2024-08-06",
+        model: str = "gpt-4o-mini",
         temperature: float = 0.1
     ) -> Dict[str, Any]:
         """
@@ -1217,7 +1217,7 @@ Use simulation_state to answer process-related questions.]"""
         file_content: Any,
         user_query: str,
         simulation_state: dict = None,
-        model: str = "gpt-4o-2024-08-06",
+        model: str = "gpt-4o-mini",
         temperature: float = 0.1
     ) -> Dict[str, Any]:
         """

@@ -73,8 +73,8 @@ class CommandRequest(BaseModel):
         description="현재 시뮬레이션 상태 (Zustand store에서 추출한 실시간 상태)"
     )
     model: str = Field(
-        default="gpt-4o-2024-08-06",
-        description="사용할 OpenAI 모델 (Structured Outputs 지원 모델 권장)"
+        default="gpt-4o-mini",
+        description="사용할 OpenAI 모델"
     )
     temperature: float = Field(
         default=0.1,

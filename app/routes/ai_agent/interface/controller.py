@@ -115,7 +115,7 @@ async def execute_command(
     - "프로세스 목록 보여줘"
     
     - **content**: 사용자 명령
-    - **model**: 사용할 OpenAI 모델 (기본: gpt-4o-2024-08-06)
+    - **model**: 사용할 OpenAI 모델 (기본: gpt-4o-mini)
     - **temperature**: 응답의 일관성 (기본: 0.1)
     """
     try:
