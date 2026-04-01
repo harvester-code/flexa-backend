@@ -178,11 +178,7 @@ def build_passenger_timelines(
             process_flow = None
 
     travel_map = _extract_travel_minutes(process_flow, process_list)
-    zone_centers = _extract_zone_centers(metadata)
-
-    if not zone_centers:
-        logger.info("No zone positions in metadata – auto-generating from parquet data")
-        zone_centers = _auto_generate_zone_positions(pax_df, process_list)
+    zone_centers = _auto_generate_zone_positions(pax_df, process_list)
 
     has_show_up = "show_up_time" in pax_df.columns
 
