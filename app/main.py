@@ -1,3 +1,6 @@
+import asyncio
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.gzip import GZipMiddleware
 from starlette.middleware.cors import CORSMiddleware
@@ -16,7 +19,17 @@ from app.routes.simulation.interface.controller import (
     public_simulation_router,
 )
 from packages.doppler.client import get_secret
-from packages.flight_data import lifespan
+from packages.flight_data import lifespan as _base_lifespan
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with _base_lifespan(app):
+        from app.routes.home.application.cache_warmer import run_periodic_warmer
+
+        warmer_task = asyncio.create_task(run_periodic_warmer(300))
+        yield
+        warmer_task.cancel()
 
 # 애플리케이션 상수
 API_PREFIX = "/api/v1"
