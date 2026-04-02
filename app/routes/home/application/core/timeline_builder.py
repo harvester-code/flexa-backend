@@ -7,7 +7,6 @@ timeline format optimized for 3D animation playback on the frontend.
 
 from typing import Any, Dict, List, Optional
 
-import numpy as np
 import pandas as pd
 from loguru import logger
 
@@ -18,47 +17,6 @@ def _get_process_list(df: pd.DataFrame) -> List[str]:
         for col in df.columns
         if col.endswith("_on_pred")
     ]
-
-
-def _extract_zone_centers(
-    metadata: Optional[Dict[str, Any]],
-) -> Dict[str, Dict[str, float]]:
-    """Extract zone center positions (normalized 0-1) from terminal layout metadata."""
-    if not metadata:
-        return {}
-
-    terminal_layout = metadata.get("terminalLayout")
-    if not terminal_layout:
-        for tab in metadata.get("tabs", {}).values():
-            if isinstance(tab, dict) and "terminalLayout" in tab:
-                terminal_layout = tab["terminalLayout"]
-                break
-
-    if not terminal_layout:
-        return {}
-
-    zone_areas = terminal_layout.get("zoneAreas", {})
-    centers: Dict[str, Dict[str, float]] = {}
-
-    for key, rect in zone_areas.items():
-        if not rect or not isinstance(rect, dict):
-            continue
-        parts = key.split(":")
-        zone_name = parts[-1] if len(parts) > 1 else parts[0]
-
-        x = float(rect.get("x", 0))
-        y = float(rect.get("y", 0))
-        w = float(rect.get("width", 0))
-        h = float(rect.get("height", 0))
-
-        centers[zone_name] = {
-            "x": round(x + w / 2, 4),
-            "y": round(y + h / 2, 4),
-            "w": round(w, 4),
-            "h": round(h, 4),
-        }
-
-    return centers
 
 
 def _auto_generate_zone_positions(
@@ -74,7 +32,7 @@ def _auto_generate_zone_positions(
     step_zones: Dict[str, List[str]] = {}
     zone_fac_count: Dict[str, int] = {}
 
-    for proc in process_list:
+    for step_idx, proc in enumerate(process_list):
         zone_col = f"{proc}_zone"
         fac_col = f"{proc}_facility"
         if zone_col in pax_df.columns:
@@ -85,31 +43,32 @@ def _auto_generate_zone_positions(
 
         if zone_col in pax_df.columns and fac_col in pax_df.columns:
             for zn in step_zones[proc]:
+                key = f"{step_idx}:{zn}"
                 mask = pax_df[zone_col] == zn
                 n_fac = pax_df.loc[mask, fac_col].dropna().nunique()
-                zone_fac_count[str(zn)] = max(n_fac, 1)
+                zone_fac_count[key] = max(n_fac, 1)
         else:
             for zn in step_zones[proc]:
-                zone_fac_count[str(zn)] = 1
+                zone_fac_count[f"{step_idx}:{zn}"] = 1
 
     n_steps = len(process_list)
     if n_steps == 0:
         return {}
 
     centers: Dict[str, Dict[str, float]] = {}
-    placed_zones: set = set()
     margin = 0.05
     usable = 1.0 - 2 * margin
     gap = 0.01
 
     for step_idx, proc in enumerate(process_list):
-        zones = [z for z in step_zones[proc] if str(z) not in placed_zones]
+        zones = step_zones[proc]
         n_zones = len(zones)
         if n_zones == 0:
             continue
         row_y = margin + (step_idx + 0.5) / n_steps * usable
 
-        weights = [zone_fac_count.get(str(zn), 1) for zn in zones]
+        keys = [f"{step_idx}:{zn}" for zn in zones]
+        weights = [zone_fac_count.get(k, 1) for k in keys]
         total_weight = sum(weights)
         total_gap = gap * max(n_zones - 1, 0)
         available = usable - total_gap
@@ -121,13 +80,12 @@ def _auto_generate_zone_positions(
             zone_h = usable / n_steps * 0.6
             col_x = cursor_x + zone_w / 2
 
-            centers[str(zone_name)] = {
+            centers[f"{step_idx}:{zone_name}"] = {
                 "x": round(col_x, 4),
                 "y": round(row_y, 4),
                 "w": round(zone_w, 4),
                 "h": round(zone_h, 4),
             }
-            placed_zones.add(str(zone_name))
             cursor_x += zone_w + gap
 
     logger.info(
@@ -222,9 +180,9 @@ def build_passenger_timelines(
             "travel_minutes": travel_map.get(proc, 0),
         })
 
-    # Build zone_facilities mapping: zone_name -> sorted list of unique facility IDs
+    # Build zone_facilities mapping: "step_idx:zone_name" -> sorted facility IDs
     zone_facilities: Dict[str, List[str]] = {}
-    for proc in process_list:
+    for step_idx, proc in enumerate(process_list):
         zone_col = f"{proc}_zone"
         fac_col = f"{proc}_facility"
         if zone_col in pax_df.columns and fac_col in pax_df.columns:
@@ -236,7 +194,7 @@ def build_passenger_timelines(
                 .apply(lambda x: sorted(x.astype(str).unique().tolist()))
             )
             for zone_name, fac_list in grouped.items():
-                zone_facilities[str(zone_name)] = fac_list
+                zone_facilities[f"{step_idx}:{zone_name}"] = fac_list
 
     logger.info(f"Collected facilities for {len(zone_facilities)} zones")
 
@@ -252,7 +210,7 @@ def build_passenger_timelines(
 
         pax_events: List[Any] = []
 
-        for proc in process_list:
+        for step_idx, proc in enumerate(process_list):
             on_pred_col = f"{proc}_on_pred"
             start_col = f"{proc}_start_time"
             done_col = f"{proc}_done_time"
@@ -283,7 +241,8 @@ def build_passenger_timelines(
             st_off = int((start_ts - base_time).total_seconds())
             dn_off = int((done_ts - base_time).total_seconds())
 
-            zone_str = str(zone) if zone and not pd.isna(zone) else ""
+            raw_zone = str(zone) if zone and not pd.isna(zone) else ""
+            zone_str = f"{step_idx}:{raw_zone}" if raw_zone else ""
             fac_str = str(facility) if facility and not pd.isna(facility) else ""
             pax_events.append([on_off, st_off, dn_off, zone_str, fac_str])
 
