@@ -194,7 +194,9 @@ def build_passenger_timelines(
                 .apply(lambda x: sorted(x.astype(str).unique().tolist()))
             )
             for zone_name, fac_list in grouped.items():
-                zone_facilities[f"{step_idx}:{zone_name}"] = fac_list
+                zone_facilities[f"{step_idx}:{zone_name}"] = [
+                    f"{step_idx}:{fid}" for fid in fac_list
+                ]
 
     logger.info(f"Collected facilities for {len(zone_facilities)} zones")
 
@@ -243,7 +245,8 @@ def build_passenger_timelines(
 
             raw_zone = str(zone) if zone and not pd.isna(zone) else ""
             zone_str = f"{step_idx}:{raw_zone}" if raw_zone else ""
-            fac_str = str(facility) if facility and not pd.isna(facility) else ""
+            raw_fac = str(facility) if facility and not pd.isna(facility) else ""
+            fac_str = f"{step_idx}:{raw_fac}" if raw_fac else ""
             pax_events.append([on_off, st_off, dn_off, zone_str, fac_str])
 
         passengers_out.append([show_up_off, pax_events])
