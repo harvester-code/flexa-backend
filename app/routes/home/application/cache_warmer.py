@@ -11,8 +11,9 @@ Runs once at server startup then repeats on a configurable interval.
 
 import asyncio
 import os
-from typing import List
+from typing import List, Optional, Tuple
 
+import pandas as pd
 from loguru import logger
 from sqlalchemy import select
 
@@ -44,52 +45,61 @@ async def _get_active_scenario_ids() -> List[str]:
         return [row[0] for row in result.fetchall()]
 
 
-async def _warm_timeline(scenario_id: str, repo: HomeRepository) -> bool:
-    if await repo.is_cache_valid(scenario_id, TIMELINE_CACHE):
-        return False
-
-    pax_df = await repo.load_simulation_parquet(scenario_id)
-    if pax_df is None:
-        return False
-
-    metadata = await repo.load_metadata(scenario_id, "metadata-for-frontend.json")
-    result = build_passenger_timelines(pax_df, metadata)
-
-    ok = await repo.save_cached_response(scenario_id, TIMELINE_CACHE, result)
-    if ok:
-        await repo.delete_old_caches(scenario_id, "passenger-timelines-", TIMELINE_CACHE)
-    return ok
+async def _check_staleness(
+    scenario_id: str, repo: HomeRepository
+) -> Tuple[bool, bool]:
+    """Return (timeline_stale, static_stale) with minimal S3 calls."""
+    t_valid = await repo.is_cache_valid(scenario_id, TIMELINE_CACHE)
+    s_valid = await repo.is_cache_valid(scenario_id, STATIC_CACHE)
+    return (not t_valid, not s_valid)
 
 
-async def _warm_static(scenario_id: str, repo: HomeRepository) -> bool:
-    if await repo.is_cache_valid(scenario_id, STATIC_CACHE):
-        return False
+async def _warm_scenario(
+    scenario_id: str,
+    repo: HomeRepository,
+    need_timeline: bool,
+    need_static: bool,
+) -> Tuple[bool, bool]:
+    """Warm one scenario, loading parquet/metadata at most once."""
+    pax_df: Optional[pd.DataFrame] = None
+    metadata: Optional[dict] = None
+    t_ok = False
+    s_ok = False
 
-    pax_df = await repo.load_simulation_parquet(scenario_id)
-    if pax_df is None:
-        return False
+    if need_timeline:
+        pax_df = await repo.load_simulation_parquet(scenario_id)
+        if pax_df is not None:
+            metadata = await repo.load_metadata(scenario_id, "metadata-for-frontend.json")
+            result = build_passenger_timelines(pax_df, metadata)
+            t_ok = await repo.save_cached_response(scenario_id, TIMELINE_CACHE, result)
+            if t_ok:
+                await repo.delete_old_caches(scenario_id, "passenger-timelines-", TIMELINE_CACHE)
 
-    metadata = await repo.load_metadata(scenario_id, "metadata-for-frontend.json")
-    process_flow = None
-    if metadata:
-        pf = metadata.get("process_flow")
-        process_flow = pf if isinstance(pf, list) else None
+    if need_static:
+        if pax_df is None:
+            pax_df = await repo.load_simulation_parquet(scenario_id)
+        if metadata is None and pax_df is not None:
+            metadata = await repo.load_metadata(scenario_id, "metadata-for-frontend.json")
+        if pax_df is not None:
+            process_flow = None
+            if metadata:
+                pf = metadata.get("process_flow")
+                process_flow = pf if isinstance(pf, list) else None
+            calculator = HomeAnalyzer(
+                pax_df,
+                process_flow=process_flow,
+                country_to_airports_path=_COUNTRY_AIRPORTS_PATH,
+            )
+            result = {
+                "flow_chart": calculator.get_flow_chart_data(),
+                "histogram": calculator.get_histogram_data(),
+                "sankey_diagram": calculator.get_sankey_diagram_data(),
+            }
+            s_ok = await repo.save_cached_response(scenario_id, STATIC_CACHE, result)
+            if s_ok:
+                await repo.delete_old_caches(scenario_id, "home-static-response-", STATIC_CACHE)
 
-    calculator = HomeAnalyzer(
-        pax_df,
-        process_flow=process_flow,
-        country_to_airports_path=_COUNTRY_AIRPORTS_PATH,
-    )
-    result = {
-        "flow_chart": calculator.get_flow_chart_data(),
-        "histogram": calculator.get_histogram_data(),
-        "sankey_diagram": calculator.get_sankey_diagram_data(),
-    }
-
-    ok = await repo.save_cached_response(scenario_id, STATIC_CACHE, result)
-    if ok:
-        await repo.delete_old_caches(scenario_id, "home-static-response-", STATIC_CACHE)
-    return ok
+    return (t_ok, s_ok)
 
 
 async def warm_all_caches() -> None:
@@ -101,24 +111,32 @@ async def warm_all_caches() -> None:
         return
 
     if not scenario_ids:
-        logger.info("[WARMER] No active scenarios with simulation data")
+        logger.debug("[WARMER] No active scenarios with simulation data")
         return
 
-    logger.info(f"[WARMER] Checking {len(scenario_ids)} scenarios (hash={_CODE_HASH})")
+    logger.info(f"[WARMER] Scanning {len(scenario_ids)} scenarios (hash={_CODE_HASH})")
     repo = HomeRepository(s3_manager=S3Manager())
     warmed = 0
+    skipped = 0
 
     for sid in scenario_ids:
         try:
-            t = await _warm_timeline(sid, repo)
-            s = await _warm_static(sid, repo)
+            need_t, need_s = await _check_staleness(sid, repo)
+            if not need_t and not need_s:
+                skipped += 1
+                continue
+
+            t, s = await _warm_scenario(sid, repo, need_t, need_s)
             if t or s:
                 warmed += 1
-                logger.info(f"[WARMER] Warmed {sid} (timeline={t}, static={s})")
+                logger.info(f"[WARMER] Built {sid} (timeline={t}, static={s})")
         except Exception as e:
             logger.error(f"[WARMER] Failed {sid}: {e}")
 
-    logger.info(f"[WARMER] Complete — {warmed}/{len(scenario_ids)} refreshed")
+    if warmed > 0:
+        logger.info(f"[WARMER] Done — {warmed} rebuilt, {skipped} up-to-date")
+    else:
+        logger.info(f"[WARMER] Done — all {skipped} scenarios up-to-date")
 
 
 async def run_periodic_warmer(interval_seconds: int = 300) -> None:

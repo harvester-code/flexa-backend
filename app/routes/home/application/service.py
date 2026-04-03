@@ -121,85 +121,50 @@ class HomeService:
         2. 캐시가 있고 유효하면 (parquet보다 최신 + 코드 해시 일치) → 캐시 반환
         3. 캐시가 없거나 오래되었으면 → 새로 계산 + S3에 저장
         """
-        logger.info(f"=" * 80)
-        logger.info(f"🔍 [CACHE CHECK START] scenario_id={scenario_id}")
         cache_filename = f"home-static-response-{_CODE_HASH}.json"
-        
-        # 1. 캐시가 유효한지 확인 (parquet 수정일 비교)
-        logger.info(f"📋 Checking cache validity for: {cache_filename} (code_hash={_CODE_HASH})")
+
         is_valid = await self.home_repo.is_cache_valid(scenario_id, cache_filename)
-        logger.info(f"📊 Cache validation result: is_valid={is_valid}")
-        
         if is_valid:
-            # 2. 유효한 캐시가 있으면 바로 반환
-            logger.info(f"✅ Cache is valid! Attempting to load cached data...")
             cached_data = await self.home_repo.load_cached_response(scenario_id, cache_filename)
             if cached_data:
-                logger.info(f"🚀 [CACHE HIT] Returning cached static data (NO COMPUTATION)")
-                logger.info(f"=" * 80)
+                logger.info(f"[STATIC] Cache hit — {scenario_id}")
                 return cached_data
-            else:
-                logger.warning(f"⚠️ Cache was valid but failed to load data")
-        
-        # 3. 캐시가 없거나 오래됨 → 새로 계산
-        logger.info(f"❌ [CACHE MISS] Cache invalid or not found")
-        logger.info(f"⚙️ [COMPUTING] Starting heavy computation (parquet + analysis)...")
+
+        logger.info(f"[STATIC] Cache miss — computing {scenario_id}")
         pax_df = await self._get_pax_dataframe(scenario_id)
-        logger.info(f"📦 Loaded parquet data: {len(pax_df)} rows")
-        
         process_flow = await self._load_process_flow(scenario_id)
-        logger.info(f"🔄 Creating calculator and computing charts...")
         calculator = self._create_calculator(
             pax_df, process_flow=process_flow, interval_minutes=interval_minutes
         )
 
-        logger.info(f"📊 Computing flow_chart...")
-        flow_chart = calculator.get_flow_chart_data()
-        logger.info(f"📊 Computing histogram...")
-        histogram = calculator.get_histogram_data()
-        logger.info(f"📊 Computing sankey_diagram...")
-        sankey = calculator.get_sankey_diagram_data()
-        
         result = {
-            "flow_chart": flow_chart,
-            "histogram": histogram,
-            "sankey_diagram": sankey,
+            "flow_chart": calculator.get_flow_chart_data(),
+            "histogram": calculator.get_histogram_data(),
+            "sankey_diagram": calculator.get_sankey_diagram_data(),
         }
-        
-        logger.info(f"✅ Computation complete! Saving to cache...")
-        # 4. 계산된 결과를 S3에 캐시로 저장
+
         save_success = await self.home_repo.save_cached_response(scenario_id, cache_filename, result)
-        logger.info(f"💾 Cache save result: success={save_success}")
-        
-        # 5. 이전 버전 캐시 파일 정리
         if save_success:
-            deleted = await self.home_repo.delete_old_caches(
+            await self.home_repo.delete_old_caches(
                 scenario_id,
                 prefix="home-static-response-",
                 keep_filename=cache_filename,
             )
-            if deleted:
-                logger.info(f"🗑️ Deleted {len(deleted)} old cache(s): {deleted}")
-        
-        logger.info(f"=" * 80)
-        
+
         return result
 
     async def fetch_passenger_timelines(self, scenario_id: str) -> Dict[str, Any]:
         """승객별 타임라인 데이터 반환 (3D 뷰어용, S3 캐싱 지원)"""
-        logger.info(f"={'=' * 79}")
-        logger.info(f"[TIMELINE] scenario_id={scenario_id}")
-
         cache_filename = f"passenger-timelines-{_CODE_HASH}.json"
 
         is_valid = await self.home_repo.is_cache_valid(scenario_id, cache_filename)
         if is_valid:
             cached = await self.home_repo.load_cached_response(scenario_id, cache_filename)
             if cached:
-                logger.info("[TIMELINE] Cache hit – returning cached data")
+                logger.info(f"[TIMELINE] Cache hit — {scenario_id}")
                 return cached
 
-        logger.info("[TIMELINE] Cache miss – computing timelines from parquet")
+        logger.info(f"[TIMELINE] Cache miss — computing {scenario_id}")
         pax_df = await self._get_pax_dataframe(scenario_id)
         metadata = await self._get_metadata(scenario_id)
 
@@ -213,7 +178,6 @@ class HomeService:
                 keep_filename=cache_filename,
             )
 
-        logger.info(f"={'=' * 79}")
         return result
 
     async def fetch_metrics_data(
