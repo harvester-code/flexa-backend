@@ -82,8 +82,8 @@ else:
 SUPABASE_ENGINE = create_async_engine(
     f"postgresql+asyncpg://{SUPABASE_USERNAME}:{SUPABASE_PASSWORD}@{SUPABASE_HOST}:{SUPABASE_PORT}/{SUPABASE_DBNAME}",
     **POOL_SETTINGS,
-    echo=IS_DEV,      # 개발 환경에서만 SQL 로그 출력
-    echo_pool=IS_DEV  # 개발 환경에서만 풀 로그 출력
+    echo=False,
+    echo_pool=False,
 )
 
 AsyncSessionLocal = sessionmaker(

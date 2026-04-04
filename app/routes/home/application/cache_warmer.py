@@ -10,6 +10,7 @@ Runs once at server startup then repeats on a configurable interval.
 """
 
 import asyncio
+import gc
 import os
 from typing import List, Optional, Tuple
 
@@ -60,44 +61,53 @@ async def _warm_scenario(
     need_timeline: bool,
     need_static: bool,
 ) -> Tuple[bool, bool]:
-    """Warm one scenario, loading parquet/metadata at most once."""
+    """Warm one scenario, loading parquet/metadata at most once.
+
+    Explicitly deletes large objects after use to keep RSS low.
+    """
     pax_df: Optional[pd.DataFrame] = None
     metadata: Optional[dict] = None
     t_ok = False
     s_ok = False
 
-    if need_timeline:
-        pax_df = await repo.load_simulation_parquet(scenario_id)
-        if pax_df is not None:
-            metadata = await repo.load_metadata(scenario_id, "metadata-for-frontend.json")
-            result = build_passenger_timelines(pax_df, metadata)
-            t_ok = await repo.save_cached_response(scenario_id, TIMELINE_CACHE, result)
-            if t_ok:
-                await repo.delete_old_caches(scenario_id, "passenger-timelines-", TIMELINE_CACHE)
-
-    if need_static:
-        if pax_df is None:
+    try:
+        if need_timeline:
             pax_df = await repo.load_simulation_parquet(scenario_id)
-        if metadata is None and pax_df is not None:
-            metadata = await repo.load_metadata(scenario_id, "metadata-for-frontend.json")
-        if pax_df is not None:
-            process_flow = None
-            if metadata:
-                pf = metadata.get("process_flow")
-                process_flow = pf if isinstance(pf, list) else None
-            calculator = HomeAnalyzer(
-                pax_df,
-                process_flow=process_flow,
-                country_to_airports_path=_COUNTRY_AIRPORTS_PATH,
-            )
-            result = {
-                "flow_chart": calculator.get_flow_chart_data(),
-                "histogram": calculator.get_histogram_data(),
-                "sankey_diagram": calculator.get_sankey_diagram_data(),
-            }
-            s_ok = await repo.save_cached_response(scenario_id, STATIC_CACHE, result)
-            if s_ok:
-                await repo.delete_old_caches(scenario_id, "home-static-response-", STATIC_CACHE)
+            if pax_df is not None:
+                metadata = await repo.load_metadata(scenario_id, "metadata-for-frontend.json")
+                result = build_passenger_timelines(pax_df, metadata)
+                t_ok = await repo.save_cached_response(scenario_id, TIMELINE_CACHE, result)
+                if t_ok:
+                    await repo.delete_old_caches(scenario_id, "passenger-timelines-", TIMELINE_CACHE)
+                del result
+
+        if need_static:
+            if pax_df is None:
+                pax_df = await repo.load_simulation_parquet(scenario_id)
+            if metadata is None and pax_df is not None:
+                metadata = await repo.load_metadata(scenario_id, "metadata-for-frontend.json")
+            if pax_df is not None:
+                process_flow = None
+                if metadata:
+                    pf = metadata.get("process_flow")
+                    process_flow = pf if isinstance(pf, list) else None
+                calculator = HomeAnalyzer(
+                    pax_df,
+                    process_flow=process_flow,
+                    country_to_airports_path=_COUNTRY_AIRPORTS_PATH,
+                )
+                result = {
+                    "flow_chart": calculator.get_flow_chart_data(),
+                    "histogram": calculator.get_histogram_data(),
+                    "sankey_diagram": calculator.get_sankey_diagram_data(),
+                }
+                s_ok = await repo.save_cached_response(scenario_id, STATIC_CACHE, result)
+                if s_ok:
+                    await repo.delete_old_caches(scenario_id, "home-static-response-", STATIC_CACHE)
+                del result, calculator
+    finally:
+        del pax_df, metadata
+        gc.collect()
 
     return (t_ok, s_ok)
 

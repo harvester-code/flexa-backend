@@ -10,63 +10,58 @@ from packages.doppler.client import get_secret
 
 def monitor_memory():
     """
-    현재 프로세스의 메모리 사용량을 모니터링하고, 특별한 변화가 있을 때만 로그에 기록합니다.
+    현재 프로세스의 메모리 사용량을 모니터링하고, 의미 있는 변화가 있을 때만 로그에 기록합니다.
     
     로그 출력 조건:
-    - 메모리 사용량이 이전 값 대비 10% 이상 증가했을 때
-    - 메모리 사용량이 500MB를 초과했을 때
-    - 메모리 사용량이 1GB를 초과했을 때 (경고)
-    
-    RSS (Resident Set Size)는 프로세스가 실제로 물리적 메모리(RAM)에 점유하고 있는 메모리 크기를 의미합니다.
-    이는 프로세스가 사용하는 전체 메모리 중에서 디스크 스왑 영역이 아닌 실제 메모리에 상주하는 부분을 나타냅니다.
+    - 메모리 사용량이 이전 *로그 출력 시점* 대비 10% 이상 변화했을 때
+    - 500MB / 1GB 경계를 새로 넘었을 때 (이미 넘어있으면 반복 출력 안 함)
     """
 
     process = psutil.Process(os.getpid())
-    previous_rss_mb = None
-    check_interval = 5  # 5초마다 체크
-    
+    last_logged_mb: float = 0.0
+    was_above_500 = False
+    was_above_1g = False
+    check_interval = 5
+
     while True:
-        mem_info = process.memory_info()
-        rss_mb = mem_info.rss / (1024**2)  # Convert bytes to MB
-        
+        rss_mb = process.memory_info().rss / (1024**2)
+
         should_log = False
         log_level = "info"
         message = ""
-        
-        # 1. 메모리 사용량이 1GB를 초과한 경우 (경고)
-        if rss_mb > 1024:
+
+        above_1g = rss_mb > 1024
+        above_500 = rss_mb > 500
+
+        if above_1g and not was_above_1g:
             should_log = True
             log_level = "warning"
-            message = f"[Memory Monitor] ⚠️  High memory usage detected! RSS: {rss_mb:.2f} MB (>1GB)"
-        
-        # 2. 메모리 사용량이 500MB를 초과한 경우
-        elif rss_mb > 500:
+            message = f"[Memory] RSS crossed 1GB: {rss_mb:.0f} MB"
+        elif above_500 and not was_above_500:
             should_log = True
-            log_level = "info"
-            message = f"[Memory Monitor] 📊 Memory usage above 500MB. RSS: {rss_mb:.2f} MB"
-        
-        # 3. 이전 값과 비교하여 10% 이상 증가한 경우
-        elif previous_rss_mb is not None:
-            increase_percent = ((rss_mb - previous_rss_mb) / previous_rss_mb) * 100
-            if increase_percent >= 10:
+            message = f"[Memory] RSS crossed 500MB: {rss_mb:.0f} MB"
+        elif not above_500 and was_above_500:
+            should_log = True
+            message = f"[Memory] RSS dropped below 500MB: {rss_mb:.0f} MB"
+        elif last_logged_mb > 0:
+            change_pct = abs(rss_mb - last_logged_mb) / last_logged_mb * 100
+            if change_pct >= 10:
+                direction = "increased" if rss_mb > last_logged_mb else "decreased"
                 should_log = True
-                log_level = "info"
-                message = f"[Memory Monitor] 📈 Memory usage increased by {increase_percent:.1f}% ({previous_rss_mb:.2f} MB → {rss_mb:.2f} MB)"
-        
-        # 4. 이전 값이 없을 때는 첫 로그만 출력 (초기 상태 확인)
-        elif previous_rss_mb is None:
+                message = f"[Memory] RSS {direction} {change_pct:.0f}% ({last_logged_mb:.0f} → {rss_mb:.0f} MB)"
+        else:
             should_log = True
-            log_level = "info"
-            message = f"[Memory Monitor] 🚀 Memory monitoring started. Initial RSS: {rss_mb:.2f} MB"
-        
-        # 로그 출력
+            message = f"[Memory] Monitoring started. RSS: {rss_mb:.0f} MB"
+
         if should_log:
             if log_level == "warning":
                 logger.warning(message)
             else:
                 logger.info(message)
-        
-        previous_rss_mb = rss_mb
+            last_logged_mb = rss_mb
+
+        was_above_500 = above_500
+        was_above_1g = above_1g
         time.sleep(check_interval)
 
 

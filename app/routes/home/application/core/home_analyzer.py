@@ -5,6 +5,7 @@ import urllib.request
 import numpy as np
 import pandas as pd
 import re
+from loguru import logger
 
 
 class HomeAnalyzer:
@@ -37,20 +38,20 @@ class HomeAnalyzer:
     def _get_airport_gdp(self) -> Optional[Dict[str, Any]]:
         """공항 코드로 GDP 정보 가져오기 (캐싱 지원)"""
         if not self.metadata or not self.country_to_airports_path:
-            print(f"GDP 조회 실패: metadata={self.metadata is not None}, country_path={self.country_to_airports_path}")
+            logger.debug(f"GDP lookup skipped: metadata={self.metadata is not None}, country_path={self.country_to_airports_path}")
             return None
 
         # 1. metadata에서 airport 코드 가져오기
         airport_code = self.metadata.get('context', {}).get('airport')
         if not airport_code:
-            print(f"GDP 조회 실패: airport_code가 metadata.context에 없음")
+            logger.debug("GDP lookup skipped: airport_code not in metadata.context")
             return None
 
-        print(f"GDP 조회 시작: airport_code={airport_code}")
+        logger.debug(f"GDP lookup: airport_code={airport_code}")
 
         # 캐시 확인
         if airport_code in self._gdp_cache:
-            print(f"GDP 캐시에서 반환: {airport_code}")
+            logger.debug(f"GDP cache hit: {airport_code}")
             return self._gdp_cache[airport_code]
 
         try:
@@ -67,10 +68,10 @@ class HomeAnalyzer:
                     break
 
             if not country_code:
-                print(f"GDP 조회 실패: {airport_code}가 country_to_airports.json에 없음")
+                logger.debug(f"GDP lookup failed: {airport_code} not found in country_to_airports.json")
                 return None
 
-            print(f"국가 찾음: {country_name} ({country_code})")
+            logger.debug(f"GDP country resolved: {country_name} ({country_code})")
 
             # 3. World Bank API로 GDP, GDP PPP, 인구 조회
             result = {
@@ -94,7 +95,7 @@ class HomeAnalyzer:
                                 if item.get('value') is not None:
                                     return item
                 except Exception as e:
-                    print(f"World Bank API 조회 실패: {e}")
+                    logger.debug(f"World Bank API request failed: {e}")
                 return None
 
             # GDP (current US$)
@@ -147,7 +148,7 @@ class HomeAnalyzer:
                 self._gdp_cache[airport_code] = result
                 return result
         except Exception as e:
-            print(f"GDP 조회 실패 ({airport_code}): {e}")
+            logger.warning(f"GDP lookup failed ({airport_code}): {e}")
 
         return None
 
@@ -424,7 +425,7 @@ class HomeAnalyzer:
                 }
             }
         except Exception as e:
-            print(f"Time metrics 계산 중 오류 발생: {e}")
+            logger.warning(f"Time metrics calculation error: {e}")
             return None
 
     def _calculate_opened_counts(self) -> Dict[str, Any]:
@@ -683,7 +684,7 @@ class HomeAnalyzer:
 
             return facility_metrics_aggregated if facility_metrics_aggregated else None
         except Exception as e:
-            print(f"Facility metrics 계산 중 오류 발생: {e}")
+            logger.warning(f"Facility metrics calculation error: {e}")
             return None
 
     def _calculate_passenger_summary(self) -> Dict[str, int]:
@@ -763,7 +764,7 @@ class HomeAnalyzer:
                 "airport_context": airport_gdp  # GDP 정보 포함
             }
         except Exception as e:
-            print(f"Economic impact 계산 중 오류 발생: {e}")
+            logger.warning(f"Economic impact calculation error: {e}")
             return None
 
     def get_summary(self):
