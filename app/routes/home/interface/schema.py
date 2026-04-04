@@ -50,6 +50,8 @@ class PassengerTimelineResponse(BaseModel):
     steps: List[PassengerTimelineStepInfo] = Field(default_factory=list)
     zones: Dict[str, PassengerTimelineZone] = Field(default_factory=dict)
     zone_facilities: Dict[str, List[str]] = Field(default_factory=dict)
+    facility_schedules: Dict[str, List[Any]] = Field(default_factory=dict)
+    zone_max_queue: Dict[str, int] = Field(default_factory=dict)
     passengers: List[Any] = Field(default_factory=list)
 
 
