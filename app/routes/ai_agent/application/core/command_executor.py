@@ -1243,30 +1243,12 @@ class CommandExecutor:
 
         aircraft_info = {}
 
-        # aircraft_type_iata 정보 추출
-        if 'aircraft_type_iata' in df.columns:
-            aircraft_types = df['aircraft_type_iata'].dropna().unique()
+        # aircraft_type_name 우선, 없으면 aircraft_type_iata fallback
+        name_col = 'aircraft_type_name' if 'aircraft_type_name' in df.columns else 'aircraft_type_iata'
+        if name_col in df.columns:
+            aircraft_types = df[name_col].dropna().unique()
             if len(aircraft_types) > 0:
-                # 기종 코드 매핑 (일반적인 IATA 코드)
-                aircraft_name_map = {
-                    '738': 'Boeing 737-800',
-                    '73H': 'Boeing 737-800',
-                    '320': 'Airbus A320',
-                    '321': 'Airbus A321',
-                    '359': 'Airbus A350-900',
-                    '77W': 'Boeing 777-300ER',
-                    '788': 'Boeing 787-8',
-                    '789': 'Boeing 787-9',
-                }
-
-                aircraft_list = []
-                for code in aircraft_types:
-                    code_str = str(code)
-                    full_name = aircraft_name_map.get(code_str, code_str)
-                    aircraft_list.append({
-                        "기종_코드": code_str,
-                        "기종_명": full_name
-                    })
+                aircraft_list = [{"기종_명": str(v)} for v in aircraft_types]
 
                 aircraft_info["사용_기종"] = aircraft_list
                 if len(aircraft_list) == 1:

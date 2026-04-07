@@ -511,7 +511,7 @@ class FlightScheduleResponse:
             'operating_carrier_name',
             'departure_airport_iata', 'arrival_airport_iata',
             'scheduled_departure_local', 'scheduled_arrival_local',
-            'aircraft_type_icao',
+            'aircraft_type_name',
             'departure_terminal', 'arrival_terminal',
             'flight_type',
             'departure_city', 'arrival_city',

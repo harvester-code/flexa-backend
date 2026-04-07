@@ -1322,7 +1322,7 @@ Examples:
   * Cities: departure_city, arrival_city
   * Times: scheduled_departure_local, scheduled_arrival_local, show_up_time
   * Seats: total_seats
-  * Aircraft: aircraft_type_iata
+  * Aircraft: aircraft_type_name (human-readable name like "Boeing 737-800 Passenger")
 
 1. Never use technical terms or JSON key names. Always explain in natural language that regular users can understand.
    - "savedAt" → "This file was saved on [date/time]"
