@@ -1,24 +1,27 @@
 """
 항공편 데이터 보강 모듈 (Flight Data Enrichment)
 
-Snowflake MASTER_CARRIER_TRIAL / MASTER_LOCATION_TRIAL은 Trial 뷰로 데이터가 제한적.
+Snowflake MASTER_LOCATION_TRIAL은 Trial 뷰로 데이터가 제한적.
 매핑 누락 시 국가코드(KR,JP)가 그대로 노출되고, 지역(region)은 NULL로 남는 문제를 해결.
 
 이 모듈은 Snowflake 쿼리 결과를 후처리하여:
-  1. 항공사 코드 → 항공사명 변환 (KE → Korean Air)
-  2. MASTER 테이블의 ALL CAPS 항공사명 → title case 정규화 (ASIANA AIRLINES → Asiana Airlines)
-  3. 2글자 국가코드 → 국가명 변환 (CN → China)
-  4. MASTER 테이블의 ALL CAPS 국가명 → 정규화 (JAPAN → Japan)
-  5. 국가 기반 지역(region) 자동 할당 (Japan → Asia)
-  6. 국가코드(country_code) 역매핑 보정
-
-OAG에서 Full 뷰(MASTER_CARRIER, MASTER_LOCATION)를 제공하면
-COALESCE로 대부분 해결되므로, 이 모듈의 fallback 빈도가 줄어듦.
+  1. 항공사 코드 → 항공사명: packages/oag_ref.xlsx (Airline Code)에서 비행일(flight_date) 기준 유효 행 매칭
+  2. 엑셀에 없을 때만 CARRIER_CODE_NAME 및 스케줄의 SAD_NAME 기반 보조 매핑
+  3. 엑셀 매칭 실패 시 ALL CAPS 항공사명 → title case 정규화 (ASIANA AIRLINES → Asiana Airlines)
+  4. 2글자 국가코드 → 국가명 변환 (CN → China)
+  5. MASTER 테이블의 ALL CAPS 국가명 → 정규화 (JAPAN → Japan)
+  6. 국가 기반 지역(region) 자동 할당 (Japan → Asia)
+  7. 국가코드(country_code) 역매핑 보정
 """
 
 import re
+from datetime import date
 from typing import Dict, List, Optional, Tuple
 from loguru import logger
+
+from .oag_airline_reference import lookup_airline_name, parse_flight_date
+from .oag_aircraft_reference import lookup_aircraft_name
+from .oag_airport_reference import lookup_airport
 
 
 # ============================================================
@@ -606,39 +609,79 @@ def enrich_flight_data(flights: List[dict]) -> List[dict]:
     for flight in flights:
         changed = False
 
-        # 항공사명 보강
+        # 항공사명 보강 (OAG 엑셀 비행일 기준 → 기존 fallback)
         carrier_code = flight.get("marketing_carrier_iata") or flight.get("operating_carrier_iata")
         carrier_name_raw = flight.get("operating_carrier_name")
-        resolved_name = _resolve_carrier(carrier_code, carrier_name_raw)
+        as_of = parse_flight_date(flight.get("flight_date")) or date.today()
+        oag_name = lookup_airline_name(carrier_code, as_of)
+        resolved_name = oag_name or _resolve_carrier(carrier_code, carrier_name_raw)
         if resolved_name and resolved_name != carrier_name_raw:
             flight["operating_carrier_name"] = resolved_name
             changed = True
 
-        # 출발지 보강
-        dep_country_raw = flight.get("departure_country")
-        if dep_country_raw:
-            dep_name, dep_code, dep_region = _resolve_country(dep_country_raw)
-            if dep_name and dep_name != dep_country_raw:
-                flight["departure_country"] = dep_name
-                changed = True
-            if dep_code:
-                flight["departure_country_code"] = dep_code
-            if dep_region:
-                flight["departure_region"] = dep_region
+        # 항공기종명 보강 (OAG 엑셀 Aircraft Code)
+        acft_iata = flight.get("aircraft_type_iata")
+        if acft_iata:
+            acft_name = lookup_aircraft_name(acft_iata, as_of)
+            if acft_name:
+                flight["aircraft_type_name"] = acft_name
                 changed = True
 
-        # 도착지 보강
-        arr_country_raw = flight.get("arrival_country")
-        if arr_country_raw:
-            arr_name, arr_code, arr_region = _resolve_country(arr_country_raw)
-            if arr_name and arr_name != arr_country_raw:
-                flight["arrival_country"] = arr_name
+        # 출발지 보강 (OAG 엑셀 공항 코드 → 기존 _resolve_country fallback)
+        dep_iata = flight.get("departure_airport_iata")
+        dep_oag = lookup_airport(dep_iata, as_of) if dep_iata else None
+        if dep_oag:
+            if dep_oag.city:
+                flight["departure_city"] = dep_oag.city
                 changed = True
-            if arr_code:
-                flight["arrival_country_code"] = arr_code
-            if arr_region:
-                flight["arrival_region"] = arr_region
+            if dep_oag.country:
+                resolved = _resolve_country(dep_oag.country)
+                flight["departure_country"] = resolved[0] or dep_oag.country
+                flight["departure_country_code"] = resolved[1]
                 changed = True
+            if dep_oag.region:
+                flight["departure_region"] = dep_oag.region
+                changed = True
+        else:
+            dep_country_raw = flight.get("departure_country")
+            if dep_country_raw:
+                dep_name, dep_code, dep_region = _resolve_country(dep_country_raw)
+                if dep_name and dep_name != dep_country_raw:
+                    flight["departure_country"] = dep_name
+                    changed = True
+                if dep_code:
+                    flight["departure_country_code"] = dep_code
+                if dep_region:
+                    flight["departure_region"] = dep_region
+                    changed = True
+
+        # 도착지 보강 (OAG 엑셀 공항 코드 → 기존 _resolve_country fallback)
+        arr_iata = flight.get("arrival_airport_iata")
+        arr_oag = lookup_airport(arr_iata, as_of) if arr_iata else None
+        if arr_oag:
+            if arr_oag.city:
+                flight["arrival_city"] = arr_oag.city
+                changed = True
+            if arr_oag.country:
+                resolved = _resolve_country(arr_oag.country)
+                flight["arrival_country"] = resolved[0] or arr_oag.country
+                flight["arrival_country_code"] = resolved[1]
+                changed = True
+            if arr_oag.region:
+                flight["arrival_region"] = arr_oag.region
+                changed = True
+        else:
+            arr_country_raw = flight.get("arrival_country")
+            if arr_country_raw:
+                arr_name, arr_code, arr_region = _resolve_country(arr_country_raw)
+                if arr_name and arr_name != arr_country_raw:
+                    flight["arrival_country"] = arr_name
+                    changed = True
+                if arr_code:
+                    flight["arrival_country_code"] = arr_code
+                if arr_region:
+                    flight["arrival_region"] = arr_region
+                    changed = True
 
         if changed:
             enriched_count += 1
