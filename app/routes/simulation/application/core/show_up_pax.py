@@ -546,9 +546,15 @@ class ShowUpPassengerResponse:
                     chart_data = await self._create_show_up_summary(
                         pax_df, group_column
                     )
-                    if chart_data:
-                        chart_result[group_labels[i]] = chart_data["traces"]
-                        chart_x_data = chart_data["default_x"]
+                    if not chart_data:
+                        continue
+                    traces = chart_data.get("traces") or []
+                    default_x = chart_data.get("default_x") or []
+                    # 데이터가 있는 축만 포함; 빈 축이 chart_x_data를 덮어쓰지 않도록 분리
+                    if traces:
+                        chart_result[group_labels[i]] = traces
+                    if default_x:
+                        chart_x_data = default_x
 
         # 응답 구조: 다른 API들과 일관성 맞춤 - 컨텍스트 정보 먼저
         response = {}
