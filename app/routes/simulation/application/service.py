@@ -460,6 +460,77 @@ class SimulationService:
     # 5. 메타데이터 처리 (S3 Save/Load)
     # =====================================
 
+    @staticmethod
+    def _compute_schedule_interval_minutes(metadata: dict) -> int | None:
+        """
+        process_flow의 모든 time_blocks period 경계 시각에서 분(minute) 값을 수집한 뒤
+        GCD를 계산해 스케줄 최소 단위(분)를 반환합니다.
+
+        period 지원 형식:
+          - "HH:MM-HH:MM"  (예: "06:35-08:00")
+          - "YYYY-MM-DD HH:MM:SS-YYYY-MM-DD HH:MM:SS"  (예: "2026-04-03 06:35:00-2026-04-03 08:00:00")
+
+        주의: 분 값 59는 시스템이 자동 생성한 경계 아티팩트(23:59 등)이므로 GCD 계산에서 제외합니다.
+        """
+        from math import gcd
+
+        def extract_minute(token: str) -> int | None:
+            """시각 문자열에서 분(minute) 값만 추출. 실패하면 None 반환."""
+            token = token.strip()
+            # datetime 형식: "YYYY-MM-DD HH:MM:SS"
+            if " " in token:
+                time_part = token.split(" ", 1)[1]  # "HH:MM:SS"
+            else:
+                time_part = token  # "HH:MM" 또는 "HH:MM:SS"
+            parts = time_part.split(":")
+            if len(parts) < 2:
+                return None
+            try:
+                return int(parts[1])
+            except ValueError:
+                return None
+
+        minute_vals: set[int] = set()
+        try:
+            process_flow = metadata.get("process_flow", [])
+            for process in process_flow:
+                zones = process.get("zones", {})
+                for zone_data in zones.values():
+                    for facility in zone_data.get("facilities", []):
+                        if not isinstance(facility, dict):
+                            continue
+                        time_blocks = (
+                            facility.get("operating_schedule", {}).get("time_blocks", [])
+                        )
+                        for block in time_blocks:
+                            period = block.get("period", "")
+                            if not period:
+                                continue
+                            # datetime 형식은 첫 번째 공백 이후에 구분자 '-' 존재
+                            # "YYYY-MM-DD HH:MM:SS-YYYY-MM-DD HH:MM:SS"
+                            if " " in period:
+                                sep_idx = period.index("-", period.index(" "))
+                            else:
+                                sep_idx = period.index("-")
+                            start_token = period[:sep_idx]
+                            end_token = period[sep_idx + 1:]
+                            for token in (start_token, end_token):
+                                m = extract_minute(token)
+                                if m is not None and m != 59:  # 59는 시스템 경계 아티팩트
+                                    minute_vals.add(m)
+        except Exception:
+            return None
+
+        non_zero = [m for m in minute_vals if m != 0]
+        if not non_zero:
+            # 분 값이 모두 0이면 → 시각이 정각만 존재 → 60의 약수 범위에서 판단 불가, None 반환
+            return None
+
+        result = non_zero[0]
+        for v in non_zero[1:]:
+            result = gcd(result, v)
+        return result
+
     async def save_scenario_metadata(self, scenario_id: str, metadata: dict, db=None):
         """
         시나리오 메타데이터를 S3에 저장하고 Supabase의 metadata_updated_at도 업데이트
@@ -479,6 +550,15 @@ class SimulationService:
                 f"💾 Saving metadata for scenario {scenario_id}: "
                 f"{tabs_count} tabs, simulationUI: {has_simulation_ui}"
             )
+
+            # schedule_interval_minutes 필드: 프론트에서 전달되지 않은 경우 데이터 기반 GCD로 채움
+            if "schedule_interval_minutes" not in metadata or metadata.get("schedule_interval_minutes") is None:
+                computed = self._compute_schedule_interval_minutes(metadata)
+                if computed is not None:
+                    metadata["schedule_interval_minutes"] = computed
+                    logger.info(
+                        f"Computed schedule_interval_minutes={computed} for scenario {scenario_id}"
+                    )
 
             # S3Manager를 사용하여 저장
             success = await self.s3_manager.save_json_async(
