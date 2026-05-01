@@ -445,41 +445,11 @@ class FlightScheduleResponse:
 
     def _generate_flight_unique_id_from_row(self, row: pd.Series) -> str:
         """
-        DataFrame row에서 항공편 고유 속성으로 unique ID 생성
-        PostgreSQL 데이터는 이미 unique하므로, 실제 항공편 속성 조합으로 전역적으로 unique한 ID 생성
+        항공편 고유 ID 생성 - carrier_code + flight_number 형식 (예: KE712)
+        packages.flight_data.flight_number.build_flight_id_from_row 위임
         """
-        carrier = str(row.get('operating_carrier_iata', 'XX')) if pd.notna(row.get('operating_carrier_iata')) else 'XX'
-        dep_airport = str(row.get('departure_airport_iata', '')) if pd.notna(row.get('departure_airport_iata')) else ''
-        arr_airport = str(row.get('arrival_airport_iata', '')) if pd.notna(row.get('arrival_airport_iata')) else ''
-        
-        # 시간 정보 처리 (UTC 우선, 없으면 Local 사용)
-        dep_time = row.get('scheduled_departure_utc') if pd.notna(row.get('scheduled_departure_utc')) else row.get('scheduled_departure_local')
-        arr_time = row.get('scheduled_arrival_utc') if pd.notna(row.get('scheduled_arrival_utc')) else row.get('scheduled_arrival_local')
-        
-        # datetime 객체를 문자열로 변환 (ISO 형식)
-        if pd.notna(dep_time) and dep_time:
-            if hasattr(dep_time, 'strftime'):
-                dep_time_str = dep_time.strftime("%Y%m%d%H%M%S")
-            else:
-                dep_time_str = str(dep_time).replace("-", "").replace(":", "").replace(" ", "")[:14]
-        else:
-            dep_time_str = ""
-            
-        if pd.notna(arr_time) and arr_time:
-            if hasattr(arr_time, 'strftime'):
-                arr_time_str = arr_time.strftime("%Y%m%d%H%M%S")
-            else:
-                arr_time_str = str(arr_time).replace("-", "").replace(":", "").replace(" ", "")[:14]
-        else:
-            arr_time_str = ""
-        
-        # None이나 빈 문자열 처리
-        dep_airport = dep_airport or ""
-        arr_airport = arr_airport or ""
-        dep_time_str = dep_time_str.replace("None", "").replace("NaT", "").replace("nan", "")
-        arr_time_str = arr_time_str.replace("None", "").replace("NaT", "").replace("nan", "")
-        
-        return f"{carrier}_{dep_airport}_{arr_airport}_{dep_time_str}_{arr_time_str}"
+        from packages.flight_data.flight_number import build_flight_id_from_row
+        return build_flight_id_from_row(row) or ""
 
     def _build_parquet_metadata(self, flight_df: pd.DataFrame) -> list:
         """
@@ -509,6 +479,7 @@ class FlightScheduleResponse:
         # 선택된 컬럼들만 처리 (departure 컬럼은 arrival 쌍도 포함)
         target_columns = [
             'operating_carrier_name',
+            'flight_number',
             'departure_airport_iata', 'arrival_airport_iata',
             'scheduled_departure_local', 'scheduled_arrival_local',
             'aircraft_type_name',
@@ -537,24 +508,16 @@ class FlightScheduleResponse:
                     matched_rows = flight_df[mask]
                     
                     # ========================================
-                    # 🔵 PostgreSQL: 항공편 고유 속성으로 유니크 ID 생성 (현재 활성)
+                    # 🔵 carrier+flight_number로 유니크 ID 생성 (KE712 형식)
                     # ========================================
+                    seen_flight_ids: set = set()
                     flights = []
                     for idx, row in matched_rows.iterrows():
-                        # 항공편 고유 속성 조합으로 전역 unique ID 생성
+                        # 항공편 고유 ID = carrier+flight_number (KE712 형식)
                         flight_id = self._generate_flight_unique_id_from_row(row)
-                        if flight_id:
+                        if flight_id and flight_id not in seen_flight_ids:
+                            seen_flight_ids.add(flight_id)
                             flights.append(flight_id)
-                    
-                    # ========================================
-                    # 🔴 Redshift: carrier + flight_number로 유니크 ID 생성 (레거시 - 참고용)
-                    # ========================================
-                    # flights = []
-                    # for _, row in matched_rows.iterrows():
-                    #     carrier = str(row['operating_carrier_iata']) if pd.notna(row['operating_carrier_iata']) else ""
-                    #     flight_num = str(row['flight_number']) if pd.notna(row['flight_number']) else ""
-                    #     if carrier and flight_num:  # 둘 다 유효한 값일 때만 추가
-                    #         flights.append(f"{carrier}{flight_num}")
                     
                     # 인덱스 추출 (원본 DataFrame 기준)
                     indices = matched_rows.index.tolist()

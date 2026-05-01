@@ -434,41 +434,11 @@ class FlightFiltersResponse:
 
     def _generate_flight_unique_id(self, flight: Dict[str, Any]) -> str:
         """
-        항공편 고유 속성으로 unique ID 생성
-        PostgreSQL 데이터는 이미 unique하므로, 실제 항공편 속성 조합으로 전역적으로 unique한 ID 생성
+        항공편 고유 ID 생성 - carrier_code + flight_number 형식 (예: KE712)
+        packages.flight_data.flight_number.build_flight_id 위임
         """
-        carrier = flight.get("operating_carrier_iata", "XX")
-        dep_airport = flight.get("departure_airport_iata", "")
-        arr_airport = flight.get("arrival_airport_iata", "")
-        
-        # 시간 정보 처리 (UTC 우선, 없으면 Local 사용)
-        dep_time = flight.get("scheduled_departure_utc") or flight.get("scheduled_departure_local")
-        arr_time = flight.get("scheduled_arrival_utc") or flight.get("scheduled_arrival_local")
-        
-        # datetime 객체를 문자열로 변환 (ISO 형식)
-        if dep_time:
-            if hasattr(dep_time, 'strftime'):
-                dep_time_str = dep_time.strftime("%Y%m%d%H%M%S")
-            else:
-                dep_time_str = str(dep_time).replace("-", "").replace(":", "").replace(" ", "")[:14]
-        else:
-            dep_time_str = ""
-            
-        if arr_time:
-            if hasattr(arr_time, 'strftime'):
-                arr_time_str = arr_time.strftime("%Y%m%d%H%M%S")
-            else:
-                arr_time_str = str(arr_time).replace("-", "").replace(":", "").replace(" ", "")[:14]
-        else:
-            arr_time_str = ""
-        
-        # None이나 빈 문자열 처리
-        dep_airport = dep_airport or ""
-        arr_airport = arr_airport or ""
-        dep_time_str = dep_time_str.replace("None", "").replace("NaT", "").replace("nan", "")
-        arr_time_str = arr_time_str.replace("None", "").replace("NaT", "").replace("nan", "")
-        
-        return f"{carrier}_{dep_airport}_{arr_airport}_{dep_time_str}_{arr_time_str}"
+        from packages.flight_data.flight_number import build_flight_id
+        return build_flight_id(flight) or ""
 
     def _group_by_field(
         self,
@@ -500,15 +470,20 @@ class FlightFiltersResponse:
                     airlines[airline_code].append(flight)
 
             # ========================================
-            # 🔵 PostgreSQL: 데이터가 이미 unique (현재 활성)
+            # 🔵 carrier+flight_number로 유니크 ID 생성 (현재 활성)
             # ========================================
             airline_stats = {}
             for airline_code, airline_flights in airlines.items():
-                # PostgreSQL 데이터는 이미 unique - 항공편 고유 속성으로 전역 unique ID 생성
-                flight_ids = [self._generate_flight_unique_id(flight) for flight in airline_flights]
+                seen: set = set()
+                flight_ids = []
+                for flight in airline_flights:
+                    fid = self._generate_flight_unique_id(flight)
+                    if fid and fid not in seen:
+                        seen.add(fid)
+                        flight_ids.append(fid)
                 airline_stats[airline_code] = {
-                    "count": len(airline_flights),
-                    "flight_numbers": flight_ids,  # 항공편 고유 속성 기반 unique ID
+                    "count": len(flight_ids),
+                    "flight_numbers": flight_ids,
                 }
 
             # ========================================
@@ -601,15 +576,20 @@ class FlightFiltersResponse:
                         country_airlines[airline_code].append(flight)
                 
                 # ========================================
-                # 🔵 PostgreSQL: 데이터가 이미 unique (현재 활성)
+                # 🔵 carrier+flight_number로 유니크 ID 생성 (현재 활성)
                 # ========================================
                 country_airline_stats = {}
                 for airline_code, airline_flights in country_airlines.items():
-                    # PostgreSQL 데이터는 이미 unique - 항공편 고유 속성으로 전역 unique ID 생성
-                    flight_ids = [self._generate_flight_unique_id(flight) for flight in airline_flights]
+                    seen: set = set()
+                    flight_ids = []
+                    for flight in airline_flights:
+                        fid = self._generate_flight_unique_id(flight)
+                        if fid and fid not in seen:
+                            seen.add(fid)
+                            flight_ids.append(fid)
                     country_airline_stats[airline_code] = {
-                        "count": len(airline_flights),
-                        "flight_numbers": flight_ids,  # 항공편 고유 속성 기반 unique ID
+                        "count": len(flight_ids),
+                        "flight_numbers": flight_ids,
                     }
 
                 # ========================================
