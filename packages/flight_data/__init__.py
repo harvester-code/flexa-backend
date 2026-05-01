@@ -26,6 +26,7 @@ else:
     from packages.postgresql.lifespan import lifespan
 
 from packages.flight_data.enrichment import enrich_flight_data
+from packages.flight_data.flight_number import normalize_flight_number, build_flight_id, build_flight_id_from_row
 
 __all__ = [
     "get_snowflake_connection",
@@ -33,4 +34,7 @@ __all__ = [
     "lifespan",
     "FLIGHT_DATA_SOURCE",
     "enrich_flight_data",
+    "normalize_flight_number",
+    "build_flight_id",
+    "build_flight_id_from_row",
 ]
